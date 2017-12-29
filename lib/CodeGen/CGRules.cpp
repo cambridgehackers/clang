@@ -55,6 +55,7 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
   elementTypes.push_back(CGM.Int64Ty);   // i64   STy;
   blockInfo.BlockSize = 2 * CGM.getPointerSize();
   CharUnits endAlign = getLowBit(blockInfo.BlockSize); 
+  QualType VTl = CGM.getContext().LongTy;
 
   // Next, all the block captures.
   for (const auto &CI : blockDecl->captures()) {
@@ -73,8 +74,8 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     assert(endAlign >= blockInfo.BlockAlign);
     blockInfo.Captures.insert({variable,
         CGBlockInfo::Capture::makeIndex(elementTypes.size(), blockInfo.BlockSize, VT)});
-    elementTypes.push_back(CGM.getTypes().ConvertTypeForMem(VT));
-    blockInfo.BlockSize += CGM.getContext().getTypeSizeInChars(VT);
+    elementTypes.push_back(CGM.getTypes().ConvertTypeForMem(VTl));
+    blockInfo.BlockSize += CGM.getContext().getTypeSizeInChars(VTl);
     endAlign = getLowBit(blockInfo.BlockSize);
   } 
   blockInfo.StructureType = llvm::StructType::get(CGM.getLLVMContext(), elementTypes, true);
@@ -108,14 +109,17 @@ blockInfo.StructureType->dump();
     QualType VT = capture.fieldType(); 
     // Fake up a new variable so that EmitScalarInit doesn't think
     // we're referring to the variable in its own initializer.
-    ImplicitParamDecl BlockFieldPseudoVar(getContext(), VT, ImplicitParamDecl::Other); 
+    ImplicitParamDecl BlockFieldPseudoVar(getContext(), VTl, ImplicitParamDecl::Other); 
     DeclRefExpr declRef(const_cast<VarDecl *>(variable), /*RefersToEnclosingVariableOrCapture*/ false,
                         VT, VK_LValue, SourceLocation()); 
     ImplicitCastExpr l2r(ImplicitCastExpr::OnStack, VT, CK_LValueToRValue, &declRef, VK_RValue);
+    Expr *rval = &l2r;
+    if (VT != VTl)
+        rval = ImplicitCastExpr::Create(CGM.getContext(), VTl, CK_IntegralCast,  &l2r, nullptr, VK_RValue);
     LValueBaseInfo BaseInfo(AlignmentSource::Decl, false);
-    EmitExprAsInit(&l2r, &BlockFieldPseudoVar, MakeAddrLValue(
+    EmitExprAsInit(rval, &BlockFieldPseudoVar, MakeAddrLValue(
         projectField(capture.getIndex(), capture.getOffset(), "block.captured"),
-        VT, BaseInfo), /*captured by init*/ false);
+        VTl, BaseInfo), /*captured by init*/ false);
   } 
   // Cast to the converted block-pointer type, which happens (somewhat
   // unfortunately) to be a pointer to function type.
@@ -134,22 +138,20 @@ CodeGenFunction::GenerateRuleFunction(GlobalDecl GD,
                                        const FunctionProtoType *FnType) {
 printf("[%s:%d]\n", __FUNCTION__, __LINE__);
   BlockInfo = &blockInfo; 
+  CurGD = GD; 
   const BlockDecl *FD = blockInfo.getBlockDecl(); 
   SourceLocation loc;
-  CurGD = GD; 
 
+  // Build the function declaration.  
   FunctionArgList Args; 
-  CurEHLocation = loc;
-  Stmt *Body = FD->getBody();
-  // Begin building the function declaration.  
   IdentifierInfo *IThis = &CGM.getContext().Idents.get("this"); 
   Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(FD), loc,
       loc, IThis, thisType, /*TInfo=*/nullptr, SC_None, nullptr));
   for (const auto &CI : FD->captures()) {
-      const CGBlockInfo::Capture &capture = BlockInfo->getCapture(CI.getVariable()); 
       IdentifierInfo *II = &CGM.getContext().Idents.get(CI.getVariable()->getName()); 
       Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(FD), loc,
-          loc, II, capture.fieldType(), /*TInfo=*/nullptr, SC_None, nullptr));
+          loc, II, BlockInfo->getCapture(CI.getVariable()).fieldType(),
+          /*TInfo=*/nullptr, SC_None, nullptr));
   }
   const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeBlockFunctionDeclaration(FnType, Args);
   llvm::Function *Fn = llvm::Function::Create(CGM.getTypes().GetFunctionType(FnInfo),
@@ -161,6 +163,7 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
       paramMap[paramIndex] = AI;
 
   // Emit the standard function prologue.
+  Stmt *Body = FD->getBody();
   StartFunction(FD, FnType->getReturnType(), Fn, FnInfo, Args, FD->getLocation(), Body->getLocStart()); 
   // Generate the body of the function.
   EmitStmt(Body);  // triggers callbacks to GetAddrOfBlockDeclRule for Captures items
