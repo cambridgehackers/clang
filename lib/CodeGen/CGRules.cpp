@@ -1,4 +1,4 @@
-//===--- CGBlocks.cpp - Emit LLVM Code for declarations ---------*- C++ -*-===//
+//===--- CGRules.cpp - Emit LLVM Code for declarations ---------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -36,6 +36,7 @@ llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
   blockInfo.NextBlockInfo = FirstBlockInfo;
   FirstBlockInfo = &blockInfo; 
   blockInfo.BlockAlign = CGM.getPointerAlign();
+  SourceLocation loc;
 
   /// Compute the layout of the given block.  The header is basically:
   //     'struct { void *invoke; void *STy; ... data for captures ...}'.
@@ -64,8 +65,31 @@ blockInfo.StructureType->dump();
 
   // Using the computed layout, generate the actual block function.
   QualType thisType = cast<CXXMethodDecl>(CurFuncDecl)->getThisType(CGM.getContext());
+  const FunctionProtoType *FnType = blockExpr->getFunctionType();
+  FunctionArgList Args; 
+  IdentifierInfo *IThis = &CGM.getContext().Idents.get("this"); 
+  Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl), loc,
+      loc, IThis, thisType, /*TInfo=*/nullptr, SC_None, nullptr));
+  for (const auto &CI : blockDecl->captures()) {
+      IdentifierInfo *II = &CGM.getContext().Idents.get(CI.getVariable()->getName()); 
+      Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl), loc,
+          loc, II, blockInfo.getCapture(CI.getVariable()).fieldType(),
+          /*TInfo=*/nullptr, SC_None, nullptr));
+  }
+
+  const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeBlockFunctionDeclaration(FnType, Args);
+  llvm::Function *Fn = llvm::Function::Create(CGM.getTypes().GetFunctionType(FnInfo),
+      llvm::GlobalValue::ExternalLinkage, //why is this not allowed?? llvm::GlobalValue::InternalLinkage
+      "ruleTemplate", &CGM.getModule());
+
+  auto AI = Fn->arg_begin(), AE = Fn->arg_end();
+  int paramIndex = 1;
+  for (; AI != AE; AI++, paramIndex++)
+      blockInfo.paramMap[paramIndex] = AI;
+
   llvm::Constant *blockFn = llvm::ConstantExpr::getBitCast(
-      CodeGenFunction(CGM, true).GenerateRuleFunction(CurGD, blockInfo, thisType, blockExpr->getFunctionType()),
+      CodeGenFunction(CGM, true).GenerateRuleFunction(CurGD, blockInfo, FnType->getReturnType(),
+         Fn, FnInfo, Args),
       VoidPtrTy);
 
   // Make the allocation for the block.
@@ -106,45 +130,27 @@ blockInfo.StructureType->dump();
   return Builder.CreatePointerCast(blockAddr.getPointer(), ConvertType(blockExpr->getType()));
 }
 
-llvm::DenseMap<int, llvm::Value *> paramMap;
 llvm::Value *CodeGenFunction::GetAddrOfBlockDeclRule(const VarDecl *variable) {
-  return paramMap[BlockInfo->getCapture(variable).getIndex()];
+  return const_cast<CGBlockInfo *>(BlockInfo)->paramMap[BlockInfo->getCapture(variable).getIndex()];
 }
 
 llvm::Function *
 CodeGenFunction::GenerateRuleFunction(GlobalDecl GD,
-                                       const CGBlockInfo &blockInfo,
-                                       QualType thisType,
-                                       const FunctionProtoType *FnType) {
+                                    const CGBlockInfo &blockInfo,
+                                    QualType RetTy,
+                                    llvm::Function *Fn,
+                                    const CGFunctionInfo &FnInfo,
+                                    const FunctionArgList &Args) {
 printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-  BlockInfo = &blockInfo; 
+  BlockInfo = &blockInfo; // needed for GetAddrOfBlockDeclRule
   CurGD = GD; 
   const BlockDecl *FD = blockInfo.getBlockDecl(); 
-  SourceLocation loc;
 
-  // Build the function declaration.  
-  FunctionArgList Args; 
-  IdentifierInfo *IThis = &CGM.getContext().Idents.get("this"); 
-  Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(FD), loc,
-      loc, IThis, thisType, /*TInfo=*/nullptr, SC_None, nullptr));
-  for (const auto &CI : FD->captures()) {
-      IdentifierInfo *II = &CGM.getContext().Idents.get(CI.getVariable()->getName()); 
-      Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(FD), loc,
-          loc, II, BlockInfo->getCapture(CI.getVariable()).fieldType(),
-          /*TInfo=*/nullptr, SC_None, nullptr));
-  }
-  const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeBlockFunctionDeclaration(FnType, Args);
-  llvm::Function *Fn = llvm::Function::Create(CGM.getTypes().GetFunctionType(FnInfo),
-      llvm::GlobalValue::InternalLinkage, "ruleTemplate", &CGM.getModule());
-  auto AI = Fn->arg_begin(), AE = Fn->arg_end();
-  CXXThisValue = AI;
-  int paramIndex = 1;
-  for (; AI != AE; AI++, paramIndex++)
-      paramMap[paramIndex] = AI;
+  CXXThisValue = Fn->arg_begin();
 
   // Emit the standard function prologue.
   Stmt *Body = FD->getBody();
-  StartFunction(FD, FnType->getReturnType(), Fn, FnInfo, Args, FD->getLocation(), Body->getLocStart()); 
+  StartFunction(FD, RetTy, Fn, FnInfo, Args, FD->getLocation(), Body->getLocStart()); 
   // Generate the body of the function.
   EmitStmt(Body);  // triggers callbacks to GetAddrOfBlockDeclRule for Captures items
 

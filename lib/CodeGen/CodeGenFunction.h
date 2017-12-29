@@ -1587,8 +1587,10 @@ public:
                                         bool IsLambdaConversionToBlock);
   llvm::Function *GenerateRuleFunction(GlobalDecl GD,
                                        const CGBlockInfo &Info,
-                                       QualType thisType,
-                                       const FunctionProtoType *FnType);
+                                       QualType RetTy,
+                                       llvm::Function *Fn,
+                                       const CGFunctionInfo &FnInfo,
+                                       const FunctionArgList &Args);
 
   llvm::Constant *GenerateCopyHelperFunction(const CGBlockInfo &blockInfo);
   llvm::Constant *GenerateDestroyHelperFunction(const CGBlockInfo &blockInfo);
