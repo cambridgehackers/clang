@@ -28,19 +28,8 @@
 using namespace clang;
 using namespace CodeGen;
 
-/// Get the low bit of a nonzero character count.  This is the
-/// alignment of the nth byte if the 0th byte is universally aligned.
-static CharUnits getLowBit(CharUnits v) {
-  return CharUnits::fromQuantity(v.getQuantity() & (~v.getQuantity() + 1));
-}
-
 /// Prepare and emit a block literal expression in the current function.
 llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-  /// Enter the scope of a block.  This should be run at the entrance to
-  /// a full-expression so that the block's cleanups are pushed at the
-  /// right place in the stack.
-  assert(HaveInsertPoint()); 
   // Allocate the block info and place it at the head of the list.
   const BlockDecl *blockDecl = blockExpr->getBlockDecl(); 
   CGBlockInfo &blockInfo = *new CGBlockInfo(blockDecl, CurFn->getName());
@@ -54,8 +43,7 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
   elementTypes.push_back(CGM.VoidPtrTy); // void *invoke;
   elementTypes.push_back(CGM.Int64Ty);   // i64   STy;
   blockInfo.BlockSize = 2 * CGM.getPointerSize();
-  CharUnits endAlign = getLowBit(blockInfo.BlockSize); 
-  QualType VTl = CGM.getContext().LongTy;
+  QualType VTl = CGM.getContext().LongTy; // all captured data now stored as i64
 
   // Next, all the block captures.
   for (const auto &CI : blockDecl->captures()) {
@@ -65,18 +53,10 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
      || CI.hasCopyExpr() || CI.isNested() || VT->isReferenceType()) {
 printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     }
-    if (endAlign < blockInfo.BlockAlign) {
-      CharUnits padding = blockInfo.BlockAlign - endAlign;
-      elementTypes.push_back(llvm::ArrayType::get(CGM.Int8Ty, padding.getQuantity()));
-      blockInfo.BlockSize += padding;
-      endAlign = getLowBit(blockInfo.BlockSize);
-    }
-    assert(endAlign >= blockInfo.BlockAlign);
     blockInfo.Captures.insert({variable,
         CGBlockInfo::Capture::makeIndex(elementTypes.size(), blockInfo.BlockSize, VT)});
     elementTypes.push_back(CGM.getTypes().ConvertTypeForMem(VTl));
     blockInfo.BlockSize += CGM.getContext().getTypeSizeInChars(VTl);
-    endAlign = getLowBit(blockInfo.BlockSize);
   } 
   blockInfo.StructureType = llvm::StructType::get(CGM.getLLVMContext(), elementTypes, true);
 printf("[%s:%d] STRUCTURETYPE \n", __FUNCTION__, __LINE__);
