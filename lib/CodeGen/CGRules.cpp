@@ -30,7 +30,6 @@ using namespace CodeGen;
 
 /// Prepare and emit a block literal expression in the current function.
 llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
-  // Allocate the block info and place it at the head of the list.
   const BlockDecl *blockDecl = blockExpr->getBlockDecl(); 
   QualType longType = CGM.getContext().LongTy; // all captured data now stored as i64
   SourceLocation loc;
@@ -38,33 +37,31 @@ llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
   QualType thisType = cast<CXXMethodDecl>(CurFuncDecl)->getThisType(CGM.getContext());
   FunctionArgList Args; 
   IdentifierInfo *IThis = &CGM.getContext().Idents.get("this"); 
-  Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl), loc,
-      loc, IThis, thisType, /*TInfo=*/nullptr, SC_None, nullptr));
+  Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl),
+      loc, loc, IThis, thisType, /*TInfo=*/nullptr, SC_None, nullptr));
 
   /// Compute the layout of the given block.  The header is basically:
-  //     'struct { void *invoke; void *STy; ... data for captures ...}'.
+  //     'struct { void *invoke; i64 STy; ... data for captures ...}'.
+  //  All the captured data is stored as i64 values
   SmallVector<llvm::Type*, 8> elementTypes;
   elementTypes.push_back(CGM.VoidPtrTy); // void *invoke;
   elementTypes.push_back(CGM.Int64Ty);   // i64   STy;
 
   // Next, all the block captures.
-  int pindex = elementTypes.size();
   for (const auto &CI : blockDecl->captures()) {
-    const VarDecl *variable = CI.getVariable(); 
-    QualType VT = variable->getType();
+    QualType VT = CI.getVariable()->getType();
     if (CI.isByRef() || VT->getAsCXXRecordDecl() || VT->isObjCRetainableType()
      || CI.hasCopyExpr() || CI.isNested() || VT->isReferenceType()) {
 printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     }
     elementTypes.push_back(CGM.getTypes().ConvertTypeForMem(longType));
     IdentifierInfo *II = &CGM.getContext().Idents.get(CI.getVariable()->getName()); 
-    Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl), loc,
-        loc, II, CI.getVariable()->getType(), /*TInfo=*/nullptr, SC_None, nullptr));
+    Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl),
+        loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr));
   }
   llvm::StructType *StructureType = llvm::StructType::get(CGM.getLLVMContext(), elementTypes, true);
 printf("[%s:%d] STRUCTURETYPE \n", __FUNCTION__, __LINE__);
 StructureType->dump();
-  const llvm::StructLayout *layout = CGM.getContext().getTargetInfo().getDataLayout().getStructLayout(StructureType);
 
   const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeBlockFunctionDeclaration(
         blockExpr->getFunctionType(), Args);
@@ -72,20 +69,22 @@ StructureType->dump();
       llvm::GlobalValue::ExternalLinkage, //why is this not allowed?? llvm::GlobalValue::InternalLinkage
       "ruleTemplate", &CGM.getModule());
 
-  // Make the allocation for the block.
+  // Make the allocation and initialize the block.
   Address blockAddr = CreateTempAlloca(StructureType, CGM.getPointerAlign(), "block"); 
-
+  const llvm::StructLayout *layout = CGM.getContext().getTargetInfo().
+      getDataLayout().getStructLayout(StructureType);
+  int pindex = 0;
+  auto projectField = [&](const Twine &name) -> Address {
+      auto ret = Builder.CreateStructGEP(blockAddr, pindex,
+          CharUnits::fromQuantity(layout->getElementOffset(pindex)), name);
+      pindex++;
+      return ret;
+    };
   // Initialize the block header.
-  auto projectField = [&](unsigned index, CharUnits offset, const Twine &name) -> Address {
-      return Builder.CreateStructGEP(blockAddr, index, offset, name);
-    };
-  auto storeField = [&](llvm::Value *value, unsigned index, CharUnits offset, const Twine &name) {
-      Builder.CreateStore(value, projectField(index, offset, name));
-    };
-  storeField(llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy),
-      0, CharUnits(), "block.invoke");                     // Function *invoke;
-  storeField(llvm::Constant::getIntegerValue(CGM.Int64Ty,  // Int64Ty STy;
-    llvm::APInt(64, (uint64_t) StructureType)), 1, CharUnits(), "block.STy");
+  Builder.CreateStore(llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy),
+      projectField("block.invoke"));// Function *invoke;
+  Builder.CreateStore(llvm::Constant::getIntegerValue(CGM.Int64Ty,// Int64Ty STy;
+    llvm::APInt(64, (uint64_t) StructureType)), projectField("block.STy"));
 
   // Finally, capture all the values into the block.
   for (const auto &CI : blockDecl->captures()) {
@@ -94,34 +93,31 @@ StructureType->dump();
     // Fake up a new variable so that EmitScalarInit doesn't think
     // we're referring to the variable in its own initializer.
     DeclRefExpr declRef(const_cast<VarDecl *>(variable),
-        /*RefersToEnclosingVariableOrCapture*/ false, VT, VK_LValue, SourceLocation()); 
+        /*RefersToEnclosingVariableOrCapture*/ false, VT, VK_LValue, loc); 
     Expr *rval = ImplicitCastExpr::Create(CGM.getContext(), VT,
           CK_LValueToRValue, &declRef, nullptr, VK_RValue);
     if (VT != longType)
         rval = ImplicitCastExpr::Create(CGM.getContext(), longType,
               CK_IntegralCast, rval, nullptr, VK_RValue);
     ImplicitParamDecl BlockFieldPseudoVar(getContext(), longType, ImplicitParamDecl::Other); 
-    EmitExprAsInit(rval, &BlockFieldPseudoVar, MakeAddrLValue(
-        projectField(pindex, CharUnits::fromQuantity(layout->getElementOffset(pindex)), "block.captured"),
+    EmitExprAsInit(rval, &BlockFieldPseudoVar, MakeAddrLValue(projectField("block.captured"),
         longType, LValueBaseInfo(AlignmentSource::Decl, false)), /*captured by init*/ false);
-    pindex++;
   } 
 
   // Now generate function itself
+  // Allocate the block info and place it at the head of the list.
   CGBlockInfo &blockInfo = *new CGBlockInfo(blockDecl, "");
   blockInfo.NextBlockInfo = FirstBlockInfo;
   FirstBlockInfo = &blockInfo; 
   auto AI = Fn->arg_begin();
   AI++; // skip 'this' parameter
-  for (const auto &CI : blockDecl->captures()) {
-      blockInfo.paramMap[CI.getVariable()] = AI;
-      AI++;
-  }
+  for (const auto &CI : blockDecl->captures())
+      blockInfo.paramMap[CI.getVariable()] = AI++; // used by GetAddrOfBlockDeclRule callback
   CodeGenFunction(CGM, true).GenerateRuleFunction(CurGD, blockInfo, FnInfo.getReturnType(),
          Fn, FnInfo, Args);
 
-  // Cast to the converted block-pointer type, which happens (somewhat
-  // unfortunately) to be a pointer to function type.
+  // Cast to the converted block-pointer type, which happens
+  // (somewhat unfortunately) to be a pointer to function type.
   return Builder.CreatePointerCast(blockAddr.getPointer(), ConvertType(blockExpr->getType()));
 }
 
