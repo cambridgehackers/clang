@@ -49,7 +49,6 @@ llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
   SmallVector<llvm::Type*, 8> elementTypes;
   elementTypes.push_back(CGM.VoidPtrTy); // void *invoke;
   elementTypes.push_back(CGM.Int64Ty);   // i64   STy;
-  CharUnits BlockSize = 2 * CGM.getPointerSize();
   QualType VTl = CGM.getContext().LongTy; // all captured data now stored as i64
 
   // Next, all the block captures.
@@ -86,6 +85,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   llvm::StructType *StructureType = llvm::StructType::get(CGM.getLLVMContext(), elementTypes, true);
 printf("[%s:%d] STRUCTURETYPE \n", __FUNCTION__, __LINE__);
 StructureType->dump();
+  const llvm::StructLayout *layout = CGM.getContext().getTargetInfo().getDataLayout().getStructLayout(StructureType);
   // Make the allocation for the block.
   Address blockAddr = CreateTempAlloca(StructureType, CGM.getPointerAlign(), "block"); 
 
@@ -115,10 +115,9 @@ StructureType->dump();
         rval = ImplicitCastExpr::Create(CGM.getContext(), VTl, CK_IntegralCast,  &l2r, nullptr, VK_RValue);
     LValueBaseInfo BaseInfo(AlignmentSource::Decl, false);
     EmitExprAsInit(rval, &BlockFieldPseudoVar, MakeAddrLValue(
-        projectField(pindex, BlockSize, "block.captured"),
+        projectField(pindex, CharUnits::fromQuantity(layout->getElementOffset(pindex)), "block.captured"),
         VTl, BaseInfo), /*captured by init*/ false);
     pindex++;
-    BlockSize += CGM.getContext().getTypeSizeInChars(VTl);
   } 
   // Cast to the converted block-pointer type, which happens (somewhat
   // unfortunately) to be a pointer to function type.
