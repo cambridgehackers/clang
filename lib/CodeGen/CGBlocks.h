@@ -235,7 +235,7 @@ public:
   llvm::DenseMap<const VarDecl*, Capture> Captures;  
 
   // Mapping of parameter index to captured value, used in rule generation (Atomicc)
-  llvm::DenseMap<int, llvm::Value *> paramMap;
+  llvm::DenseMap<const VarDecl *, llvm::Value *> paramMap;
 
   Address LocalAddress;
   llvm::StructType *StructureType;
