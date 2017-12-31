@@ -34,6 +34,7 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
+#include "CGBlocks.h" //CGBlockInfo
 #include <cstdarg>
 
 using namespace clang;
@@ -435,7 +436,7 @@ public:
       if (const auto *VD = dyn_cast<VarDecl>(E->getDecl()))
       if (cast<BlockDecl>(CGF.CurCodeDecl)->isRule())
         // Atomicc RuleExpr functions return RValues, not LValues
-        return CGF.GetAddrOfBlockDeclRule(VD);
+        return const_cast<CGBlockInfo *>(CGF.BlockInfo)->paramMap[VD];
     }
     if (CodeGenFunction::ConstantEmission result = CGF.tryEmitAsConstant(E)) {
       if (result.isReference())

@@ -1612,7 +1612,6 @@ public:
 
   Address LoadBlockStruct();
   Address GetAddrOfBlockDecl(const VarDecl *var, bool ByRef);
-  llvm::Value *GetAddrOfBlockDeclRule(const VarDecl *var);
 
   /// BuildBlockByrefAddress - Computes the location of the
   /// data in a variable which is declared as __block.

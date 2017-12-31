@@ -54,7 +54,7 @@ llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
      || CI.hasCopyExpr() || CI.isNested() || VT->isReferenceType()) {
 printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     }
-    elementTypes.push_back(CGM.getTypes().ConvertTypeForMem(longType));
+    elementTypes.push_back(CGM.Int64Ty);
     IdentifierInfo *II = &CGM.getContext().Idents.get(CI.getVariable()->getName()); 
     Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl),
         loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr));
@@ -112,17 +112,13 @@ StructureType->dump();
   auto AI = Fn->arg_begin();
   AI++; // skip 'this' parameter
   for (const auto &CI : blockDecl->captures())
-      blockInfo.paramMap[CI.getVariable()] = AI++; // used by GetAddrOfBlockDeclRule callback
+      blockInfo.paramMap[CI.getVariable()] = AI++; // used by VisitDeclRefExpr for replacing values
   CodeGenFunction(CGM, true).GenerateRuleFunction(CurGD, blockInfo, FnInfo.getReturnType(),
          Fn, FnInfo, Args);
 
   // Cast to the converted block-pointer type, which happens
   // (somewhat unfortunately) to be a pointer to function type.
   return Builder.CreatePointerCast(blockAddr.getPointer(), ConvertType(blockExpr->getType()));
-}
-
-llvm::Value *CodeGenFunction::GetAddrOfBlockDeclRule(const VarDecl *variable) {
-  return const_cast<CGBlockInfo *>(BlockInfo)->paramMap[variable];
 }
 
 llvm::Function *
@@ -133,7 +129,7 @@ CodeGenFunction::GenerateRuleFunction(GlobalDecl GD,
                                     const CGFunctionInfo &FnInfo,
                                     const FunctionArgList &Args) {
 printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-  BlockInfo = &blockInfo; // needed for GetAddrOfBlockDeclRule
+  BlockInfo = &blockInfo; // needed for VisitDeclRefExpr
   CurGD = GD; 
   const BlockDecl *FD = blockInfo.getBlockDecl(); 
 
@@ -143,7 +139,7 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
   Stmt *Body = FD->getBody();
   StartFunction(FD, RetTy, Fn, FnInfo, Args, FD->getLocation(), Body->getLocStart()); 
   // Generate the body of the function.
-  EmitStmt(Body);  // triggers callbacks to GetAddrOfBlockDeclRule for Captures items
+  EmitStmt(Body);  // captured values are replaced in CGExprScalar.cpp/VisitDeclRefExpr()
 
   FinishFunction(CurEHLocation);
   return Fn;
