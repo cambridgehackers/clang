@@ -55,7 +55,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl),
         loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr));
   }
-  llvm::ArrayType *aType = llvm::ArrayType::get(CGM.Int64Ty, blockDecl->captures().size() + 1 /*for 'invoke'*/);
 
   const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeBlockFunctionDeclaration(
         blockExpr->getFunctionType(), Args);
@@ -64,6 +63,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
       "ruleTemplate", &CGM.getModule());
 
   // Make the allocation and initialize the block.
+  llvm::ArrayType *aType = llvm::ArrayType::get(CGM.Int64Ty, blockDecl->captures().size() + 1 /*for 'invoke'*/);
   Address blockAddr = CreateTempAlloca(aType, CGM.getPointerAlign(), "block"); 
   int pindex = 0;
   auto projectField = [&](const Twine &name) -> Address {
