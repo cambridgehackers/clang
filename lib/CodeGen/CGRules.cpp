@@ -41,11 +41,8 @@ llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
       loc, loc, IThis, thisType, /*TInfo=*/nullptr, SC_None, nullptr));
 
   /// Compute the layout of the given block.  The header is basically:
-  //     'struct { void *invoke; i64 STy; ... data for captures ...}'.
+  //     'struct { void *invoke; ... data for captures ...}'.
   //  All the captured data is stored as i64 values
-  SmallVector<llvm::Type*, 8> elementTypes;
-  elementTypes.push_back(CGM.VoidPtrTy); // void *invoke;
-  elementTypes.push_back(CGM.Int64Ty);   // i64   STy;
 
   // Next, all the block captures.
   for (const auto &CI : blockDecl->captures()) {
@@ -54,14 +51,11 @@ llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
      || CI.hasCopyExpr() || CI.isNested() || VT->isReferenceType()) {
 printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     }
-    elementTypes.push_back(CGM.Int64Ty);
     IdentifierInfo *II = &CGM.getContext().Idents.get(CI.getVariable()->getName()); 
     Args.push_back(ParmVarDecl::Create(getContext(), const_cast<BlockDecl *>(blockDecl),
         loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr));
   }
-  llvm::StructType *StructureType = llvm::StructType::get(CGM.getLLVMContext(), elementTypes, true);
-printf("[%s:%d] STRUCTURETYPE \n", __FUNCTION__, __LINE__);
-StructureType->dump();
+  llvm::ArrayType *aType = llvm::ArrayType::get(CGM.Int64Ty, blockDecl->captures().size() + 1 /*for 'invoke'*/);
 
   const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeBlockFunctionDeclaration(
         blockExpr->getFunctionType(), Args);
@@ -70,21 +64,17 @@ StructureType->dump();
       "ruleTemplate", &CGM.getModule());
 
   // Make the allocation and initialize the block.
-  Address blockAddr = CreateTempAlloca(StructureType, CGM.getPointerAlign(), "block"); 
-  const llvm::StructLayout *layout = CGM.getContext().getTargetInfo().
-      getDataLayout().getStructLayout(StructureType);
+  Address blockAddr = CreateTempAlloca(aType, CGM.getPointerAlign(), "block"); 
   int pindex = 0;
   auto projectField = [&](const Twine &name) -> Address {
-      auto ret = Builder.CreateStructGEP(blockAddr, pindex,
-          CharUnits::fromQuantity(layout->getElementOffset(pindex)), name);
+      auto ret = Builder.CreateConstArrayGEP(blockAddr, pindex,
+           CGM.getContext().getTypeSizeInChars(CGM.getContext().LongTy), name);
       pindex++;
       return ret;
     };
   // Initialize the block header.
-  Builder.CreateStore(llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy),
+  Builder.CreateStore(llvm::Constant::getIntegerValue(CGM.Int64Ty, llvm::APInt(64, (uint64_t) Fn)),
       projectField("block.invoke"));// Function *invoke;
-  Builder.CreateStore(llvm::Constant::getIntegerValue(CGM.Int64Ty,// Int64Ty STy;
-    llvm::APInt(64, (uint64_t) StructureType)), projectField("block.STy"));
 
   // Finally, capture all the values into the block.
   for (const auto &CI : blockDecl->captures()) {
