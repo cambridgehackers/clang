@@ -4864,13 +4864,15 @@ public:
 class RuleExpr : public Expr {
 protected:
   BlockDecl *TheBlock;
+  VarDecl      *BlockAddr;
+  FunctionDecl *FDecl;
 public:
-  RuleExpr(BlockDecl *BD, QualType ty)
+  RuleExpr(BlockDecl *BD, QualType ty, VarDecl *blockAddr, FunctionDecl *fdecl)
     : Expr(RuleExprClass, ty, VK_RValue, OK_Ordinary,
            ty->isDependentType(), ty->isDependentType(),
            ty->isInstantiationDependentType() || BD->isDependentContext(),
            false),
-      TheBlock(BD) {}
+      TheBlock(BD), BlockAddr(blockAddr), FDecl(fdecl) {}
 
   /// \brief Build an empty block expression.
   explicit RuleExpr(EmptyShell Empty) : Expr(RuleExprClass, Empty) { }
@@ -4878,6 +4880,8 @@ public:
   const BlockDecl *getBlockDecl() const { return TheBlock; }
   BlockDecl *getBlockDecl() { return TheBlock; }
   void setBlockDecl(BlockDecl *BD) { TheBlock = BD; }
+  const VarDecl *getBlockAddr() const { return BlockAddr; }
+  const FunctionDecl *getFDecl() const { return FDecl; }
 
   // Convenience functions for probing the underlying BlockDecl.
   SourceLocation getCaretLocation() const;

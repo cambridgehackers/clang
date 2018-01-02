@@ -30,6 +30,9 @@ using namespace CodeGen;
 
 /// Prepare and emit a block literal expression in the current function.
 llvm::Value *CodeGenFunction::EmitRuleLiteral(const RuleExpr *blockExpr) {
+printf("[%s:%d]START\n", __FUNCTION__, __LINE__);
+  const VarDecl *ablockAddr = blockExpr->getBlockAddr();
+  const FunctionDecl *FFN = blockExpr->getFDecl();
   const BlockDecl *blockDecl = blockExpr->getBlockDecl(); 
   QualType longType = CGM.getContext().LongTy; // all captured data now stored as i64
   SourceLocation loc;
@@ -63,8 +66,12 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
       "ruleTemplate", &CGM.getModule());
 
   // Make the allocation and initialize the block.
-  llvm::ArrayType *aType = llvm::ArrayType::get(CGM.Int64Ty, blockDecl->captures().size() + 1 /*for 'invoke'*/);
-  Address blockAddr = CreateTempAlloca(aType, CGM.getPointerAlign(), "block"); 
+  auto Iaddr = LocalDeclMap.find(ablockAddr);
+  if (Iaddr == LocalDeclMap.end()) {
+      printf("[%s:%d] QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\n", __FUNCTION__, __LINE__);
+      exit(-1);
+  }
+  Address blockAddr = Iaddr->second;
   int pindex = 0;
   auto projectField = [&](const Twine &name) -> Address {
       auto ret = Builder.CreateConstArrayGEP(blockAddr, pindex,
@@ -75,24 +82,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   // Initialize the block header.
   Builder.CreateStore(llvm::Constant::getIntegerValue(CGM.Int64Ty, llvm::APInt(64, (uint64_t) Fn)),
       projectField("block.invoke"));// Function *invoke;
-
-  // Finally, capture all the values into the block.
-  for (const auto &CI : blockDecl->captures()) {
-    const VarDecl *variable = CI.getVariable();
-    QualType VT = variable->getType();
-    // Fake up a new variable so that EmitScalarInit doesn't think
-    // we're referring to the variable in its own initializer.
-    DeclRefExpr declRef(const_cast<VarDecl *>(variable),
-        /*RefersToEnclosingVariableOrCapture*/ false, VT, VK_LValue, loc); 
-    Expr *rval = ImplicitCastExpr::Create(CGM.getContext(), VT,
-          CK_LValueToRValue, &declRef, nullptr, VK_RValue);
-    if (VT != longType)
-        rval = ImplicitCastExpr::Create(CGM.getContext(), longType,
-              CK_IntegralCast, rval, nullptr, VK_RValue);
-    ImplicitParamDecl BlockFieldPseudoVar(getContext(), longType, ImplicitParamDecl::Other); 
-    EmitExprAsInit(rval, &BlockFieldPseudoVar, MakeAddrLValue(projectField("block.captured"),
-        longType, LValueBaseInfo(AlignmentSource::Decl, false)), /*captured by init*/ false);
-  } 
 
   // Now generate function itself
   // Allocate the block info and place it at the head of the list.
