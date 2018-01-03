@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "TreeTransform.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -1307,13 +1308,15 @@ static FunctionDecl *getFFun(Sema *s, SourceLocation OpLoc)
         Parent = CLinkageDecl;
         IdentifierInfo *II = &s->Context.Idents.get("fixupFunction");
         DeclarationNameInfo NameInfo(II, OpLoc);
-        QualType ArgTypes[] = {longp};
-        auto FnType = s->Context.getFunctionType(voidp, ArrayRef<QualType>(ArgTypes, 1), EPI);
+        QualType ArgTypes[] = {longp, s->Context.LongTy};
+        auto FnType = s->Context.getFunctionType(voidp, ArrayRef<QualType>(ArgTypes, 2), EPI);
         FFDecl = FunctionDecl::Create(s->Context, Parent, OpLoc,
             NameInfo, FnType, nullptr, SC_Extern, false, true, false);
         SmallVector<ParmVarDecl *, 16> Params;
         Params.push_back(ParmVarDecl::Create(s->Context, FFDecl, OpLoc,
             OpLoc, nullptr, longp, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(s->Context, FFDecl, OpLoc,
+            OpLoc, nullptr, s->Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
         FFDecl->setParams(Params);
     }
     return FFDecl;
@@ -1355,21 +1358,37 @@ static FunctionDecl *getABR(Sema *s, SourceLocation OpLoc)
     return ABRDecl;
 }
 
-static CallExpr *buildBlock(Sema &Actions, ArrayRef<BlockDecl::Capture> Captures,
-    CompoundStmt *bodyStmt, QualType blockType, SourceLocation RuleLoc, VarDecl *blockAddr, FunctionDecl *FFN)
-{
-  FunctionDecl *FFDecl = getFFun(&Actions, RuleLoc);
-  NestedNameSpecifierLoc NNSloc;
-  BlockDecl *TheDecl = BlockDecl::Create(Actions.Context, Actions.CurContext, RuleLoc, true);
-  Actions.CurContext->addDecl(TheDecl);
-  TheDecl->setBody(bodyStmt);
-  TheDecl->setCaptures(Actions.Context, Captures, true);
-  RuleExpr *vresult = new (Actions.Context) RuleExpr(TheDecl, blockType, blockAddr, FFN);
-  Expr *Args[] = {Actions.ImpCastExprToType(vresult, longp, CK_BitCast).get()};
-  Expr *Fn = DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFDecl, false,
-      RuleLoc, FFDecl->getType(), VK_LValue, nullptr);
-  Fn = Actions.ImpCastExprToType(Fn, Actions.Context.getPointerType(FFDecl->getType()), CK_FunctionToPointerDecay).get();
-  return new (Actions.Context) CallExpr(Actions.Context, Fn, Args, voidp, VK_RValue, RuleLoc);
+static DeclContext *bozoDC;
+static llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
+namespace {
+  // Handle the case where we conclude a expression which we speculatively
+  // considered to be unevaluated is actually evaluated.
+  class TransformToRule : public TreeTransform<TransformToRule> {
+    typedef TreeTransform<TransformToRule> BaseTransform;
+
+  public:
+    TransformToRule(Sema &SemaRef) : BaseTransform(SemaRef) { }
+
+    // Make sure we redo semantic analysis
+    bool AlwaysRebuild() { return true; }
+
+    ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
+      if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
+          if (Expr *ret = paramMap[VD])
+              return ret;
+          if (const Expr *init = VD->getAnyInitializer())
+              VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
+      }
+      return BaseTransform::TransformDeclRefExpr(E);
+    }
+    StmtResult TransformDeclStmt(DeclStmt *S) {
+      SmallVector<Decl *, 4> Decls;
+      for (auto *D : S->decls())
+        if (VarDecl *VD = dyn_cast<VarDecl>(D))
+            VD->setDeclContext(bozoDC);
+      return BaseTransform::TransformDeclStmt(S);
+    }
+  };
 }
 
 StmtResult
@@ -1386,8 +1405,6 @@ Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef AName, Expr *ConditionExpr
             Cap.isBlockCapture(), Cap.isNested(), Cap.getInitExpr()));
   }
 
-  SmallVector<Stmt*, 32> Stmts;
-  Stmts.push_back(new (Context) ReturnStmt(RuleLoc, ConditionExpr, nullptr));
   Expr *thisp = ImpCastExprToType(new (Context) CXXThisExpr(RuleLoc, getCurrentThisType(), /*isImplicit=*/true), voidp, CK_BitCast).get();
   Expr *NameExpr = ImpCastExprToType(StringLiteral::Create(Context, Name,
           StringLiteral::Ascii, /*Pascal*/ false,
@@ -1396,17 +1413,14 @@ Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef AName, Expr *ConditionExpr
           ccharp, CK_ArrayToPointerDecay).get();
   const BlockDecl *blockDecl = BlockDecl::Create(Context, CurContext, RuleLoc, true);
   QualType longType = Context.LongTy; // all captured data now stored as i64
-  QualType thisType = (*getCurFunctionDecl()->param_begin())->getType();
+  FunctionDecl *FFDecl = getFFun(this, RuleLoc);
+  auto DC = getCurFunctionDecl()->getParent();
 
   SmallVector<QualType, 8> FArgs;
   SmallVector<ParmVarDecl *, 16> Params;
-  FArgs.push_back(thisType);
-  IdentifierInfo *IThis = &Context.Idents.get("this"); 
-  Params.push_back(ParmVarDecl::Create(Context, const_cast<BlockDecl *>(blockDecl),
-    RuleLoc, RuleLoc, IThis, thisType, /*TInfo=*/nullptr, SC_None, nullptr));
 
   /// Compute the layout of the given block.  The header is basically:
-  //     'struct { void *invoke; ... data for captures ...}'.
+  //     'struct { data for captures ...}'.
   //  All the captured data is stored as i64 values
 
   // Next, all the block captures.
@@ -1418,8 +1432,11 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     }
     FArgs.push_back(VT);
     IdentifierInfo *II = &Context.Idents.get(CI.getVariable()->getName()); 
-    Params.push_back(ParmVarDecl::Create(Context, const_cast<BlockDecl *>(blockDecl),
-        RuleLoc, RuleLoc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr));
+    auto thisParam = ParmVarDecl::Create(Context, const_cast<BlockDecl *>(blockDecl),
+        RuleLoc, RuleLoc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
+    Params.push_back(thisParam);
+    paramMap[CI.getVariable()] = DeclRefExpr::Create(Context, NNSloc, RuleLoc, thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
+    thisParam->setIsUsed();
   }
 
   AttributeFactory AttrFactory;
@@ -1441,19 +1458,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
        RuleLoc, RuleLoc, ParamInfo), attrs, RuleLoc);
   TypeSourceInfo *TSI = GetTypeForDeclaratorCast(ParamInfo, longType);
   FunctionProtoType::ExtProtoInfo EPI;
-  QualType FnType = Context.getFunctionType(Context.BoolTy, FArgs, EPI);
-  IdentifierInfo *IFn = &Context.Idents.get("ruleTemplateZZ");
-  DeclarationNameInfo NameInfo(IFn, RuleLoc);
-  FunctionDecl *FFN = FunctionDecl::Create(Context, CurContext, RuleLoc,
-      NameInfo, FnType, nullptr/*TSI*/, SC_None, false, true, false);
-  FFN->markUsed(Context);
-  FFN->setParams(Params);
-  //SmallVector<Stmt*, 32> BozoStmts;
-  FFN->setBody(new (Context) class CompoundStmt(Context, Stmts, RuleLoc, RuleLoc));
-  FFN->addAttr(::new (Context) UsedAttr(RuleLoc, Context, 0));
-  Consumer.HandleTopLevelDecl(DeclGroupRef(FFN)); // pass to CodeGen
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-FFN->dump();
 
   // Make the allocation and initialize the block.
   QualType aType = Context.getConstantArrayType(Context.LongTy,
@@ -1464,27 +1468,20 @@ FFN->dump();
   blvariable->markUsed(Context);
   CurContext->addDecl(blvariable);
   TopStmts.push_back(new (Context) DeclStmt(DeclGroupRef(blvariable), RuleLoc, RuleLoc));
-  int pindex = 0;
   Expr *blockAddr = DeclRefExpr::Create(Context, NNSloc, RuleLoc, const_cast<VarDecl *>(blvariable),
         /*RefersToEnclosingVariableOrCapture*/ false, RuleLoc, blvariable->getType(), VK_LValue); 
+  Expr *blockAddrV = ImplicitCastExpr::Create(Context, longp, CK_ArrayToPointerDecay, blockAddr, nullptr, VK_RValue);
   blockAddr = ImplicitCastExpr::Create(Context, Context.getPointerType(longType), CK_ArrayToPointerDecay, blockAddr, nullptr, VK_LValue);
-  auto projectField = [&](const Twine &name) -> Expr * {
+  auto projectField = [&](int pindex, const Twine &name) -> Expr * {
       auto ret = new (Context) ArraySubscriptExpr(blockAddr,
         IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), pindex),
             Context.IntTy, RuleLoc), Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc);
-      pindex++;
       return ret;
     };
   // Initialize the block header.
-  ExprResult FFNRef = ImpCastExprToType(
-      DeclRefExpr::Create(Context, NNSloc, RuleLoc, FFN, false, RuleLoc, FFN->getType(), VK_LValue, nullptr),
-           Context.getPointerType(FFN->getType()), CK_FunctionToPointerDecay);
-  ExprResult assignO = BuildBinOp(CurScope, RuleLoc, BO_Assign, projectField("block.invoke"),
-      CStyleCastExpr::Create(Context, longType, VK_RValue, CK_PointerToIntegral,
-           FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc));
-  TopStmts.push_back(assignO.get());
 
-  // Finally, capture all the values into the block.
+  int pindex = 0;
+  // Capture all the values into the block.
   for (const auto &CI : Captures) {
     const VarDecl *variable = CI.getVariable();
     QualType VT = variable->getType();
@@ -1497,12 +1494,67 @@ FFN->dump();
     if (VT != longType)
         rval = ImplicitCastExpr::Create(Context, longType,
               CK_IntegralCast, rval, nullptr, VK_RValue);
-    ExprResult assignp = BuildBinOp(CurScope, RuleLoc, BO_Assign, projectField("block.captured"), rval);
+    ExprResult assignp = BuildBinOp(CurScope, RuleLoc, BO_Assign, projectField(pindex++, "block.captured"), rval);
     TopStmts.push_back(assignp.get());
   } 
-  CallExpr *bcall = buildBlock(*this, Captures,
-    new (Context) class CompoundStmt(Context, Stmts, RuleLoc, RuleLoc), bbool, RuleLoc, blvariable, FFN);
-  CallExpr *vcall = buildBlock(*this, Captures, cast<CompoundStmt>(bodyStmt), bvoid, RuleLoc, blvariable, FFN);
+  CallExpr *bcall, *vcall;
+bozoDC = CurContext; // hack for TransformToRule
+  {
+  IdentifierInfo *IFn = &Context.Idents.get("ruleTemplatebZZ");
+  DeclarationNameInfo NameInfo(IFn, RuleLoc);
+  CXXMethodDecl *FFN = CXXMethodDecl::Create(Context, cast<CXXRecordDecl>(DC),
+      RuleLoc, NameInfo, Context.getFunctionType(Context.BoolTy, FArgs, EPI),
+      nullptr, SC_None, false, false, RuleLoc);
+  FFN->setIsUsed();
+  FFN->markUsed(Context);
+  FFN->setParams(Params);
+  ExprResult temp = TransformToRule(*this).TransformExpr(ConditionExpr);
+  SmallVector<Stmt*, 32> Stmts;
+  Stmts.push_back(new (Context) ReturnStmt(RuleLoc, temp.get(), nullptr));
+  FFN->setBody(new (Context) class CompoundStmt(Context, Stmts, RuleLoc, RuleLoc));
+  FFN->addAttr(::new (Context) UsedAttr(RuleLoc, Context, 0));
+  ActOnFinishInlineFunctionDef(FFN);
+printf("[%s:%d] guard\n", __FUNCTION__, __LINE__);
+FFN->dump();
+  ExprResult FFNRef = ImpCastExprToType(
+      DeclRefExpr::Create(Context, NNSloc, RuleLoc, FFN, false, RuleLoc, FFN->getType(), VK_LValue, nullptr),
+           Context.getPointerType(FFN->getType()), CK_FunctionToPointerDecay);
+  Expr *assignO = CStyleCastExpr::Create(Context, longType, VK_RValue, CK_PointerToIntegral,
+           FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc);
+  NestedNameSpecifierLoc NNSloc;
+  Expr *Args[] = {blockAddrV, assignO};
+  Expr *Fn = DeclRefExpr::Create(Context, NNSloc, RuleLoc, FFDecl, false,
+      RuleLoc, FFDecl->getType(), VK_LValue, nullptr);
+  Fn = ImpCastExprToType(Fn, Context.getPointerType(FFDecl->getType()), CK_FunctionToPointerDecay).get();
+  bcall = new (Context) CallExpr(Context, Fn, Args, voidp, VK_RValue, RuleLoc);
+  }
+  {
+  IdentifierInfo *IFn = &Context.Idents.get("ruleTemplatevZZ");
+  DeclarationNameInfo NameInfo(IFn, RuleLoc);
+  CXXMethodDecl *FFN = CXXMethodDecl::Create(Context, cast<CXXRecordDecl>(DC),
+      RuleLoc, NameInfo, Context.getFunctionType(Context.VoidTy, FArgs, EPI),
+      nullptr, SC_None, false, false, RuleLoc);
+  FFN->setIsUsed();
+  FFN->markUsed(Context);
+  FFN->setParams(Params);
+  FFN->addAttr(::new (Context) UsedAttr(RuleLoc, Context, 0));
+  StmtResult tempStmt = TransformToRule(*this).TransformStmt(bodyStmt);
+  FFN->setBody(tempStmt.get());
+  ActOnFinishInlineFunctionDef(FFN);
+printf("[%s:%d] rule\n", __FUNCTION__, __LINE__);
+FFN->dump();
+  ExprResult FFNRef = ImpCastExprToType(
+      DeclRefExpr::Create(Context, NNSloc, RuleLoc, FFN, false, RuleLoc, FFN->getType(), VK_LValue, nullptr),
+           Context.getPointerType(FFN->getType()), CK_FunctionToPointerDecay);
+  Expr *assignO = CStyleCastExpr::Create(Context, longType, VK_RValue, CK_PointerToIntegral,
+           FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc);
+  NestedNameSpecifierLoc NNSloc;
+  Expr *Args[] = {blockAddrV, assignO};
+  Expr *Fn = DeclRefExpr::Create(Context, NNSloc, RuleLoc, FFDecl, false,
+      RuleLoc, FFDecl->getType(), VK_LValue, nullptr);
+  Fn = ImpCastExprToType(Fn, Context.getPointerType(FFDecl->getType()), CK_FunctionToPointerDecay).get();
+  vcall = new (Context) CallExpr(Context, Fn, Args, voidp, VK_RValue, RuleLoc);
+  }
   Expr *Args[] = {thisp, NameExpr, bcall, vcall};
 
   Expr *Fn = DeclRefExpr::Create(Context, NNSloc, RuleLoc, ABRDecl, false,

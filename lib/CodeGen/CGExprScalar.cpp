@@ -432,7 +432,7 @@ public:
   // l-values.
   Value *VisitDeclRefExpr(DeclRefExpr *E) {
     if (E->refersToEnclosingVariableOrCapture()) {
-      assert(isa<BlockDecl>(CGF.CurCodeDecl));
+      if(CGF.CurCodeDecl && isa<BlockDecl>(CGF.CurCodeDecl))
       if (const auto *VD = dyn_cast<VarDecl>(E->getDecl()))
       if (cast<BlockDecl>(CGF.CurCodeDecl)->isRule())
         // Atomicc RuleExpr functions return RValues, not LValues

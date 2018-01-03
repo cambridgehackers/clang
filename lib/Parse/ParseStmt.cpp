@@ -874,6 +874,7 @@ StmtResult Parser::ParseRuleStatement() {
   }
   else // default guard is 'if (true)'
     GuardExpr = Actions.ActOnCXXBoolLiteral(RuleLoc, tok::kw_true).get();
+printf("[%s:%d] RULE befstmt CURCONTEXT %p\n", __FUNCTION__, __LINE__, Actions.CurContext);
   StmtResult BodyStmt(ParseStatement(nullptr));
   if (Tok.is(tok::code_completion)) {
     Actions.CodeCompleteAfterIf(getCurScope());

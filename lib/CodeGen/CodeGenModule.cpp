@@ -1746,10 +1746,10 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
 
   // Ignore declarations, they will be emitted on their first use.
   if (const auto *FD = dyn_cast<FunctionDecl>(Global)) {
-//if (FD->getDeclName().isIdentifier()) {
-//printf("[%s:%d] %s haveABODY %d\n", __FUNCTION__, __LINE__, FD->getName().str().c_str(), FD->doesThisDeclarationHaveABody());
-//FD->dump();
-//}
+if (0 && FD->getDeclName().isIdentifier()) {
+printf("[%s:%d] %s haveABODY %d\n", __FUNCTION__, __LINE__, FD->getName().str().c_str(), FD->doesThisDeclarationHaveABody());
+FD->dump();
+}
     // Forward declarations are emitted lazily on first use.
     if (!FD->doesThisDeclarationHaveABody()) {
       if (!FD->doesDeclarationForceExternallyVisibleDefinition())
