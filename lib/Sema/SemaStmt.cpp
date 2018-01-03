@@ -1290,6 +1290,7 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
 
 static QualType ccharp;
 static QualType voidp;
+static QualType longp;
 static QualType voidpp;
 static QualType bbool;
 static QualType bvoid;
@@ -1306,13 +1307,13 @@ static FunctionDecl *getFFun(Sema *s, SourceLocation OpLoc)
         Parent = CLinkageDecl;
         IdentifierInfo *II = &s->Context.Idents.get("fixupFunction");
         DeclarationNameInfo NameInfo(II, OpLoc);
-        QualType ArgTypes[] = {voidpp};
+        QualType ArgTypes[] = {longp};
         auto FnType = s->Context.getFunctionType(voidp, ArrayRef<QualType>(ArgTypes, 1), EPI);
         FFDecl = FunctionDecl::Create(s->Context, Parent, OpLoc,
             NameInfo, FnType, nullptr, SC_Extern, false, true, false);
         SmallVector<ParmVarDecl *, 16> Params;
         Params.push_back(ParmVarDecl::Create(s->Context, FFDecl, OpLoc,
-            OpLoc, nullptr, voidpp, /*TInfo=*/nullptr, SC_None, nullptr));
+            OpLoc, nullptr, longp, /*TInfo=*/nullptr, SC_None, nullptr));
         FFDecl->setParams(Params);
     }
     return FFDecl;
@@ -1328,6 +1329,7 @@ static FunctionDecl *getABR(Sema *s, SourceLocation OpLoc)
         ccharp = s->Context.getPointerType(s->Context.CharTy.withConst());
         voidp = s->Context.getPointerType(s->Context.VoidTy);
         voidpp = s->Context.getPointerType(voidp);
+        longp = s->Context.getPointerType(s->Context.LongTy);
         DeclContext *Parent = s->Context.getTranslationUnitDecl();
         LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(s->Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
         CLinkageDecl->setImplicit();
@@ -1363,7 +1365,7 @@ static CallExpr *buildBlock(Sema &Actions, ArrayRef<BlockDecl::Capture> Captures
   TheDecl->setBody(bodyStmt);
   TheDecl->setCaptures(Actions.Context, Captures, true);
   RuleExpr *vresult = new (Actions.Context) RuleExpr(TheDecl, blockType, blockAddr, FFN);
-  Expr *Args[] = {Actions.ImpCastExprToType(vresult, voidpp, CK_BitCast).get()};
+  Expr *Args[] = {Actions.ImpCastExprToType(vresult, longp, CK_BitCast).get()};
   Expr *Fn = DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFDecl, false,
       RuleLoc, FFDecl->getType(), VK_LValue, nullptr);
   Fn = Actions.ImpCastExprToType(Fn, Actions.Context.getPointerType(FFDecl->getType()), CK_FunctionToPointerDecay).get();

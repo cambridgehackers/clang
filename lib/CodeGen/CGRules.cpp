@@ -97,7 +97,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
 
   // Cast to the converted block-pointer type, which happens
   // (somewhat unfortunately) to be a pointer to function type.
-  return Builder.CreatePointerCast(blockAddr.getPointer(), ConvertType(blockExpr->getType()));
+  return blockAddr.getPointer();
 }
 
 llvm::Function *
