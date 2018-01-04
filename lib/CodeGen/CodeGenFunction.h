@@ -1578,19 +1578,12 @@ public:
   //===--------------------------------------------------------------------===//
 
   llvm::Value *EmitBlockLiteral(const BlockExpr *);
-  llvm::Value *EmitRuleLiteral(const RuleExpr *);
   static void destroyBlockInfos(CGBlockInfo *info);
 
   llvm::Function *GenerateBlockFunction(GlobalDecl GD,
                                         const CGBlockInfo &Info,
                                         const DeclMapTy &ldm,
                                         bool IsLambdaConversionToBlock);
-  llvm::Function *GenerateRuleFunction(GlobalDecl GD,
-                                       const CGBlockInfo &Info,
-                                       QualType RetTy,
-                                       llvm::Function *Fn,
-                                       const CGFunctionInfo &FnInfo,
-                                       const FunctionArgList &Args);
 
   llvm::Constant *GenerateCopyHelperFunction(const CGBlockInfo &blockInfo);
   llvm::Constant *GenerateDestroyHelperFunction(const CGBlockInfo &blockInfo);

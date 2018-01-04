@@ -536,12 +536,6 @@ public:
     IgnoredContexts.insert(BR->getBlockDecl());
     Visit(BR->getBlockDecl()->getBody());
   }
-
-  void VisitRuleExpr(RuleExpr *BR) {
-    // Blocks containing blocks can transitively capture more variables.
-    IgnoredContexts.insert(BR->getBlockDecl());
-    Visit(BR->getBlockDecl()->getBody());
-  }
   
   void VisitPseudoObjectExpr(PseudoObjectExpr *PE) {
     for (PseudoObjectExpr::semantics_iterator it = PE->semantics_begin(), 

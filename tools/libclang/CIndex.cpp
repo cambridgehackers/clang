@@ -1930,7 +1930,6 @@ public:
 
   void VisitAddrLabelExpr(const AddrLabelExpr *E);
   void VisitBlockExpr(const BlockExpr *B);
-  void VisitRuleExpr(const RuleExpr *B);
   void VisitCompoundLiteralExpr(const CompoundLiteralExpr *E);
   void VisitCompoundStmt(const CompoundStmt *S);
   void VisitCXXDefaultArgExpr(const CXXDefaultArgExpr *E) { /* Do nothing. */ }
@@ -2378,9 +2377,6 @@ void EnqueueVisitor::VisitAddrLabelExpr(const AddrLabelExpr *E) {
   WL.push_back(LabelRefVisit(E->getLabel(), E->getLabelLoc(), Parent));
 }
 void EnqueueVisitor::VisitBlockExpr(const BlockExpr *B) {
-  AddDecl(B->getBlockDecl());
-}
-void EnqueueVisitor::VisitRuleExpr(const RuleExpr *B) {
   AddDecl(B->getBlockDecl());
 }
 void EnqueueVisitor::VisitCompoundLiteralExpr(const CompoundLiteralExpr *E) {
@@ -4848,8 +4844,6 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
       return cxstring::createRef("ObjCBridgedCastExpr");
   case CXCursor_BlockExpr:
       return cxstring::createRef("BlockExpr");
-  case CXCursor_RuleExpr:
-      return cxstring::createRef("RuleExpr");
   case CXCursor_PackExpansionExpr:
       return cxstring::createRef("PackExpansionExpr");
   case CXCursor_SizeOfPackExpr:

@@ -1413,7 +1413,7 @@ Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef AName, Expr *ConditionExpr
           Context.getConstantArrayType(Context.CharTy.withConst(),
           llvm::APInt(32, Name.length() + 1), ArrayType::Normal, 0), RuleLoc),
           ccharp, CK_ArrayToPointerDecay).get();
-  const BlockDecl *blockDecl = BlockDecl::Create(Context, CurContext, RuleLoc, true);
+  const BlockDecl *blockDecl = BlockDecl::Create(Context, CurContext, RuleLoc);
   QualType longType = Context.LongTy; // all captured data now stored as i64
   FunctionDecl *FFDecl = getFFun(this, RuleLoc);
   auto DC = getCurFunctionDecl()->getParent();

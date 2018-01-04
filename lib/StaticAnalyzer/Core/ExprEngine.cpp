@@ -1113,12 +1113,6 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       Bldr.addNodes(Dst);
       break;
 
-    case Stmt::RuleExprClass:
-      Bldr.takeNodes(Pred);
-      VisitRuleExpr(cast<RuleExpr>(S), Pred, Dst);
-      Bldr.addNodes(Dst);
-      break;
-
     case Stmt::LambdaExprClass:
       if (AMgr.options.shouldInlineLambdas()) {
         Bldr.takeNodes(Pred);

@@ -2647,33 +2647,6 @@ void StmtPrinter::VisitBlockExpr(BlockExpr *Node) {
   OS << "{ }";
 }
 
-void StmtPrinter::VisitRuleExpr(RuleExpr *Node) {
-  BlockDecl *BD = Node->getBlockDecl();
-  OS << "^";
-
-  const FunctionType *AFT = Node->getFunctionType();
-
-  if (isa<FunctionNoProtoType>(AFT)) {
-    OS << "()";
-  } else if (!BD->param_empty() || cast<FunctionProtoType>(AFT)->isVariadic()) {
-    OS << '(';
-    for (BlockDecl::param_iterator AI = BD->param_begin(),
-         E = BD->param_end(); AI != E; ++AI) {
-      if (AI != BD->param_begin()) OS << ", ";
-      std::string ParamStr = (*AI)->getNameAsString();
-      (*AI)->getType().print(OS, Policy, ParamStr);
-    }
-
-    const FunctionProtoType *FT = cast<FunctionProtoType>(AFT);
-    if (FT->isVariadic()) {
-      if (!BD->param_empty()) OS << ", ";
-      OS << "...";
-    }
-    OS << ')';
-  }
-  OS << "{ }";
-}
-
 void StmtPrinter::VisitOpaqueValueExpr(OpaqueValueExpr *Node) { 
   PrintExpr(Node->getSourceExpr());
 }

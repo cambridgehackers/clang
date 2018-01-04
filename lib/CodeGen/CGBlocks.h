@@ -193,7 +193,6 @@ public:
     QualType fieldType() const {
       return FieldType;
     }
-    llvm::Value *paramItem;
 
     static Capture makeIndex(unsigned index, CharUnits offset,
                              QualType FieldType) {
@@ -201,7 +200,6 @@ public:
       v.Data = (index << 1) | 1;
       v.Offset = offset.getQuantity();
       v.FieldType = FieldType;
-      v.paramItem = nullptr;
       return v;
     }
 
@@ -233,9 +231,6 @@ public:
 
   /// The mapping of allocated indexes within the block.
   llvm::DenseMap<const VarDecl*, Capture> Captures;  
-
-  // Mapping of parameter index to captured value, used in rule generation (Atomicc)
-  llvm::DenseMap<const VarDecl *, llvm::Value *> paramMap;
 
   Address LocalAddress;
   llvm::StructType *StructureType;

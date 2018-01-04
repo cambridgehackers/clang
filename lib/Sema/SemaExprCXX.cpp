@@ -7341,8 +7341,6 @@ public:
 
   ExprResult TransformBlockExpr(BlockExpr *E) { return Owned(E); }
 
-  ExprResult TransformRuleExpr(RuleExpr *E) { return Owned(E); }
-
   ExprResult Transform(Expr *E) {
     ExprResult Res;
     while (true) {

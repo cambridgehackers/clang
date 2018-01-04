@@ -460,7 +460,6 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
 
   case Stmt::BlockExprClass:
-  case Stmt::RuleExprClass:
     K = CXCursor_BlockExpr;
     break;
 

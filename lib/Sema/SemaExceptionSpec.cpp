@@ -1224,7 +1224,6 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::AsTypeExprClass:
   case Expr::BinaryConditionalOperatorClass:
   case Expr::BlockExprClass:
-  case Expr::RuleExprClass:
   case Expr::CUDAKernelCallExprClass:
   case Expr::DeclRefExprClass:
   case Expr::ObjCBridgedCastExprClass:

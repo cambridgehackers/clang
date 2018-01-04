@@ -198,7 +198,6 @@ public:
 
   void VisitBinaryOperator(BinaryOperator *BO);
   void VisitBlockExpr(BlockExpr *BE);
-  void VisitRuleExpr(RuleExpr *BE);
   void VisitDeclRefExpr(DeclRefExpr *DR);  
   void VisitDeclStmt(DeclStmt *DS);
   void VisitObjCForCollectionStmt(ObjCForCollectionStmt *OS);
@@ -349,15 +348,6 @@ void TransferFunctions::VisitBinaryOperator(BinaryOperator *B) {
 }
 
 void TransferFunctions::VisitBlockExpr(BlockExpr *BE) {
-  for (const VarDecl *VD :
-       LV.analysisContext.getReferencedBlockVars(BE->getBlockDecl())) {
-    if (isAlwaysAlive(VD))
-      continue;
-    val.liveDecls = LV.DSetFact.add(val.liveDecls, VD);
-  }
-}
-
-void TransferFunctions::VisitRuleExpr(RuleExpr *BE) {
   for (const VarDecl *VD :
        LV.analysisContext.getReferencedBlockVars(BE->getBlockDecl())) {
     if (isAlwaysAlive(VD))

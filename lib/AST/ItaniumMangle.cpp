@@ -3349,7 +3349,6 @@ recurse:
 
   // FIXME: invent manglings for all these.
   case Expr::BlockExprClass:
-  case Expr::RuleExprClass:
   case Expr::ChooseExprClass:
   case Expr::CompoundLiteralExprClass:
   case Expr::DesignatedInitExprClass:

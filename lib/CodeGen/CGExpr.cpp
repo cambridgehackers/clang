@@ -2299,7 +2299,7 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
             CapLVal.getType(), LValueBaseInfo(AlignmentSource::Decl, MayAlias));
       }
 
-      assert(isa<BlockDecl>(CurCodeDecl) && !cast<BlockDecl>(CurCodeDecl)->isRule());
+      assert(isa<BlockDecl>(CurCodeDecl));
       Address addr = GetAddrOfBlockDecl(VD, VD->hasAttr<BlocksAttr>());
       LValueBaseInfo BaseInfo(AlignmentSource::Decl, false);
       return MakeAddrLValue(addr, T, BaseInfo);

@@ -901,12 +901,6 @@ void ASTStmtWriter::VisitBlockExpr(BlockExpr *E) {
   Code = serialization::EXPR_BLOCK;
 }
 
-void ASTStmtWriter::VisitRuleExpr(RuleExpr *E) {
-  VisitExpr(E);
-  Record.AddDeclRef(E->getBlockDecl());
-  Code = serialization::EXPR_RULE;
-}
-
 void ASTStmtWriter::VisitGenericSelectionExpr(GenericSelectionExpr *E) {
   VisitExpr(E);
   Record.push_back(E->getNumAssocs());

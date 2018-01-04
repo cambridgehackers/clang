@@ -7554,8 +7554,6 @@ CheckReturnStackAddr(Sema &S, Expr *RetValExp, QualType lhsType,
      << DR->getDecl()->getDeclName() << diagRange;
   } else if (isa<BlockExpr>(stackE)) { // local block.
     S.Diag(diagLoc, diag::err_ret_local_block) << diagRange;
-  } else if (isa<RuleExpr>(stackE)) { // local block.
-    S.Diag(diagLoc, diag::err_ret_local_block) << diagRange;
   } else if (isa<AddrLabelExpr>(stackE)) { // address of label.
     S.Diag(diagLoc, diag::warn_ret_addr_label) << diagRange;
   } else { // local temporary.
@@ -7701,11 +7699,6 @@ static const Expr *EvalAddr(const Expr *E,
 
   case Stmt::BlockExprClass:
     if (cast<BlockExpr>(E)->getBlockDecl()->hasCaptures())
-      return E; // local block.
-    return nullptr;
-
-  case Stmt::RuleExprClass:
-    if (cast<RuleExpr>(E)->getBlockDecl()->hasCaptures())
       return E; // local block.
     return nullptr;
 
@@ -11011,12 +11004,6 @@ namespace {
       if (block->getBlockDecl()->capturesVariable(Variable))
         Visit(block->getBlockDecl()->getBody());
     }
-
-    void VisitRuleExpr(RuleExpr *block) {
-      // Look inside nested blocks 
-      if (block->getBlockDecl()->capturesVariable(Variable))
-        Visit(block->getBlockDecl()->getBody());
-    }
     
     void VisitOpaqueValueExpr(OpaqueValueExpr *OVE) {
       if (Capturer) return;
@@ -11071,10 +11058,6 @@ static Expr *findCapturingExpr(Sema &S, Expr *e, RetainCycleOwner &owner) {
   
   BlockExpr *block = dyn_cast<BlockExpr>(e);
   if (!block || !block->getBlockDecl()->capturesVariable(owner.Variable))
-    return nullptr;
-
-  RuleExpr *rule = dyn_cast<RuleExpr>(e);
-  if (!rule || !rule->getBlockDecl()->capturesVariable(owner.Variable))
     return nullptr;
 
   FindCaptureVisitor visitor(S.Context, owner.Variable);

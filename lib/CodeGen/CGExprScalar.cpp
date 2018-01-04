@@ -34,7 +34,6 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
-#include "CGBlocks.h" //CGBlockInfo
 #include <cstdarg>
 
 using namespace clang;
@@ -431,13 +430,6 @@ public:
 
   // l-values.
   Value *VisitDeclRefExpr(DeclRefExpr *E) {
-    if (E->refersToEnclosingVariableOrCapture()) {
-      if(CGF.CurCodeDecl && isa<BlockDecl>(CGF.CurCodeDecl))
-      if (const auto *VD = dyn_cast<VarDecl>(E->getDecl()))
-      if (cast<BlockDecl>(CGF.CurCodeDecl)->isRule())
-        // Atomicc RuleExpr functions return RValues, not LValues
-        return const_cast<CGBlockInfo *>(CGF.BlockInfo)->paramMap[VD];
-    }
     if (CodeGenFunction::ConstantEmission result = CGF.tryEmitAsConstant(E)) {
       if (result.isReference())
         return EmitLoadOfLValue(result.getReferenceLValue(CGF, E),
@@ -744,7 +736,6 @@ public:
 
   // Other Operators.
   Value *VisitBlockExpr(const BlockExpr *BE);
-  Value *VisitRuleExpr(const RuleExpr *BE);
   Value *VisitAbstractConditionalOperator(const AbstractConditionalOperator *);
   Value *VisitChooseExpr(ChooseExpr *CE);
   Value *VisitVAArgExpr(VAArgExpr *VE);
@@ -3643,10 +3634,6 @@ Value *ScalarExprEmitter::VisitVAArgExpr(VAArgExpr *VE) {
 
 Value *ScalarExprEmitter::VisitBlockExpr(const BlockExpr *block) {
   return CGF.EmitBlockLiteral(block);
-}
-
-Value *ScalarExprEmitter::VisitRuleExpr(const RuleExpr *block) {
-  return CGF.EmitRuleLiteral(block);
 }
 
 // Convert a vec3 to vec4, or vice versa.

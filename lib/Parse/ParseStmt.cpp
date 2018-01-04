@@ -850,7 +850,7 @@ StmtResult Parser::ParseRuleStatement() {
   SourceLocation RuleLoc = ConsumeToken();  // eat the 'rule'.
   ParseScope RuleScope(this, Scope::BlockScope | Scope::FnScope | Scope::DeclScope); 
   Scope *CurScope = getCurScope();
-  BlockDecl *Block = BlockDecl::Create(Actions.Context, Actions.CurContext, RuleLoc, true); 
+  BlockDecl *Block = BlockDecl::Create(Actions.Context, Actions.CurContext, RuleLoc); 
   Actions.PushBlockScope(CurScope, Block);
   Actions.CurContext->addDecl(Block);
   Actions.PushDeclContext(CurScope, Block);

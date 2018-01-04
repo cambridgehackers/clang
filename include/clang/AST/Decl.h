@@ -3601,7 +3601,6 @@ private:
   bool CapturesCXXThis : 1;
   bool BlockMissingReturnType : 1;
   bool IsConversionFromLambda : 1;
-  bool IsRule : 1;
   /// ParamInfo - new[]'d array of pointers to ParmVarDecls for the formal
   /// parameters of this function.  This is null if a prototype or if there are
   /// no formals.
@@ -3618,24 +3617,22 @@ private:
   Decl *ManglingContextDecl;
 
 protected:
-  BlockDecl(DeclContext *DC, SourceLocation CaretLoc, bool Rule)
+  BlockDecl(DeclContext *DC, SourceLocation CaretLoc)
     : Decl(Block, DC, CaretLoc), DeclContext(Block),
       IsVariadic(false), CapturesCXXThis(false),
       BlockMissingReturnType(true), IsConversionFromLambda(false),
-      IsRule(Rule),
       ParamInfo(nullptr), NumParams(0), Body(nullptr),
       SignatureAsWritten(nullptr), Captures(nullptr), NumCaptures(0),
       ManglingNumber(0), ManglingContextDecl(nullptr) {}
 
 public:
-  static BlockDecl *Create(ASTContext &C, DeclContext *DC, SourceLocation L, bool Rule = false); 
+  static BlockDecl *Create(ASTContext &C, DeclContext *DC, SourceLocation L); 
   static BlockDecl *CreateDeserialized(ASTContext &C, unsigned ID);
   
   SourceLocation getCaretLocation() const { return getLocation(); }
 
   bool isVariadic() const { return IsVariadic; }
   void setIsVariadic(bool value) { IsVariadic = value; }
-  bool isRule() const { return IsRule; }
 
   CompoundStmt *getCompoundBody() const { return (CompoundStmt*) Body; }
   Stmt *getBody() const override { return (Stmt*) Body; }

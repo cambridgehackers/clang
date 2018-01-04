@@ -2130,10 +2130,7 @@ enum CXCursorKind {
    */
   CXCursor_ObjCAvailabilityCheckExpr     = 148,
 
-  /** \brief An expression that represents a 'rule' literal. (Atomicc) */
-  CXCursor_RuleExpr                      = 149,
-
-  CXCursor_LastExpr                      = CXCursor_RuleExpr,
+  CXCursor_LastExpr                      = CXCursor_ObjCAvailabilityCheckExpr,
 
   /* Statements */
   CXCursor_FirstStmt                     = 200,

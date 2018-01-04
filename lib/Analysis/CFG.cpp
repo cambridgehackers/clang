@@ -486,7 +486,6 @@ private:
   CFGBlock *VisitIndirectGotoStmt(IndirectGotoStmt *I);
   CFGBlock *VisitLabelStmt(LabelStmt *L);
   CFGBlock *VisitBlockExpr(BlockExpr *E, AddStmtChoice asc);
-  CFGBlock *VisitRuleExpr(RuleExpr *E, AddStmtChoice asc);
   CFGBlock *VisitLambdaExpr(LambdaExpr *E, AddStmtChoice asc);
   CFGBlock *VisitLogicalOperator(BinaryOperator *B);
   std::pair<CFGBlock *, CFGBlock *> VisitLogicalOperator(BinaryOperator *B,
@@ -1584,9 +1583,6 @@ CFGBlock *CFGBuilder::Visit(Stmt * S, AddStmtChoice asc) {
     case Stmt::BlockExprClass:
       return VisitBlockExpr(cast<BlockExpr>(S), asc);
 
-    case Stmt::RuleExprClass:
-      return VisitRuleExpr(cast<RuleExpr>(S), asc);
-
     case Stmt::BreakStmtClass:
       return VisitBreakStmt(cast<BreakStmt>(S));
 
@@ -2481,18 +2477,6 @@ CFGBlock *CFGBuilder::VisitLabelStmt(LabelStmt *L) {
 }
 
 CFGBlock *CFGBuilder::VisitBlockExpr(BlockExpr *E, AddStmtChoice asc) {
-  CFGBlock *LastBlock = VisitNoRecurse(E, asc);
-  for (const BlockDecl::Capture &CI : E->getBlockDecl()->captures()) {
-    if (Expr *CopyExpr = CI.getCopyExpr()) {
-      CFGBlock *Tmp = Visit(CopyExpr);
-      if (Tmp)
-        LastBlock = Tmp;
-    }
-  }
-  return LastBlock;
-}
-
-CFGBlock *CFGBuilder::VisitRuleExpr(RuleExpr *E, AddStmtChoice asc) {
   CFGBlock *LastBlock = VisitNoRecurse(E, asc);
   for (const BlockDecl::Capture &CI : E->getBlockDecl()->captures()) {
     if (Expr *CopyExpr = CI.getCopyExpr()) {
@@ -3843,7 +3827,6 @@ tryAgain:
     }
 
     case Stmt::BlockExprClass:
-    case Stmt::RuleExprClass:
       // Don't recurse into blocks; their subexpressions don't get evaluated
       // here.
       return Block;

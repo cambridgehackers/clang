@@ -248,69 +248,6 @@ void ExprEngine::VisitBlockExpr(const BlockExpr *BE, ExplodedNode *Pred,
   getCheckerManager().runCheckersForPostStmt(Dst, Tmp, BE, *this);
 }
 
-void ExprEngine::VisitRuleExpr(const RuleExpr *BE, ExplodedNode *Pred,
-                                ExplodedNodeSet &Dst) {
-
-  CanQualType T = getContext().getCanonicalType(BE->getType());
-
-  const BlockDecl *BD = BE->getBlockDecl();
-  // Get the value of the block itself.
-  SVal V = svalBuilder.getBlockPointer(BD, T,
-                                       Pred->getLocationContext(),
-                                       currBldrCtx->blockCount());
-
-  ProgramStateRef State = Pred->getState();
-
-  // If we created a new MemRegion for the block, we should explicitly bind
-  // the captured variables.
-  if (const BlockDataRegion *BDR =
-      dyn_cast_or_null<BlockDataRegion>(V.getAsRegion())) {
-
-    BlockDataRegion::referenced_vars_iterator I = BDR->referenced_vars_begin(),
-                                              E = BDR->referenced_vars_end();
-
-    auto CI = BD->capture_begin();
-    auto CE = BD->capture_end();
-    for (; I != E; ++I) {
-      const VarRegion *capturedR = I.getCapturedRegion();
-      const VarRegion *originalR = I.getOriginalRegion();
-
-      // If the capture had a copy expression, use the result of evaluating
-      // that expression, otherwise use the original value.
-      // We rely on the invariant that the block declaration's capture variables
-      // are a prefix of the BlockDataRegion's referenced vars (which may include
-      // referenced globals, etc.) to enable fast lookup of the capture for a
-      // given referenced var.
-      const Expr *copyExpr = nullptr;
-      if (CI != CE) {
-        assert(CI->getVariable() == capturedR->getDecl());
-        copyExpr = CI->getCopyExpr();
-        CI++;
-      }
-
-      if (capturedR != originalR) {
-        SVal originalV;
-        const LocationContext *LCtx = Pred->getLocationContext();
-        if (copyExpr) {
-          originalV = State->getSVal(copyExpr, LCtx);
-        } else {
-          originalV = State->getSVal(loc::MemRegionVal(originalR));
-        }
-        State = State->bindLoc(loc::MemRegionVal(capturedR), originalV, LCtx);
-      }
-    }
-  }
-
-  ExplodedNodeSet Tmp;
-  StmtNodeBuilder Bldr(Pred, Tmp, *currBldrCtx);
-  Bldr.generateNode(BE, Pred,
-                    State->BindExpr(BE, Pred->getLocationContext(), V),
-                    nullptr, ProgramPoint::PostLValueKind);
-
-  // FIXME: Move all post/pre visits to ::Visit().
-  getCheckerManager().runCheckersForPostStmt(Dst, Tmp, BE, *this);
-}
-
 ProgramStateRef ExprEngine::handleLValueBitCast(
     ProgramStateRef state, const Expr* Ex, const LocationContext* LCtx,
     QualType T, QualType ExTy, const CastExpr* CastE, StmtNodeBuilder& Bldr,

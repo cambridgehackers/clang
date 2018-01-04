@@ -1563,8 +1563,6 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
   // Block variables at global or local static scope.
   case Expr::BlockExprClass:
     return !cast<BlockExpr>(E)->getBlockDecl()->hasCaptures();
-  case Expr::RuleExprClass:
-    return !cast<RuleExpr>(E)->getBlockDecl()->hasCaptures();
   case Expr::ImplicitValueInitExprClass:
     // FIXME:
     // We can never form an lvalue with an implicit value initialization as its
@@ -5516,11 +5514,6 @@ public:
   bool VisitCallExpr(const CallExpr *E);
   bool VisitBuiltinCallExpr(const CallExpr *E, unsigned BuiltinOp);
   bool VisitBlockExpr(const BlockExpr *E) {
-    if (!E->getBlockDecl()->hasCaptures())
-      return Success(E);
-    return Error(E);
-  }
-  bool VisitRuleExpr(const RuleExpr *E) {
     if (!E->getBlockDecl()->hasCaptures())
       return Success(E);
     return Error(E);
@@ -10256,7 +10249,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ShuffleVectorExprClass:
   case Expr::ConvertVectorExprClass:
   case Expr::BlockExprClass:
-  case Expr::RuleExprClass:
   case Expr::NoStmtClass:
   case Expr::OpaqueValueExprClass:
   case Expr::PackExpansionExprClass:
