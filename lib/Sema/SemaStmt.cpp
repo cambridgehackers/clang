@@ -39,6 +39,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 
 using namespace clang;
 using namespace sema;
@@ -1393,6 +1394,7 @@ namespace {
 
 StmtResult
 Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef AName, Expr *ConditionExpr, CompoundStmt *bodyStmt, ArrayRef<CapturingScopeInfo::Capture> BSICaptures) {
+  static int counter;
   SmallVector<Stmt*, 32> TopStmts;
   NestedNameSpecifierLoc NNSloc;
   std::string Name = AName;
@@ -1463,7 +1465,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   QualType aType = Context.getConstantArrayType(Context.LongTy,
             llvm::APInt(Context.getTypeSize(Context.IntTy), Captures.size() + 1 /*for 'invoke'*/),
             ArrayType::ArraySizeModifier::Normal, 0);
-  IdentifierInfo *blII = &Context.Idents.get("blockZZ");
+  IdentifierInfo *blII = &Context.Idents.get("blockZZ" + llvm::utostr(counter));
   VarDecl *blvariable = VarDecl::Create(Context, CurContext, RuleLoc, RuleLoc, blII, aType, nullptr, SC_Auto);
   blvariable->markUsed(Context);
   CurContext->addDecl(blvariable);
@@ -1500,7 +1502,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   CallExpr *bcall, *vcall;
 bozoDC = CurContext; // hack for TransformToRule
   {
-  IdentifierInfo *IFn = &Context.Idents.get("ruleTemplatebZZ");
+  IdentifierInfo *IFn = &Context.Idents.get("ruleTemplatebZZ" + llvm::utostr(counter));
   DeclarationNameInfo NameInfo(IFn, RuleLoc);
   CXXMethodDecl *FFN = CXXMethodDecl::Create(Context, cast<CXXRecordDecl>(DC),
       RuleLoc, NameInfo, Context.getFunctionType(Context.BoolTy, FArgs, EPI),
@@ -1514,8 +1516,6 @@ bozoDC = CurContext; // hack for TransformToRule
   FFN->setBody(new (Context) class CompoundStmt(Context, Stmts, RuleLoc, RuleLoc));
   FFN->addAttr(::new (Context) UsedAttr(RuleLoc, Context, 0));
   ActOnFinishInlineFunctionDef(FFN);
-printf("[%s:%d] guard\n", __FUNCTION__, __LINE__);
-FFN->dump();
   ExprResult FFNRef = ImpCastExprToType(
       DeclRefExpr::Create(Context, NNSloc, RuleLoc, FFN, false, RuleLoc, FFN->getType(), VK_LValue, nullptr),
            Context.getPointerType(FFN->getType()), CK_FunctionToPointerDecay);
@@ -1529,7 +1529,7 @@ FFN->dump();
   bcall = new (Context) CallExpr(Context, Fn, Args, voidp, VK_RValue, RuleLoc);
   }
   {
-  IdentifierInfo *IFn = &Context.Idents.get("ruleTemplatevZZ");
+  IdentifierInfo *IFn = &Context.Idents.get("ruleTemplatevZZ" + llvm::utostr(counter));
   DeclarationNameInfo NameInfo(IFn, RuleLoc);
   CXXMethodDecl *FFN = CXXMethodDecl::Create(Context, cast<CXXRecordDecl>(DC),
       RuleLoc, NameInfo, Context.getFunctionType(Context.VoidTy, FArgs, EPI),
@@ -1541,8 +1541,6 @@ FFN->dump();
   StmtResult tempStmt = TransformToRule(*this).TransformStmt(bodyStmt);
   FFN->setBody(tempStmt.get());
   ActOnFinishInlineFunctionDef(FFN);
-printf("[%s:%d] rule\n", __FUNCTION__, __LINE__);
-FFN->dump();
   ExprResult FFNRef = ImpCastExprToType(
       DeclRefExpr::Create(Context, NNSloc, RuleLoc, FFN, false, RuleLoc, FFN->getType(), VK_LValue, nullptr),
            Context.getPointerType(FFN->getType()), CK_FunctionToPointerDecay);
@@ -1565,6 +1563,7 @@ FFN->dump();
 //printf("[%s:%d]BLEXPER TheCall %p\n", __FUNCTION__, __LINE__, TheCall);
 //TheCall->dump();
   TopStmts.push_back(TheCall);
+  counter++;
   return new (Context) class CompoundStmt(Context, TopStmts, RuleLoc, RuleLoc);
 }
 
