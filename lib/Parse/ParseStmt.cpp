@@ -848,14 +848,13 @@ StmtResult Parser::ParseDefaultStatement() {
 StmtResult Parser::ParseRuleStatement() {
   assert(Tok.is(tok::kw___rule) && "Not a rule stmt!");
   SourceLocation RuleLoc = ConsumeToken();  // eat the 'rule'.
-  ParseScope RuleScope(this, Scope::BlockScope | Scope::FnScope | Scope::DeclScope); 
+  //ParseScope RuleScope(this, Scope::FnScope | Scope::DeclScope); 
   Scope *CurScope = getCurScope();
   BlockDecl *Block = BlockDecl::Create(Actions.Context, Actions.CurContext, RuleLoc); 
   Actions.PushBlockScope(CurScope, Block);
   Actions.CurContext->addDecl(Block);
   Actions.PushDeclContext(CurScope, Block);
-  Actions.PushExpressionEvaluationContext(Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
-  sema::BlockScopeInfo *CurBlock = Actions.getCurBlock();
+  //Actions.PushExpressionEvaluationContext(Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
   assert(Tok.is(tok::identifier) && "No rule name!");
   std::string RuleName = Tok.getIdentifierInfo()->getName();
   ConsumeToken();
@@ -874,21 +873,20 @@ StmtResult Parser::ParseRuleStatement() {
   }
   else // default guard is 'if (true)'
     GuardExpr = Actions.ActOnCXXBoolLiteral(RuleLoc, tok::kw_true).get();
-printf("[%s:%d] RULE befstmt CURCONTEXT %p\n", __FUNCTION__, __LINE__, Actions.CurContext);
   StmtResult BodyStmt(ParseStatement(nullptr));
   if (Tok.is(tok::code_completion)) {
     Actions.CodeCompleteAfterIf(getCurScope());
     cutOffParsing();
     return StmtError();
   }
-  RuleScope.Exit();
-  Actions.PopExpressionEvaluationContext();
+  //RuleScope.Exit();
+  //Actions.PopExpressionEvaluationContext();
+  sema::BlockScopeInfo *CurBlock = Actions.getCurBlock();
   Actions.PopDeclContext();
   Actions.PopFunctionScopeInfo();
   if (BodyStmt.isInvalid())
-    BodyStmt = Actions.ActOnNullStmt(RuleLoc);
-  return Actions.ActOnRuleStmt(RuleLoc, RuleName,
-      GuardExpr, cast<class CompoundStmt>(BodyStmt.get()), CurBlock->Captures);
+    return StmtError();
+  return Actions.ActOnRuleStmt(RuleLoc, RuleName, GuardExpr, BodyStmt.get(), CurBlock->Captures);
 }
 
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {

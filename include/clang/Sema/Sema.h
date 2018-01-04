@@ -3677,7 +3677,7 @@ public:
                          Expr *Cond, SourceLocation CondRParen);
 
   StmtResult ActOnRuleStmt(SourceLocation RuleLoc,
-                         StringRef AName, Expr *ConditionExpr, CompoundStmt *BodyStmt,
+                         StringRef Name, Expr *ConditionExpr, Stmt *body,
                          ArrayRef<sema::CapturingScopeInfo::Capture> BSICaptures);
 
   StmtResult ActOnForStmt(SourceLocation ForLoc,

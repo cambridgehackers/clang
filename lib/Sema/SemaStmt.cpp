@@ -1360,7 +1360,7 @@ static FunctionDecl *getABR(Sema *s, SourceLocation OpLoc)
 }
 
 static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
-     QualType FType, ArrayRef<ParmVarDecl *> Params, Stmt *Body, Expr *blockAddrV)
+     QualType FType, ArrayRef<ParmVarDecl *> Params, Stmt *Body, Expr *blockAddr)
 {
   static int counter;
   FunctionDecl *FFDecl = getFFun(&Actions, RuleLoc);
@@ -1400,7 +1400,7 @@ static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
       DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFN, false, RuleLoc, FFN->getType(), VK_LValue, nullptr),
            Actions.Context.getPointerType(FFN->getType()), CK_FunctionToPointerDecay);
   Expr *Args[] = {
-      blockAddrV,
+      blockAddr,
       CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
            FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc)};
   Expr *Fn = DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFDecl, false,
@@ -1441,20 +1441,18 @@ namespace {
 }
 
 StmtResult
-Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr, CompoundStmt *bodyStmt, ArrayRef<CapturingScopeInfo::Capture> BSICaptures) {
-  SmallVector<Stmt*, 32> TopStmts;
+Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr, Stmt *body, ArrayRef<CapturingScopeInfo::Capture> BSICaptures) {
   NestedNameSpecifierLoc NNSloc;
   FunctionProtoType::ExtProtoInfo EPI;
-  FunctionDecl *ABRDecl = getABR(this, RuleLoc);
+  SmallVector<Stmt*, 32> TopStmts;
   SmallVector<QualType, 8> FArgs;
   SmallVector<ParmVarDecl *, 16> Params;
   SmallVector<const VarDecl *, 16> CapVariables;
+  FunctionDecl *ABRDecl = getABR(this, RuleLoc);
 
-  DiagnoseUnusedExprResult(bodyStmt);
-  /// Compute the layout of the given block.  The header is basically:
-  //     'struct { data for captures ...}'.
-  //  All the captured data is stored as i64 values
-
+  DiagnoseUnusedExprResult(body);
+  // Create placeholder function params for all captured values (replaced
+  // with concrete values in fixupFunction)
   for (const CapturingScopeInfo::Capture &Cap : BSICaptures) {
     if (Cap.isThisCapture())
         continue;
@@ -1476,63 +1474,63 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   }
   // remap captured variables using paramMap
   bozoDC = CurContext; // hack for TransformToRule
-  ExprResult temp = TransformToRule(*this).TransformExpr(ConditionExpr);
-  SmallVector<Stmt*, 32> Stmts;
-  Stmts.push_back(new (Context) ReturnStmt(RuleLoc, temp.get(), nullptr));
-  StmtResult tempStmt = TransformToRule(*this).TransformStmt(bodyStmt);
+  ExprResult transCond = TransformToRule(*this).TransformExpr(ConditionExpr);
+  SmallVector<Stmt*, 32> stmtsCond;
+  stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
+  StmtResult transBody = TransformToRule(*this).TransformStmt(body);
 
-  // Make the allocation and initialize the block.
-  QualType aType = Context.getConstantArrayType(Context.LongTy,
+  // Make the allocation for the capture value block.
+  IdentifierInfo *blII = &Context.Idents.get("block");
+  VarDecl *blockVariable = VarDecl::Create(Context, CurContext, RuleLoc, RuleLoc, blII,
+      Context.getConstantArrayType(Context.LongTy,
             llvm::APInt(Context.getTypeSize(Context.IntTy), Params.size()),
-            ArrayType::ArraySizeModifier::Normal, 0);
-  IdentifierInfo *blII = &Context.Idents.get("blockZZ");
-  VarDecl *blvariable = VarDecl::Create(Context, CurContext, RuleLoc, RuleLoc, blII, aType, nullptr, SC_Auto);
-  blvariable->markUsed(Context);
-  CurContext->addDecl(blvariable);
-  TopStmts.push_back(new (Context) DeclStmt(DeclGroupRef(blvariable), RuleLoc, RuleLoc));
-  Expr *blockAddr = DeclRefExpr::Create(Context, NNSloc, RuleLoc, const_cast<VarDecl *>(blvariable),
-        /*RefersToEnclosingVariableOrCapture*/ false, RuleLoc, blvariable->getType(), VK_LValue); 
-  Expr *blockAddrV = ImplicitCastExpr::Create(Context, longp, CK_ArrayToPointerDecay, blockAddr, nullptr, VK_RValue);
-  blockAddr = ImplicitCastExpr::Create(Context, Context.getPointerType(Context.LongTy), CK_ArrayToPointerDecay, blockAddr, nullptr, VK_LValue);
-  auto projectField = [&](int pindex, const Twine &name) -> Expr * {
-      auto ret = new (Context) ArraySubscriptExpr(blockAddr,
-        IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), pindex),
-            Context.IntTy, RuleLoc), Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc);
-      return ret;
-    };
-  // Initialize the block header.
+            ArrayType::ArraySizeModifier::Normal, 0), nullptr, SC_Auto);
+  CurContext->addDecl(blockVariable);
+  blockVariable->markUsed(Context);
+  TopStmts.push_back(new (Context) DeclStmt(DeclGroupRef(blockVariable), RuleLoc, RuleLoc));
+  Expr *blockAddr = DeclRefExpr::Create(Context, NNSloc, RuleLoc, const_cast<VarDecl *>(blockVariable),
+        /*RefersToEnclosingVariableOrCapture*/ false, RuleLoc, blockVariable->getType(), VK_LValue); 
 
-  int pindex = 0;
   // Capture all the values into the block.
+  int pindex = 0;
+  Expr *blockPtr = ImplicitCastExpr::Create(Context, longp,
+      CK_ArrayToPointerDecay, blockAddr, nullptr, VK_LValue);
   for (const auto variable : CapVariables) {
     QualType VT = variable->getType();
-    // Fake up a new variable so that EmitScalarInit doesn't think
-    // we're referring to the variable in its own initializer.
     Expr *rval = ImplicitCastExpr::Create(Context, VT, CK_LValueToRValue, 
         DeclRefExpr::Create(Context, NNSloc, RuleLoc, const_cast<VarDecl *>(variable),
             /*RefersToEnclosingVariableOrCapture*/ false, RuleLoc, VT, VK_LValue),
         nullptr, VK_RValue);
-    if (VT != Context.LongTy)
+    if (VT != Context.LongTy) // only cast if not already LongTy
         rval = ImplicitCastExpr::Create(Context, Context.LongTy,
               CK_IntegralCast, rval, nullptr, VK_RValue);
-    ExprResult assignp = BuildBinOp(CurScope, RuleLoc, BO_Assign, projectField(pindex++, "block.captured"), rval);
+    ExprResult assignp = BuildBinOp(CurScope, RuleLoc, BO_Assign, 
+        new (Context) ArraySubscriptExpr(blockPtr,
+          IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), pindex++),
+              Context.IntTy, RuleLoc), Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc), rval);
     TopStmts.push_back(assignp.get());
   } 
+  Expr *blockAddrVal = ImplicitCastExpr::Create(Context, longp,
+      CK_ArrayToPointerDecay, blockAddr, nullptr, VK_RValue);
   Expr *Args[] = {
-      ImpCastExprToType(new (Context) CXXThisExpr(RuleLoc, getCurrentThisType(), /*isImplicit=*/true), voidp, CK_BitCast).get(),
+      ImpCastExprToType(new (Context) CXXThisExpr(RuleLoc, getCurrentThisType(),
+          /*isImplicit=*/true), voidp, CK_BitCast).get(),
       ImpCastExprToType(StringLiteral::Create(Context, Name,
           StringLiteral::Ascii, /*Pascal*/ false,
           Context.getConstantArrayType(Context.CharTy.withConst(),
           llvm::APInt(32, Name.size() + 1), ArrayType::Normal, 0), RuleLoc),
           ccharp, CK_ArrayToPointerDecay).get(),
+      // instantiate captured values into guard function
       buildTemplate(*this, RuleLoc, Context.getFunctionType(Context.BoolTy, FArgs, EPI),
-          Params, new (Context) class CompoundStmt(Context, Stmts, RuleLoc, RuleLoc), blockAddrV),
+          Params, new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc), blockAddrVal),
+      // instantiate captured values into method function
       buildTemplate(*this, RuleLoc, Context.getFunctionType(Context.VoidTy, FArgs, EPI),
-          Params, tempStmt.get(), blockAddrV)
+          Params, transBody.get(), blockAddrVal)
   };
-  Expr *Fn = DeclRefExpr::Create(Context, NNSloc, RuleLoc, ABRDecl, false,
-      RuleLoc, ABRDecl->getType(), VK_LValue, nullptr);
-  CallExpr *TheCall = new (Context) CallExpr(Context, ImpCastExprToType(Fn,
+  // add guard/method function into list of pairs to be processed by backend
+  CallExpr *TheCall = new (Context) CallExpr(Context, ImpCastExprToType(
+          DeclRefExpr::Create(Context, NNSloc, RuleLoc, ABRDecl, false,
+              RuleLoc, ABRDecl->getType(), VK_LValue, nullptr),
           Context.getPointerType(ABRDecl->getType()), CK_FunctionToPointerDecay).get(),
       Args, Context.VoidTy, VK_RValue, RuleLoc);
 //printf("[%s:%d]BLEXPER TheCall %p\n", __FUNCTION__, __LINE__, TheCall);
