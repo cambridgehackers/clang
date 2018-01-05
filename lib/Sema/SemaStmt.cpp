@@ -1294,6 +1294,15 @@ static QualType ccharp;
 static QualType voidp;
 static QualType longp;
 static QualType voidpp;
+Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD)
+{
+  SourceLocation RuleLoc;
+  NestedNameSpecifierLoc NNSloc;
+  return Actions.ImpCastExprToType(
+      DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FD, false, RuleLoc,
+                 FD->getType(), VK_LValue, nullptr),
+           Actions.Context.getPointerType(FD->getType()), CK_FunctionToPointerDecay).get();
+}
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params)
 {
     SourceLocation OpLoc;
@@ -1339,7 +1348,6 @@ static Expr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
      QualType FType, ArrayRef<ParmVarDecl *> Params, Stmt *Body, Expr *blockAddr)
 {
   static int counter;
-  NestedNameSpecifierLoc NNSloc;
 
   AttributeFactory AttrFactory;
   DeclSpec DS(AttrFactory);
@@ -1370,11 +1378,8 @@ static Expr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
   Method->setBody(Body);
   Method->addAttr(::new (Actions.Context) UsedAttr(RuleLoc, Actions.Context, 0));
   Actions.ActOnFinishInlineFunctionDef(Method);
-  ExprResult FFNRef = Actions.ImpCastExprToType(
-      DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, Method, false, RuleLoc, Method->getType(), VK_LValue, nullptr),
-           Actions.Context.getPointerType(Method->getType()), CK_FunctionToPointerDecay);
   return CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
-           FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc);
+      getACCCallRef(Actions, Method), nullptr, TSI, RuleLoc, RuleLoc);
 }
 
 namespace {
@@ -1501,11 +1506,8 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           Params, transBody.get(), blockAddrVal)
   };
   // add guard/method function into list of pairs to be processed by backend
-  CallExpr *TheCall = new (Context) CallExpr(Context, ImpCastExprToType(
-          DeclRefExpr::Create(Context, NNSloc, RuleLoc, ABRDecl, false,
-              RuleLoc, ABRDecl->getType(), VK_LValue, nullptr),
-          Context.getPointerType(ABRDecl->getType()), CK_FunctionToPointerDecay).get(),
-      Args, Context.VoidTy, VK_RValue, RuleLoc);
+  CallExpr *TheCall = new (Context) CallExpr(Context, 
+      getACCCallRef(*this, ABRDecl), Args, Context.VoidTy, VK_RValue, RuleLoc);
 //printf("[%s:%d]BLEXPER TheCall %p\n", __FUNCTION__, __LINE__, TheCall);
 //TheCall->dump();
   TopStmts.push_back(TheCall);

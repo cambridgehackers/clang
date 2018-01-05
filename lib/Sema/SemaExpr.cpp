@@ -46,6 +46,7 @@
 #include "llvm/Support/ConvertUTF.h"
 using namespace clang;
 using namespace sema;
+Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params);
 
 /// \brief Determine whether the use of this declaration is valid, without
@@ -11752,14 +11753,11 @@ static CallExpr *getAssignCall(Sema &Actions, SourceLocation OpLoc, Expr *LHSExp
             Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
             llvm::APInt(32, rStr.length() + 1), ArrayType::Normal, /*IndexTypeQuals*/ 0), OpLoc),
             ccharp, CK_ArrayToPointerDecay).get();
-    NestedNameSpecifierLoc NNSloc;
-    Expr *Fn = DeclRefExpr::Create(Actions.Context, NNSloc, OpLoc, AIFCDecl, false,
-        OpLoc, AIFCDecl->getType(), VK_LValue, nullptr);
-    Fn = Actions.ImpCastExprToType(Fn, Actions.Context.getPointerType(AIFCDecl->getType()), CK_FunctionToPointerDecay).get();
     Expr *intPlaceholder = IntegerLiteral::Create(Actions.Context,
         llvm::APInt(Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc);
     Expr *Args[] = {LHSExpr, RHSExpr, intPlaceholder};
-    CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context, Fn, Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
+    CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
+        getACCCallRef(Actions, AIFCDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
 printf("[%s:%d] IFCASSIGN %s = %s\n", __FUNCTION__, __LINE__, lStr.c_str(), rStr.c_str());
 //printf("[%s:%d] NUM %d isproto %d\n", __FUNCTION__, __LINE__, TheCall->getNumArgs(), AIFCDecl->hasPrototype());
 //TheCall->dump();
