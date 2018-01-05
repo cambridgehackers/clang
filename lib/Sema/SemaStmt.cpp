@@ -1344,11 +1344,17 @@ static FunctionDecl *getABR(Sema &Actions, SourceLocation OpLoc)
     return ABRDecl;
 }
 
-static Expr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
-     QualType FType, ArrayRef<ParmVarDecl *> Params, Stmt *Body, Expr *blockAddr)
+static Expr *buildTemplate(Sema &Actions, QualType RetType,
+    SmallVector<clang::ParmVarDecl *, 16> &Params, Stmt *Body)
 {
   static int counter;
+  SourceLocation RuleLoc;
+  FunctionProtoType::ExtProtoInfo EPI;
+  SmallVector<QualType, 8> FArgs;
 
+  for (auto item: Params)
+      FArgs.push_back(item->getType());
+  QualType FType = Actions.Context.getFunctionType(RetType, FArgs, EPI);
   AttributeFactory AttrFactory;
   DeclSpec DS(AttrFactory);
   Declarator ParamInfo(DS, Declarator::BlockLiteralContext); 
@@ -1408,30 +1414,23 @@ namespace {
 
 void Sema::StartRuleStmt(SourceLocation RuleLoc)
 {
-  //ParseScope RuleScope(this, Scope::FnScope | Scope::DeclScope); 
   Scope *CurScope = getCurScope();
   BlockDecl *Block = BlockDecl::Create(Context, CurContext, RuleLoc); 
   PushBlockScope(CurScope, Block);
   PushDeclContext(CurScope, Block);
-  //PushExpressionEvaluationContext(Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
 }
 
 StmtResult
 Sema::FinishRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr, Stmt *body) {
   NestedNameSpecifierLoc NNSloc;
-  FunctionProtoType::ExtProtoInfo EPI;
   SmallVector<Stmt*, 32> TopStmts;
-  SmallVector<QualType, 8> FArgs;
   SmallVector<ParmVarDecl *, 16> Params;
   SmallVector<const VarDecl *, 16> CapVariables;
   llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
   FunctionDecl *ABRDecl = getABR(*this, RuleLoc);
 
-  //RuleScope.Exit();
-  //PopExpressionEvaluationContext();
   DiagnoseUnusedExprResult(body);
-  // Create placeholder function params for all captured values (replaced
-  // with concrete values in fixupFunction)
+  // Preprocessing for captured data references
   for (const CapturingScopeInfo::Capture &Cap : getCurBlock()->Captures) {
     if (Cap.isThisCapture())
         continue;
@@ -1442,7 +1441,6 @@ Sema::FinishRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr
 printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     }
     CapVariables.push_back(variable);
-    FArgs.push_back(VT);
     IdentifierInfo *II = &Context.Idents.get(variable->getName()); 
     auto thisParam = ParmVarDecl::Create(Context, CurContext,
         RuleLoc, RuleLoc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
@@ -1488,8 +1486,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
               Context.IntTy, RuleLoc), Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc), rval);
     TopStmts.push_back(assignp.get());
   } 
-  Expr *blockAddrVal = ImplicitCastExpr::Create(Context, longp,
-      CK_ArrayToPointerDecay, blockAddr, nullptr, VK_RValue);
   Expr *Args[] = {
       // rule name
       ImpCastExprToType(StringLiteral::Create(Context, Name,
@@ -1497,13 +1493,13 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           Context.getConstantArrayType(Context.CharTy.withConst(),
           llvm::APInt(32, Name.size() + 1), ArrayType::Normal, 0), RuleLoc),
           ccharp, CK_ArrayToPointerDecay).get(),
-      blockAddrVal,  // captured parameter block
+      // captured parameter block
+      ImplicitCastExpr::Create(Context, longp, CK_ArrayToPointerDecay, blockAddr, nullptr, VK_RValue),
       // instantiate captured values into guard function by calling fixupFunction()
-      buildTemplate(*this, RuleLoc, Context.getFunctionType(Context.BoolTy, FArgs, EPI),
-          Params, new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc), blockAddrVal),
+      buildTemplate(*this, Context.BoolTy, Params,
+          new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc)),
       // instantiate captured values into method function by calling fixupFunction()
-      buildTemplate(*this, RuleLoc, Context.getFunctionType(Context.VoidTy, FArgs, EPI),
-          Params, transBody.get(), blockAddrVal)
+      buildTemplate(*this, Context.VoidTy, Params, transBody.get())
   };
   // add guard/method function into list of pairs to be processed by backend
   CallExpr *TheCall = new (Context) CallExpr(Context, 

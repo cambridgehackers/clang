@@ -11723,7 +11723,6 @@ static FunctionDecl *getAIFC(Sema &Actions, SourceLocation OpLoc)
     static FunctionDecl *AIFCDecl;
     if (!AIFCDecl) {
         ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
-        //FunctionProtoType::ExtProtoInfo EPI;
         DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
         LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
         CLinkageDecl->setImplicit();
