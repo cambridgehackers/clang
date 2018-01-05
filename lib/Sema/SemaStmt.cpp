@@ -1294,7 +1294,7 @@ static QualType ccharp;
 static QualType voidp;
 static QualType longp;
 static QualType voidpp;
-static FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params)
+FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params)
 {
     SourceLocation OpLoc;
     IdentifierInfo *II = &Actions.Context.Idents.get(Name);
@@ -1318,9 +1318,9 @@ static FunctionDecl *getFFun(Sema &Actions, SourceLocation OpLoc)
         CLinkageDecl->setImplicit();
         Parent->addDecl(CLinkageDecl);
         SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(Actions.Context, FFDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
             OpLoc, nullptr, longp, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, FFDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
             OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
         FFDecl = getACCFunction(Actions, CLinkageDecl, "fixupFunction", voidp, Params);
     }
@@ -1339,11 +1339,11 @@ static FunctionDecl *getABR(Sema &Actions, SourceLocation OpLoc)
         CLinkageDecl->setImplicit();
         Parent->addDecl(CLinkageDecl);
         SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(Actions.Context, ABRDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
             OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, ABRDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
             OpLoc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, ABRDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
             OpLoc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
         ABRDecl = getACCFunction(Actions, CLinkageDecl, "addBaseRule", Actions.Context.VoidTy, Params);
     }
