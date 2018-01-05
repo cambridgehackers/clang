@@ -1391,11 +1391,10 @@ static Expr *buildTemplate(Sema &Actions, QualType RetType,
 namespace {
   class TransformToRule : public TreeTransform<TransformToRule> {
     typedef TreeTransform<TransformToRule> BaseTransform;
-    llvm::DenseMap<const VarDecl *, DeclRefExpr *> &paramMap;
 
   public:
-    TransformToRule(Sema &SemaRef, llvm::DenseMap<const VarDecl *, DeclRefExpr *> &pMap) :
-        BaseTransform(SemaRef), paramMap(pMap) { }
+    llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
+    TransformToRule(Sema &SemaRef) : BaseTransform(SemaRef) { }
 
     // Make sure we redo semantic analysis
     bool AlwaysRebuild() { return true; }
@@ -1426,8 +1425,8 @@ Sema::FinishRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr
   SmallVector<Stmt*, 32> TopStmts;
   SmallVector<ParmVarDecl *, 16> Params;
   SmallVector<const VarDecl *, 16> CapVariables;
-  llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
   FunctionDecl *ABRDecl = getABR(*this, RuleLoc);
+  TransformToRule transform(*this);
 
   DiagnoseUnusedExprResult(body);
   // Preprocessing for captured data references
@@ -1446,14 +1445,15 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
         RuleLoc, RuleLoc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
     thisParam->setIsUsed();
     Params.push_back(thisParam);
-    paramMap[variable] = DeclRefExpr::Create(Context, NNSloc, RuleLoc,
+    transform.paramMap[variable] = DeclRefExpr::Create(Context, NNSloc, RuleLoc,
         thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
   }
-  // remap captured variables using paramMap
-  ExprResult transCond = TransformToRule(*this, paramMap).TransformExpr(ConditionExpr);
+
+  // Remap captured variables using transfrom.paramMap
+  ExprResult transCond = transform.TransformExpr(ConditionExpr);
   SmallVector<Stmt*, 32> stmtsCond;
   stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
-  StmtResult transBody = TransformToRule(*this, paramMap).TransformStmt(body);
+  StmtResult transBody = transform.TransformStmt(body);
 
   // Make the allocation for the capture value block.
   IdentifierInfo *blII = &Context.Idents.get("block");
@@ -1480,12 +1480,12 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     if (VT != Context.LongTy) // only cast if not already LongTy
         rval = ImplicitCastExpr::Create(Context, Context.LongTy,
               CK_IntegralCast, rval, nullptr, VK_RValue);
-    ExprResult assignp = BuildBinOp(CurScope, RuleLoc, BO_Assign, 
+    TopStmts.push_back(BuildBinOp(CurScope, RuleLoc, BO_Assign, 
         new (Context) ArraySubscriptExpr(blockPtr,
           IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), pindex++),
-              Context.IntTy, RuleLoc), Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc), rval);
-    TopStmts.push_back(assignp.get());
+          Context.IntTy, RuleLoc), Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc), rval).get());
   } 
+
   Expr *Args[] = {
       // rule name
       ImpCastExprToType(StringLiteral::Create(Context, Name,
@@ -1501,12 +1501,9 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
       // instantiate captured values into method function by calling fixupFunction()
       buildTemplate(*this, Context.VoidTy, Params, transBody.get())
   };
-  // add guard/method function into list of pairs to be processed by backend
-  CallExpr *TheCall = new (Context) CallExpr(Context, 
-      getACCCallRef(*this, ABRDecl), Args, Context.VoidTy, VK_RValue, RuleLoc);
-//printf("[%s:%d]BLEXPER TheCall %p\n", __FUNCTION__, __LINE__, TheCall);
-//TheCall->dump();
-  TopStmts.push_back(TheCall);
+  // Call runtime to add guard/method function into list of pairs to be processed by backend
+  TopStmts.push_back(new (Context) CallExpr(Context, 
+      getACCCallRef(*this, ABRDecl), Args, Context.VoidTy, VK_RValue, RuleLoc));
   auto ret = new (Context) class CompoundStmt(Context, TopStmts, RuleLoc, RuleLoc);
   PopDeclContext();
   PopFunctionScopeInfo();

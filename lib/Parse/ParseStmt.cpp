@@ -848,10 +848,10 @@ StmtResult Parser::ParseDefaultStatement() {
 StmtResult Parser::ParseRuleStatement() {
   assert(Tok.is(tok::kw___rule) && "Not a rule stmt!");
   SourceLocation RuleLoc = ConsumeToken();  // eat the 'rule'.
-  Actions.StartRuleStmt(RuleLoc);
   assert(Tok.is(tok::identifier) && "No rule name!");
   std::string RuleName = Tok.getIdentifierInfo()->getName();
   ConsumeToken();
+  Actions.StartRuleStmt(RuleLoc);
   Expr *GuardExpr;
   if (Tok.is(tok::kw_if)) {
     ConsumeToken();  // eat the 'if'.
@@ -873,10 +873,9 @@ StmtResult Parser::ParseRuleStatement() {
     cutOffParsing();
     return StmtError();
   }
-  auto res = Actions.FinishRuleStmt(RuleLoc, RuleName, GuardExpr, BodyStmt.get());
   if (BodyStmt.isInvalid())
     return StmtError();
-  return res;
+  return Actions.FinishRuleStmt(RuleLoc, RuleName, GuardExpr, BodyStmt.get());
 }
 
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
