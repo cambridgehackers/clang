@@ -1294,65 +1294,58 @@ static QualType ccharp;
 static QualType voidp;
 static QualType longp;
 static QualType voidpp;
-static QualType bbool;
-static QualType bvoid;
-static FunctionDecl *getFFun(Sema *s, SourceLocation OpLoc)
+static FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params)
+{
+    SourceLocation OpLoc;
+    IdentifierInfo *II = &Actions.Context.Idents.get(Name);
+    DeclarationNameInfo NameInfo(II, OpLoc);
+    SmallVector<QualType, 16> ArgTypes;
+    for (auto item: Params)
+        ArgTypes.push_back(item->getType());
+    FunctionProtoType::ExtProtoInfo EPI;
+    auto FnType = Actions.Context.getFunctionType(FType, ArgTypes, EPI);
+    FunctionDecl *FFDecl = FunctionDecl::Create(Actions.Context, DC, OpLoc,
+        NameInfo, FnType, nullptr, SC_Extern, false, true, false);
+    FFDecl->setParams(Params);
+    return FFDecl;
+}
+static FunctionDecl *getFFun(Sema &Actions, SourceLocation OpLoc)
 {
     static FunctionDecl *FFDecl;
     if (!FFDecl) {
-        SmallVector<QualType, 8> NullArgs;
-        FunctionProtoType::ExtProtoInfo EPI;
-        DeclContext *Parent = s->Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(s->Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
         CLinkageDecl->setImplicit();
         Parent->addDecl(CLinkageDecl);
-        Parent = CLinkageDecl;
-        IdentifierInfo *II = &s->Context.Idents.get("fixupFunction");
-        DeclarationNameInfo NameInfo(II, OpLoc);
-        QualType ArgTypes[] = {longp, s->Context.LongTy};
-        auto FnType = s->Context.getFunctionType(voidp, ArrayRef<QualType>(ArgTypes, 2), EPI);
-        FFDecl = FunctionDecl::Create(s->Context, Parent, OpLoc,
-            NameInfo, FnType, nullptr, SC_Extern, false, true, false);
         SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(s->Context, FFDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, FFDecl, OpLoc,
             OpLoc, nullptr, longp, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(s->Context, FFDecl, OpLoc,
-            OpLoc, nullptr, s->Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        FFDecl->setParams(Params);
+        Params.push_back(ParmVarDecl::Create(Actions.Context, FFDecl, OpLoc,
+            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        FFDecl = getACCFunction(Actions, CLinkageDecl, "fixupFunction", voidp, Params);
     }
     return FFDecl;
 }
-static FunctionDecl *getABR(Sema *s, SourceLocation OpLoc)
+static FunctionDecl *getABR(Sema &Actions, SourceLocation OpLoc)
 {
     static FunctionDecl *ABRDecl;
     if (!ABRDecl) {
-        SmallVector<QualType, 8> NullArgs;
-        FunctionProtoType::ExtProtoInfo EPI;
-        bbool = s->Context.getBlockPointerType(s->Context.getFunctionType(s->Context.BoolTy, NullArgs, EPI));
-        bvoid = s->Context.getBlockPointerType(s->Context.getFunctionType(s->Context.VoidTy, NullArgs, EPI));
-        ccharp = s->Context.getPointerType(s->Context.CharTy.withConst());
-        voidp = s->Context.getPointerType(s->Context.VoidTy);
-        voidpp = s->Context.getPointerType(voidp);
-        longp = s->Context.getPointerType(s->Context.LongTy);
-        DeclContext *Parent = s->Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(s->Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
+        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        voidp = Actions.Context.getPointerType(Actions.Context.VoidTy);
+        voidpp = Actions.Context.getPointerType(voidp);
+        longp = Actions.Context.getPointerType(Actions.Context.LongTy);
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
         CLinkageDecl->setImplicit();
         Parent->addDecl(CLinkageDecl);
-        Parent = CLinkageDecl;
-        IdentifierInfo *II = &s->Context.Idents.get("addBaseRule");
-        DeclarationNameInfo NameInfo(II, OpLoc);
-        QualType ArgTypes[] = {ccharp, voidp, voidp};
-        auto FnType = s->Context.getFunctionType(s->Context.VoidTy, ArrayRef<QualType>(ArgTypes, 3), EPI);
-        ABRDecl = FunctionDecl::Create(s->Context, Parent, OpLoc,
-            NameInfo, FnType, nullptr, SC_Extern, false, true, false);
         SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(s->Context, ABRDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, ABRDecl, OpLoc,
             OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(s->Context, ABRDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, ABRDecl, OpLoc,
             OpLoc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(s->Context, ABRDecl, OpLoc,
+        Params.push_back(ParmVarDecl::Create(Actions.Context, ABRDecl, OpLoc,
             OpLoc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
-        ABRDecl->setParams(Params);
+        ABRDecl = getACCFunction(Actions, CLinkageDecl, "addBaseRule", Actions.Context.VoidTy, Params);
     }
     return ABRDecl;
 }
@@ -1361,7 +1354,7 @@ static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
      QualType FType, ArrayRef<ParmVarDecl *> Params, Stmt *Body, Expr *blockAddr)
 {
   static int counter;
-  FunctionDecl *FFDecl = getFFun(&Actions, RuleLoc);
+  FunctionDecl *FFDecl = getFFun(Actions, RuleLoc);
   NestedNameSpecifierLoc NNSloc;
 
   AttributeFactory AttrFactory;
@@ -1385,25 +1378,25 @@ static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
   auto DC = Actions.getCurFunctionDecl()->getParent();
   IdentifierInfo *IFn = &Actions.Context.Idents.get("ruleTemplate" + llvm::utostr(counter++));
   DeclarationNameInfo NameInfo(IFn, RuleLoc);
-  CXXMethodDecl *FFN = CXXMethodDecl::Create(Actions.Context, cast<CXXRecordDecl>(DC),
-      RuleLoc, NameInfo, FType,
-      nullptr, SC_None, false, false, RuleLoc);
-  FFN->setIsUsed();
-  FFN->markUsed(Actions.Context);
-  FFN->setParams(Params);
-  FFN->setBody(Body);
-  FFN->addAttr(::new (Actions.Context) UsedAttr(RuleLoc, Actions.Context, 0));
-  Actions.ActOnFinishInlineFunctionDef(FFN);
+  CXXMethodDecl *Method = CXXMethodDecl::Create(Actions.Context, cast<CXXRecordDecl>(DC),
+      RuleLoc, NameInfo, FType, nullptr, SC_None, false, false, RuleLoc);
+  Method->setIsUsed();
+  Method->markUsed(Actions.Context);
+  Method->setParams(Params);
+  Method->setBody(Body);
+  Method->addAttr(::new (Actions.Context) UsedAttr(RuleLoc, Actions.Context, 0));
+  Actions.ActOnFinishInlineFunctionDef(Method);
   ExprResult FFNRef = Actions.ImpCastExprToType(
-      DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFN, false, RuleLoc, FFN->getType(), VK_LValue, nullptr),
-           Actions.Context.getPointerType(FFN->getType()), CK_FunctionToPointerDecay);
+      DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, Method, false, RuleLoc, Method->getType(), VK_LValue, nullptr),
+           Actions.Context.getPointerType(Method->getType()), CK_FunctionToPointerDecay);
   Expr *Args[] = {
       blockAddr,
       CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
            FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc)};
-  Expr *Fn = DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFDecl, false,
-      RuleLoc, FFDecl->getType(), VK_LValue, nullptr);
-  Fn = Actions.ImpCastExprToType(Fn, Actions.Context.getPointerType(FFDecl->getType()), CK_FunctionToPointerDecay).get();
+  Expr *Fn = Actions.ImpCastExprToType(
+      DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFDecl, false,
+      RuleLoc, FFDecl->getType(), VK_LValue, nullptr),
+      Actions.Context.getPointerType(FFDecl->getType()), CK_FunctionToPointerDecay).get();
   return new (Actions.Context) CallExpr(Actions.Context, Fn, Args, voidp, VK_RValue, RuleLoc);
 }
 
@@ -1446,7 +1439,7 @@ Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr,
   SmallVector<QualType, 8> FArgs;
   SmallVector<ParmVarDecl *, 16> Params;
   SmallVector<const VarDecl *, 16> CapVariables;
-  FunctionDecl *ABRDecl = getABR(this, RuleLoc);
+  FunctionDecl *ABRDecl = getABR(*this, RuleLoc);
 
   DiagnoseUnusedExprResult(body);
   // Create placeholder function params for all captured values (replaced
@@ -1517,10 +1510,10 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           Context.getConstantArrayType(Context.CharTy.withConst(),
           llvm::APInt(32, Name.size() + 1), ArrayType::Normal, 0), RuleLoc),
           ccharp, CK_ArrayToPointerDecay).get(),
-      // instantiate captured values into guard function
+      // instantiate captured values into guard function by calling fixupFunction()
       buildTemplate(*this, RuleLoc, Context.getFunctionType(Context.BoolTy, FArgs, EPI),
           Params, new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc), blockAddrVal),
-      // instantiate captured values into method function
+      // instantiate captured values into method function by calling fixupFunction()
       buildTemplate(*this, RuleLoc, Context.getFunctionType(Context.VoidTy, FArgs, EPI),
           Params, transBody.get(), blockAddrVal)
   };
