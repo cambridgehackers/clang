@@ -1400,7 +1400,6 @@ static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
   return new (Actions.Context) CallExpr(Actions.Context, Fn, Args, voidp, VK_RValue, RuleLoc);
 }
 
-static DeclContext *bozoDC;
 static llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
 namespace {
   class TransformToRule : public TreeTransform<TransformToRule> {
@@ -1420,13 +1419,6 @@ namespace {
               VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
       }
       return BaseTransform::TransformDeclRefExpr(E);
-    }
-    StmtResult TransformDeclStmt(DeclStmt *S) {
-      SmallVector<Decl *, 4> Decls;
-      for (auto *D : S->decls())
-        if (VarDecl *VD = dyn_cast<VarDecl>(D))
-            VD->setDeclContext(bozoDC);
-      return BaseTransform::TransformDeclStmt(S);
     }
   };
 }
@@ -1477,7 +1469,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
         thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
   }
   // remap captured variables using paramMap
-  bozoDC = CurContext; // hack for TransformToRule
   ExprResult transCond = TransformToRule(*this).TransformExpr(ConditionExpr);
   SmallVector<Stmt*, 32> stmtsCond;
   stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
