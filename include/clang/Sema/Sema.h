@@ -3675,11 +3675,9 @@ public:
   StmtResult ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
                          SourceLocation WhileLoc, SourceLocation CondLParen,
                          Expr *Cond, SourceLocation CondRParen);
-
-  StmtResult ActOnRuleStmt(SourceLocation RuleLoc,
-                         StringRef Name, Expr *ConditionExpr, Stmt *body,
-                         ArrayRef<sema::CapturingScopeInfo::Capture> BSICaptures);
-
+  void StartRuleStmt(SourceLocation RuleLoc);
+  StmtResult FinishRuleStmt(SourceLocation RuleLoc,
+                         StringRef Name, Expr *ConditionExpr, Stmt *body);
   StmtResult ActOnForStmt(SourceLocation ForLoc,
                           SourceLocation LParenLoc,
                           Stmt *First,

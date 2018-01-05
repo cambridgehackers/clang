@@ -848,13 +848,7 @@ StmtResult Parser::ParseDefaultStatement() {
 StmtResult Parser::ParseRuleStatement() {
   assert(Tok.is(tok::kw___rule) && "Not a rule stmt!");
   SourceLocation RuleLoc = ConsumeToken();  // eat the 'rule'.
-  //ParseScope RuleScope(this, Scope::FnScope | Scope::DeclScope); 
-  Scope *CurScope = getCurScope();
-  BlockDecl *Block = BlockDecl::Create(Actions.Context, Actions.CurContext, RuleLoc); 
-  Actions.PushBlockScope(CurScope, Block);
-  Actions.CurContext->addDecl(Block);
-  Actions.PushDeclContext(CurScope, Block);
-  //Actions.PushExpressionEvaluationContext(Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+  Actions.StartRuleStmt(RuleLoc);
   assert(Tok.is(tok::identifier) && "No rule name!");
   std::string RuleName = Tok.getIdentifierInfo()->getName();
   ConsumeToken();
@@ -879,14 +873,10 @@ StmtResult Parser::ParseRuleStatement() {
     cutOffParsing();
     return StmtError();
   }
-  //RuleScope.Exit();
-  //Actions.PopExpressionEvaluationContext();
-  sema::BlockScopeInfo *CurBlock = Actions.getCurBlock();
-  Actions.PopDeclContext();
-  Actions.PopFunctionScopeInfo();
+  auto res = Actions.FinishRuleStmt(RuleLoc, RuleName, GuardExpr, BodyStmt.get());
   if (BodyStmt.isInvalid())
     return StmtError();
-  return Actions.ActOnRuleStmt(RuleLoc, RuleName, GuardExpr, BodyStmt.get(), CurBlock->Captures);
+  return res;
 }
 
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {

@@ -1431,8 +1431,19 @@ namespace {
   };
 }
 
+void Sema::StartRuleStmt(SourceLocation RuleLoc)
+{
+  //ParseScope RuleScope(this, Scope::FnScope | Scope::DeclScope); 
+  Scope *CurScope = getCurScope();
+  BlockDecl *Block = BlockDecl::Create(Context, CurContext, RuleLoc); 
+  PushBlockScope(CurScope, Block);
+  CurContext->addDecl(Block);
+  PushDeclContext(CurScope, Block);
+  //PushExpressionEvaluationContext(Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+}
+
 StmtResult
-Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr, Stmt *body, ArrayRef<CapturingScopeInfo::Capture> BSICaptures) {
+Sema::FinishRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr, Stmt *body) {
   NestedNameSpecifierLoc NNSloc;
   FunctionProtoType::ExtProtoInfo EPI;
   SmallVector<Stmt*, 32> TopStmts;
@@ -1441,10 +1452,12 @@ Sema::ActOnRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr,
   SmallVector<const VarDecl *, 16> CapVariables;
   FunctionDecl *ABRDecl = getABR(*this, RuleLoc);
 
+  //RuleScope.Exit();
+  //PopExpressionEvaluationContext();
   DiagnoseUnusedExprResult(body);
   // Create placeholder function params for all captured values (replaced
   // with concrete values in fixupFunction)
-  for (const CapturingScopeInfo::Capture &Cap : BSICaptures) {
+  for (const CapturingScopeInfo::Capture &Cap : getCurBlock()->Captures) {
     if (Cap.isThisCapture())
         continue;
     const VarDecl *variable = Cap.getVariable();
@@ -1526,7 +1539,10 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
 //printf("[%s:%d]BLEXPER TheCall %p\n", __FUNCTION__, __LINE__, TheCall);
 //TheCall->dump();
   TopStmts.push_back(TheCall);
-  return new (Context) class CompoundStmt(Context, TopStmts, RuleLoc, RuleLoc);
+  auto ret = new (Context) class CompoundStmt(Context, TopStmts, RuleLoc, RuleLoc);
+  PopDeclContext();
+  PopFunctionScopeInfo();
+  return ret;
 }
 
 namespace {
