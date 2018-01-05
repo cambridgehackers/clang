@@ -1309,23 +1309,6 @@ FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, Q
     FFDecl->setParams(Params);
     return FFDecl;
 }
-static FunctionDecl *getFFun(Sema &Actions, SourceLocation OpLoc)
-{
-    static FunctionDecl *FFDecl;
-    if (!FFDecl) {
-        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
-        CLinkageDecl->setImplicit();
-        Parent->addDecl(CLinkageDecl);
-        SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, longp, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        FFDecl = getACCFunction(Actions, CLinkageDecl, "fixupFunction", voidp, Params);
-    }
-    return FFDecl;
-}
 static FunctionDecl *getABR(Sema &Actions, SourceLocation OpLoc)
 {
     static FunctionDecl *ABRDecl;
@@ -1342,19 +1325,20 @@ static FunctionDecl *getABR(Sema &Actions, SourceLocation OpLoc)
         Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
             OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
         Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
+            OpLoc, nullptr, longp, /*TInfo=*/nullptr, SC_None, nullptr));
         Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
+            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
         ABRDecl = getACCFunction(Actions, CLinkageDecl, "addBaseRule", Actions.Context.VoidTy, Params);
     }
     return ABRDecl;
 }
 
-static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
+static Expr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
      QualType FType, ArrayRef<ParmVarDecl *> Params, Stmt *Body, Expr *blockAddr)
 {
   static int counter;
-  FunctionDecl *FFDecl = getFFun(Actions, RuleLoc);
   NestedNameSpecifierLoc NNSloc;
 
   AttributeFactory AttrFactory;
@@ -1389,15 +1373,8 @@ static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
   ExprResult FFNRef = Actions.ImpCastExprToType(
       DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, Method, false, RuleLoc, Method->getType(), VK_LValue, nullptr),
            Actions.Context.getPointerType(Method->getType()), CK_FunctionToPointerDecay);
-  Expr *Args[] = {
-      blockAddr,
-      CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
-           FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc)};
-  Expr *Fn = Actions.ImpCastExprToType(
-      DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc, FFDecl, false,
-      RuleLoc, FFDecl->getType(), VK_LValue, nullptr),
-      Actions.Context.getPointerType(FFDecl->getType()), CK_FunctionToPointerDecay).get();
-  return new (Actions.Context) CallExpr(Actions.Context, Fn, Args, voidp, VK_RValue, RuleLoc);
+  return CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
+           FFNRef.get(), nullptr, TSI, RuleLoc, RuleLoc);
 }
 
 namespace {
@@ -1430,7 +1407,6 @@ void Sema::StartRuleStmt(SourceLocation RuleLoc)
   Scope *CurScope = getCurScope();
   BlockDecl *Block = BlockDecl::Create(Context, CurContext, RuleLoc); 
   PushBlockScope(CurScope, Block);
-  //CurContext->addDecl(Block);
   PushDeclContext(CurScope, Block);
   //PushExpressionEvaluationContext(Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
 }
@@ -1516,6 +1492,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           Context.getConstantArrayType(Context.CharTy.withConst(),
           llvm::APInt(32, Name.size() + 1), ArrayType::Normal, 0), RuleLoc),
           ccharp, CK_ArrayToPointerDecay).get(),
+      blockAddrVal,  // captured parameter block
       // instantiate captured values into guard function by calling fixupFunction()
       buildTemplate(*this, RuleLoc, Context.getFunctionType(Context.BoolTy, FArgs, EPI),
           Params, new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc), blockAddrVal),
