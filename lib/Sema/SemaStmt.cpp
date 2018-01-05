@@ -1400,13 +1400,14 @@ static CallExpr *buildTemplate(Sema &Actions, SourceLocation RuleLoc,
   return new (Actions.Context) CallExpr(Actions.Context, Fn, Args, voidp, VK_RValue, RuleLoc);
 }
 
-static llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
 namespace {
   class TransformToRule : public TreeTransform<TransformToRule> {
     typedef TreeTransform<TransformToRule> BaseTransform;
+    llvm::DenseMap<const VarDecl *, DeclRefExpr *> &paramMap;
 
   public:
-    TransformToRule(Sema &SemaRef) : BaseTransform(SemaRef) { }
+    TransformToRule(Sema &SemaRef, llvm::DenseMap<const VarDecl *, DeclRefExpr *> &pMap) :
+        BaseTransform(SemaRef), paramMap(pMap) { }
 
     // Make sure we redo semantic analysis
     bool AlwaysRebuild() { return true; }
@@ -1429,7 +1430,7 @@ void Sema::StartRuleStmt(SourceLocation RuleLoc)
   Scope *CurScope = getCurScope();
   BlockDecl *Block = BlockDecl::Create(Context, CurContext, RuleLoc); 
   PushBlockScope(CurScope, Block);
-  CurContext->addDecl(Block);
+  //CurContext->addDecl(Block);
   PushDeclContext(CurScope, Block);
   //PushExpressionEvaluationContext(Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
 }
@@ -1442,6 +1443,7 @@ Sema::FinishRuleStmt(SourceLocation RuleLoc, StringRef Name, Expr *ConditionExpr
   SmallVector<QualType, 8> FArgs;
   SmallVector<ParmVarDecl *, 16> Params;
   SmallVector<const VarDecl *, 16> CapVariables;
+  llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
   FunctionDecl *ABRDecl = getABR(*this, RuleLoc);
 
   //RuleScope.Exit();
@@ -1469,10 +1471,10 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
         thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
   }
   // remap captured variables using paramMap
-  ExprResult transCond = TransformToRule(*this).TransformExpr(ConditionExpr);
+  ExprResult transCond = TransformToRule(*this, paramMap).TransformExpr(ConditionExpr);
   SmallVector<Stmt*, 32> stmtsCond;
   stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
-  StmtResult transBody = TransformToRule(*this).TransformStmt(body);
+  StmtResult transBody = TransformToRule(*this, paramMap).TransformStmt(body);
 
   // Make the allocation for the capture value block.
   IdentifierInfo *blII = &Context.Idents.get("block");
