@@ -1341,13 +1341,11 @@ static FunctionDecl *getABR(Sema *s, SourceLocation OpLoc)
         Parent = CLinkageDecl;
         IdentifierInfo *II = &s->Context.Idents.get("addBaseRule");
         DeclarationNameInfo NameInfo(II, OpLoc);
-        QualType ArgTypes[] = {voidp, ccharp, voidp, voidp};
-        auto FnType = s->Context.getFunctionType(s->Context.VoidTy, ArrayRef<QualType>(ArgTypes, 4), EPI);
+        QualType ArgTypes[] = {ccharp, voidp, voidp};
+        auto FnType = s->Context.getFunctionType(s->Context.VoidTy, ArrayRef<QualType>(ArgTypes, 3), EPI);
         ABRDecl = FunctionDecl::Create(s->Context, Parent, OpLoc,
             NameInfo, FnType, nullptr, SC_Extern, false, true, false);
         SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(s->Context, ABRDecl, OpLoc,
-            OpLoc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
         Params.push_back(ParmVarDecl::Create(s->Context, ABRDecl, OpLoc,
             OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
         Params.push_back(ParmVarDecl::Create(s->Context, ABRDecl, OpLoc,
@@ -1513,8 +1511,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   Expr *blockAddrVal = ImplicitCastExpr::Create(Context, longp,
       CK_ArrayToPointerDecay, blockAddr, nullptr, VK_RValue);
   Expr *Args[] = {
-      ImpCastExprToType(new (Context) CXXThisExpr(RuleLoc, getCurrentThisType(),
-          /*isImplicit=*/true), voidp, CK_BitCast).get(),
+      // rule name
       ImpCastExprToType(StringLiteral::Create(Context, Name,
           StringLiteral::Ascii, /*Pascal*/ false,
           Context.getConstantArrayType(Context.CharTy.withConst(),
