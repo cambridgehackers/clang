@@ -30,8 +30,11 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/SmallVector.h"
+#include "clang/AST/ExprCXX.h" //CXXDependentScopeMemberExpr
 using namespace clang;
 
+Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
+FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params);
 /// \brief Simple precedence-based parser for binary/ternary operators.
 ///
 /// Note: we diverge from the C99 grammar when parsing the assignment-expression
@@ -273,6 +276,86 @@ static bool isFoldOperator(tok::TokenKind Kind) {
   return isFoldOperator(getBinOpPrecedence(Kind, false, true));
 }
 
+static std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
+{
+    std::string retVal;
+    if (auto item = dyn_cast<UnaryOperator>(expr))
+    if (item->getOpcode() == UO_AddrOf)
+        return methString(Actions, Opt, item->getSubExpr());
+    if (auto item = dyn_cast<CXXDependentScopeMemberExpr>(expr)) {
+        std::string base =  methString(Actions, Opt, item->getBase());
+        if (base != "")
+            retVal = base + "$";
+        retVal +=  item->getMemberNameInfo().getName().getAsIdentifierInfo()->getName().str();
+    }
+    if (auto item = dyn_cast<MemberExpr>(expr)) {
+        std::string base =  methString(Actions, Opt, item->getBase());
+        if (base != "")
+            retVal = base + "$";
+        if (auto meth = item->getMemberDecl()) {
+            retVal += meth->getName();
+            if (auto Method = dyn_cast<FunctionDecl>(meth)) {
+printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_str());
+            Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+            Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+            }
+        }
+    }
+    return retVal;
+}
+static QualType ccharp;
+static FunctionDecl *getAIFC(Sema &Actions, SourceLocation OpLoc)
+{
+    static FunctionDecl *AIFCDecl;
+    if (!AIFCDecl) {
+        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        ParmVarDecl *Parm = ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr);
+        Params.push_back(Parm);
+        Params.push_back(Parm);
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        AIFCDecl = getACCFunction(Actions, CLinkageDecl, "atomiccInterfaceName",
+            Actions.Context.VoidTy, Params);
+    }
+    return AIFCDecl;
+}
+static FunctionDecl *getCI(Sema &Actions, SourceLocation OpLoc)
+{
+    static FunctionDecl *CIDecl;
+    if (!CIDecl) {
+        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        ParmVarDecl *Parm = ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr);
+        Params.push_back(Parm);
+        Params.push_back(Parm);
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        CIDecl = getACCFunction(Actions, CLinkageDecl, "connectInterface",
+            Actions.Context.VoidTy, Params);
+    }
+    return CIDecl;
+}
+static Expr *getStringArg(Sema &Actions, std::string stringVal)
+{
+    SourceLocation OpLoc;
+    return Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context,
+        stringVal, StringLiteral::Ascii, /*Pascal*/ false,
+        Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+        llvm::APInt(32, stringVal.length() + 1), ArrayType::Normal, /*IndexTypeQuals*/ 0), OpLoc),
+        ccharp, CK_ArrayToPointerDecay).get();
+}
+
 /// \brief Parse a binary expression that starts with \p LHS and has a
 /// precedence of at least \p MinPrec.
 ExprResult
@@ -484,6 +567,60 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
                          SourceRange(Actions.getExprRange(LHS.get()).getBegin(),
                                      Actions.getExprRange(RHS.get()).getEnd()));
 
+if (MinPrec == prec::Assignment) {
+Expr *LHSExpr = LHS.get();
+Expr *RHSExpr = RHS.get();
+auto OpLoc = OpToken.getLocation();
+int lkind = -1, rkind = -1;
+auto ltype = LHS.get()->getType(), rtype = RHS.get()->getType();
+  if (const BuiltinType *pty = ltype->getAsPlaceholderType())
+      lkind = pty->getKind();
+  if (const BuiltinType *pty = rtype->getAsPlaceholderType())
+      rkind = pty->getKind();
+  if (lkind == BuiltinType::BoundMember || rkind == BuiltinType::BoundMember) {
+      printf("[%s:%d] ASSIGN MEMBER %d = %d\n", __FUNCTION__, __LINE__, lkind, rkind);
+      FunctionDecl *AIFCDecl = getAIFC(Actions, OpLoc);
+      std::string lStr = methString(Actions, Actions.getLangOpts(), LHSExpr);
+      std::string rStr = methString(Actions, Actions.getLangOpts(), RHSExpr);
+      Expr *intPlaceholder = IntegerLiteral::Create(Actions.Context,
+          llvm::APInt(Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc);
+      Expr *Args[] = {getStringArg(Actions, lStr),
+          getStringArg(Actions, rStr),
+          intPlaceholder};
+      CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
+          getACCCallRef(Actions, AIFCDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
+printf("[%s:%d] IFCASSIGN %s = %s\n", __FUNCTION__, __LINE__, lStr.c_str(), rStr.c_str());
+//printf("[%s:%d] NUM %d isproto %d\n", __FUNCTION__, __LINE__, TheCall->getNumArgs(), AIFCDecl->hasPrototype());
+//TheCall->dump();
+      return Actions.MaybeBindToTemporary(TheCall);
+  }
+  else if (auto LPT = dyn_cast<PointerType>(ltype)) {
+      auto lelt = LPT->getPointeeType();
+      Decl *myDecl = nullptr;
+      if (auto ttype = dyn_cast<TypedefType>(lelt))
+          lelt = ttype->getDecl()->getUnderlyingType();
+      if (auto stype = dyn_cast<TemplateSpecializationType>(lelt))
+      if (auto frec = dyn_cast<RecordType>(stype->desugar()))
+      if (auto crec = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl()))
+      if (crec->hasAttr<AtomiccInterfaceAttr>())
+          myDecl = crec;
+      if (auto frec = dyn_cast<RecordType>(lelt))
+      if (frec->getDecl()->hasAttr<AtomiccInterfaceAttr>())
+          myDecl = frec->getDecl();
+      if (auto trec = dyn_cast_or_null<CXXRecordDecl>(myDecl)) {
+          FunctionDecl *CIDecl = getCI(Actions, OpLoc);
+          std::string lStr = methString(Actions, getLangOpts(), LHS.get());
+          std::string rStr = methString(Actions, getLangOpts(), RHS.get());
+          printf("[%s:%d] INTERFACEASSIGN ##### %s = %s \n", __FUNCTION__, __LINE__, lStr.c_str(), rStr.c_str());
+          for (auto Method: trec->methods()) {
+             if (Method->getDeclName().isIdentifier()) {
+printf("[%s:%d] INTERFACEMETH %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_str());
+//Method->dump();
+             }
+          }
+      }
+  }
+}
         LHS = Actions.ActOnBinOp(getCurScope(), OpToken.getLocation(),
                                  OpToken.getKind(), LHS.get(), RHS.get());
 

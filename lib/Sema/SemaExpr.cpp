@@ -46,8 +46,6 @@
 #include "llvm/Support/ConvertUTF.h"
 using namespace clang;
 using namespace sema;
-Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
-FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params);
 
 /// \brief Determine whether the use of this declaration is valid, without
 /// emitting diagnostics.
@@ -11693,75 +11691,6 @@ static ExprResult BuildOverloadedBinOp(Sema &S, Scope *Sc, SourceLocation OpLoc,
   return S.CreateOverloadedBinOp(OpLoc, Opc, Functions, LHS, RHS);
 }
 
-static std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
-{
-    std::string retVal;
-    if (auto item = dyn_cast<CXXDependentScopeMemberExpr>(expr)) {
-        std::string base =  methString(Actions, Opt, item->getBase());
-        if (base != "")
-            retVal = base + "$";
-        retVal +=  item->getMemberNameInfo().getName().getAsIdentifierInfo()->getName().str();
-    }
-    if (auto item = dyn_cast<MemberExpr>(expr)) {
-        std::string base =  methString(Actions, Opt, item->getBase());
-        if (base != "")
-            retVal = base + "$";
-        if (auto meth = item->getMemberDecl()) {
-            retVal += meth->getName();
-            if (auto Method = dyn_cast<FunctionDecl>(meth)) {
-printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_str());
-            Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-            Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
-            }
-        }
-    }
-    return retVal;
-}
-static QualType ccharp;
-static FunctionDecl *getAIFC(Sema &Actions, SourceLocation OpLoc)
-{
-    static FunctionDecl *AIFCDecl;
-    if (!AIFCDecl) {
-        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
-        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
-        CLinkageDecl->setImplicit();
-        Parent->addDecl(CLinkageDecl);
-        SmallVector<ParmVarDecl *, 16> Params;
-        ParmVarDecl *Parm = ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr);
-        Params.push_back(Parm);
-        Params.push_back(Parm);
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        AIFCDecl = getACCFunction(Actions, CLinkageDecl, "atomiccInterfaceName",
-            Actions.Context.VoidTy, Params);
-    }
-    return AIFCDecl;
-}
-static CallExpr *getAssignCall(Sema &Actions, SourceLocation OpLoc, Expr *LHSExpr, Expr *RHSExpr)
-{
-    FunctionDecl *AIFCDecl = getAIFC(Actions, OpLoc);
-    std::string lStr = methString(Actions, Actions.getLangOpts(), LHSExpr);
-    std::string rStr = methString(Actions, Actions.getLangOpts(), RHSExpr);
-    LHSExpr = Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, lStr, StringLiteral::Ascii, /*Pascal*/ false,
-            Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
-            llvm::APInt(32, lStr.length() + 1), ArrayType::Normal, /*IndexTypeQuals*/ 0), OpLoc),
-            ccharp, CK_ArrayToPointerDecay).get();
-    RHSExpr = Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, rStr, StringLiteral::Ascii, /*Pascal*/ false,
-            Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
-            llvm::APInt(32, rStr.length() + 1), ArrayType::Normal, /*IndexTypeQuals*/ 0), OpLoc),
-            ccharp, CK_ArrayToPointerDecay).get();
-    Expr *intPlaceholder = IntegerLiteral::Create(Actions.Context,
-        llvm::APInt(Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc);
-    Expr *Args[] = {LHSExpr, RHSExpr, intPlaceholder};
-    CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
-        getACCCallRef(Actions, AIFCDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
-printf("[%s:%d] IFCASSIGN %s = %s\n", __FUNCTION__, __LINE__, lStr.c_str(), rStr.c_str());
-//printf("[%s:%d] NUM %d isproto %d\n", __FUNCTION__, __LINE__, TheCall->getNumArgs(), AIFCDecl->hasPrototype());
-//TheCall->dump();
-    return TheCall;
-}
 ExprResult Sema::BuildBinOp(Scope *S, SourceLocation OpLoc,
                             BinaryOperatorKind Opc,
                             Expr *LHSExpr, Expr *RHSExpr) {
@@ -11773,12 +11702,6 @@ ExprResult Sema::BuildBinOp(Scope *S, SourceLocation OpLoc,
 
   // Handle pseudo-objects in the LHS.
   if (const BuiltinType *pty = LHSExpr->getType()->getAsPlaceholderType()) {
-printf("[%s:%d] BEFOREASS PLACEH pty %d bmem %d\n", __FUNCTION__, __LINE__, pty->getKind(), BuiltinType::BoundMember);
-    if (Opc == BO_Assign && pty->getKind() == BuiltinType::BoundMember) {
-printf("[%s:%d] ASSIGN MEMBER1\n", __FUNCTION__, __LINE__);
-      CallExpr *TheCall = getAssignCall(*this, OpLoc, LHSExpr, RHSExpr);
-      return MaybeBindToTemporary(TheCall);
-    }
     // Assignments with a pseudo-object l-value need special analysis.
     if (pty->getKind() == BuiltinType::PseudoObject &&
         BinaryOperator::isAssignmentOp(Opc))
@@ -11829,12 +11752,6 @@ printf("[%s:%d] ASSIGN MEMBER1\n", __FUNCTION__, __LINE__);
 
   // Handle pseudo-objects in the RHS.
   if (const BuiltinType *pty = RHSExpr->getType()->getAsPlaceholderType()) {
-printf("[%s:%d] BEFOREASS CHECK2\n", __FUNCTION__, __LINE__);
-    if (Opc == BO_Assign && pty->getKind() == BuiltinType::BoundMember) {
-printf("[%s:%d] ASSIGN MEMBER2\n", __FUNCTION__, __LINE__);
-      CallExpr *TheCall = getAssignCall(*this, OpLoc, LHSExpr, RHSExpr);
-      return MaybeBindToTemporary(TheCall);
-    }
     // An overload in the RHS can potentially be resolved by the type
     // being assigned to.
     if (Opc == BO_Assign && pty->getKind() == BuiltinType::Overload) {
