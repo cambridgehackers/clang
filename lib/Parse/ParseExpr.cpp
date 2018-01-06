@@ -568,11 +568,11 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
                                      Actions.getExprRange(RHS.get()).getEnd()));
 
 if (MinPrec == prec::Assignment) {
-Expr *LHSExpr = LHS.get();
-Expr *RHSExpr = RHS.get();
-auto OpLoc = OpToken.getLocation();
-int lkind = -1, rkind = -1;
-auto ltype = LHS.get()->getType(), rtype = RHS.get()->getType();
+  Expr *LHSExpr = LHS.get();
+  Expr *RHSExpr = RHS.get();
+  auto OpLoc = OpToken.getLocation();
+  int lkind = -1, rkind = -1;
+  auto ltype = LHS.get()->getType(), rtype = RHS.get()->getType();
   if (const BuiltinType *pty = ltype->getAsPlaceholderType())
       lkind = pty->getKind();
   if (const BuiltinType *pty = rtype->getAsPlaceholderType())
@@ -590,7 +590,6 @@ auto ltype = LHS.get()->getType(), rtype = RHS.get()->getType();
       CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
           getACCCallRef(Actions, AIFCDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
 printf("[%s:%d] IFCASSIGN %s = %s\n", __FUNCTION__, __LINE__, lStr.c_str(), rStr.c_str());
-//printf("[%s:%d] NUM %d isproto %d\n", __FUNCTION__, __LINE__, TheCall->getNumArgs(), AIFCDecl->hasPrototype());
 //TheCall->dump();
       return Actions.MaybeBindToTemporary(TheCall);
   }
