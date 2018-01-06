@@ -33,6 +33,7 @@
 #include "clang/AST/ExprCXX.h" //CXXDependentScopeMemberExpr
 using namespace clang;
 
+#define MODULE_SEPARATOR "$"
 Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params);
 /// \brief Simple precedence-based parser for binary/ternary operators.
@@ -341,7 +342,7 @@ static FunctionDecl *getCI(Sema &Actions, SourceLocation OpLoc)
         Params.push_back(Parm);
         Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
             OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        CIDecl = getACCFunction(Actions, CLinkageDecl, "connectInterface",
+        CIDecl = getACCFunction(Actions, CLinkageDecl, "connectInterfaceNew",
             Actions.Context.VoidTy, Params);
     }
     return CIDecl;
@@ -567,59 +568,59 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
                          SourceRange(Actions.getExprRange(LHS.get()).getBegin(),
                                      Actions.getExprRange(RHS.get()).getEnd()));
 
-if (MinPrec == prec::Assignment) {
-  Expr *LHSExpr = LHS.get();
-  Expr *RHSExpr = RHS.get();
-  auto OpLoc = OpToken.getLocation();
-  int lkind = -1, rkind = -1;
-  auto ltype = LHS.get()->getType(), rtype = RHS.get()->getType();
-  if (const BuiltinType *pty = ltype->getAsPlaceholderType())
-      lkind = pty->getKind();
-  if (const BuiltinType *pty = rtype->getAsPlaceholderType())
-      rkind = pty->getKind();
-  if (lkind == BuiltinType::BoundMember || rkind == BuiltinType::BoundMember) {
-      printf("[%s:%d] ASSIGN MEMBER %d = %d\n", __FUNCTION__, __LINE__, lkind, rkind);
-      FunctionDecl *AIFCDecl = getAIFC(Actions, OpLoc);
-      std::string lStr = methString(Actions, Actions.getLangOpts(), LHSExpr);
-      std::string rStr = methString(Actions, Actions.getLangOpts(), RHSExpr);
-      Expr *intPlaceholder = IntegerLiteral::Create(Actions.Context,
-          llvm::APInt(Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc);
-      Expr *Args[] = {getStringArg(Actions, lStr),
-          getStringArg(Actions, rStr),
-          intPlaceholder};
-      CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
-          getACCCallRef(Actions, AIFCDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
-printf("[%s:%d] IFCASSIGN %s = %s\n", __FUNCTION__, __LINE__, lStr.c_str(), rStr.c_str());
-//TheCall->dump();
-      return Actions.MaybeBindToTemporary(TheCall);
-  }
-  else if (auto LPT = dyn_cast<PointerType>(ltype)) {
-      auto lelt = LPT->getPointeeType();
-      Decl *myDecl = nullptr;
-      if (auto ttype = dyn_cast<TypedefType>(lelt))
-          lelt = ttype->getDecl()->getUnderlyingType();
-      if (auto stype = dyn_cast<TemplateSpecializationType>(lelt))
-      if (auto frec = dyn_cast<RecordType>(stype->desugar()))
-      if (auto crec = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl()))
-      if (crec->hasAttr<AtomiccInterfaceAttr>())
-          myDecl = crec;
-      if (auto frec = dyn_cast<RecordType>(lelt))
-      if (frec->getDecl()->hasAttr<AtomiccInterfaceAttr>())
-          myDecl = frec->getDecl();
-      if (auto trec = dyn_cast_or_null<CXXRecordDecl>(myDecl)) {
-          FunctionDecl *CIDecl = getCI(Actions, OpLoc);
-          std::string lStr = methString(Actions, getLangOpts(), LHS.get());
-          std::string rStr = methString(Actions, getLangOpts(), RHS.get());
-          printf("[%s:%d] INTERFACEASSIGN ##### %s = %s \n", __FUNCTION__, __LINE__, lStr.c_str(), rStr.c_str());
-          for (auto Method: trec->methods()) {
-             if (Method->getDeclName().isIdentifier()) {
-printf("[%s:%d] INTERFACEMETH %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_str());
-//Method->dump();
-             }
+        if (MinPrec == prec::Assignment) {
+          // assignment to bind generic interface functions to concrete method
+          Expr *LHSExpr = LHS.get();
+          Expr *RHSExpr = RHS.get();
+          auto OpLoc = OpToken.getLocation();
+          int lkind = -1, rkind = -1;
+          auto ltype = LHS.get()->getType(), rtype = RHS.get()->getType();
+          if (const BuiltinType *pty = ltype->getAsPlaceholderType())
+              lkind = pty->getKind();
+          if (const BuiltinType *pty = rtype->getAsPlaceholderType())
+              rkind = pty->getKind();
+          if (lkind == BuiltinType::BoundMember || rkind == BuiltinType::BoundMember) {
+              printf("[%s:%d] ASSIGNMEMBER %d = %d\n", __FUNCTION__, __LINE__, lkind, rkind);
+              FunctionDecl *AIFCDecl = getAIFC(Actions, OpLoc);
+              Expr *Args[] = {
+                getStringArg(Actions, methString(Actions, Actions.getLangOpts(), LHSExpr)),
+                getStringArg(Actions, methString(Actions, Actions.getLangOpts(), RHSExpr)),
+                IntegerLiteral::Create(Actions.Context, llvm::APInt(
+                    Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc)
+              };
+              CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
+                  getACCCallRef(Actions, AIFCDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
+              return Actions.MaybeBindToTemporary(TheCall);
           }
-      }
-  }
-}
+          else if (auto LPT = dyn_cast<PointerType>(ltype)) {
+              // Interface upcall assignment
+              auto lelt = LPT->getPointeeType();
+              Decl *myDecl = nullptr;
+              if (auto ttype = dyn_cast<TypedefType>(lelt))
+                  lelt = ttype->getDecl()->getUnderlyingType();
+              if (auto stype = dyn_cast<TemplateSpecializationType>(lelt))
+              if (auto frec = dyn_cast<RecordType>(stype->desugar()))
+              if (auto crec = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl()))
+              if (crec->hasAttr<AtomiccInterfaceAttr>())
+                  myDecl = crec;
+              if (auto frec = dyn_cast<RecordType>(lelt))
+              if (frec->getDecl()->hasAttr<AtomiccInterfaceAttr>())
+                  myDecl = frec->getDecl();
+              if (auto trec = dyn_cast_or_null<CXXRecordDecl>(myDecl)) {
+                  FunctionDecl *CIDecl = getCI(Actions, OpLoc);
+                  printf("[%s:%d] INTERFACEASSIGN #####\n", __FUNCTION__, __LINE__);
+                  Expr *Args[] = {
+                    getStringArg(Actions, methString(Actions, Actions.getLangOpts(), LHSExpr)),
+                    getStringArg(Actions, methString(Actions, Actions.getLangOpts(), RHSExpr)),
+                    IntegerLiteral::Create(Actions.Context, llvm::APInt(
+                        Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc)
+                  };
+                  CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
+                      getACCCallRef(Actions, CIDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
+                  return Actions.MaybeBindToTemporary(TheCall);
+              }
+          }
+        }
         LHS = Actions.ActOnBinOp(getCurScope(), OpToken.getLocation(),
                                  OpToken.getKind(), LHS.get(), RHS.get());
 
