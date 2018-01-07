@@ -279,10 +279,12 @@ static bool isFoldOperator(tok::TokenKind Kind) {
 
 static std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
 {
+printf("[%s:%d] START\n", __FUNCTION__, __LINE__);
+expr->dump();
     std::string retVal;
     if (auto item = dyn_cast<UnaryOperator>(expr))
     if (item->getOpcode() == UO_AddrOf)
-        return methString(Actions, Opt, item->getSubExpr());
+        expr = item->getSubExpr();
     if (auto item = dyn_cast<CXXDependentScopeMemberExpr>(expr)) {
         std::string base =  methString(Actions, Opt, item->getBase());
         if (base != "")
@@ -302,6 +304,7 @@ printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_s
             }
         }
     }
+printf("[%s:%d] return %s\n", __FUNCTION__, __LINE__, retVal.c_str());
     return retVal;
 }
 static QualType ccharp;
@@ -598,17 +601,27 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
               Decl *myDecl = nullptr;
               if (auto ttype = dyn_cast<TypedefType>(lelt))
                   lelt = ttype->getDecl()->getUnderlyingType();
+
               if (auto stype = dyn_cast<TemplateSpecializationType>(lelt))
               if (auto frec = dyn_cast<RecordType>(stype->desugar()))
               if (auto crec = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl()))
               if (crec->hasAttr<AtomiccInterfaceAttr>())
                   myDecl = crec;
+
               if (auto frec = dyn_cast<RecordType>(lelt))
               if (frec->getDecl()->hasAttr<AtomiccInterfaceAttr>())
                   myDecl = frec->getDecl();
-              if (auto trec = dyn_cast_or_null<CXXRecordDecl>(myDecl)) {
+
+              if (auto trec = dyn_cast_or_null<CXXRecordDecl>(myDecl))
+              // check for upcalls HW -> SW
+              if (auto item = dyn_cast<UnaryOperator>(RHSExpr))
+              if (item->getOpcode() == UO_AddrOf)
+              if (auto sitem = dyn_cast<MemberExpr>(item->getSubExpr()))
+              if (auto rect = dyn_cast<RecordType>(sitem->getBase()->getType()))
+              if (auto Record = dyn_cast<CXXRecordDecl>(rect->getDecl()))
+              if(Record->getTagKind() == TTK_AModule || Record->getTagKind() == TTK_AEModule) {
+                  printf("[%s:%d] INTERFACEASSIGN ################################################################# \n", __FUNCTION__, __LINE__);
                   FunctionDecl *CIDecl = getCI(Actions, OpLoc);
-                  printf("[%s:%d] INTERFACEASSIGN #####\n", __FUNCTION__, __LINE__);
                   Expr *Args[] = {
                     getStringArg(Actions, methString(Actions, Actions.getLangOpts(), LHSExpr)),
                     getStringArg(Actions, methString(Actions, Actions.getLangOpts(), RHSExpr)),
@@ -620,7 +633,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
                   return Actions.MaybeBindToTemporary(TheCall);
               }
           }
-        }
+        } // end of (MinPrec == prec::Assignment)
         LHS = Actions.ActOnBinOp(getCurScope(), OpToken.getLocation(),
                                  OpToken.getKind(), LHS.get(), RHS.get());
 

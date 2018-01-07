@@ -6045,11 +6045,10 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
           }
       }
   }
-  else if(Record->getTagKind() == TTK_AModule || Record->getTagKind() == TTK_AEModule) {
+  else if (auto trec = dyn_cast<CXXRecordDecl>(Record)) {
+      /* do hoisting for all class definitions */
       auto StartLoc = Record->getLocStart();
-      auto trec = dyn_cast<CXXRecordDecl>(Record);
       std::string recname = Record->getName();
-printf("[%s:%d] MODULE/EMODULE %s depend %d special %d\n", __FUNCTION__, __LINE__, Record->getName().str().c_str(), Record->isDependentType(), isa<ClassTemplateSpecializationDecl>(trec));
       for (auto bitem: Record->bases()) {
           Decl *base = nullptr;
           if (auto rec = dyn_cast<RecordType>(bitem.getType()))
@@ -6088,6 +6087,11 @@ printf("[%s:%d] MODULE/EMODULE %s depend %d special %d\n", __FUNCTION__, __LINE_
           if (interfaceItem || field->getType()->isPointerType())
               field->setAccess(AS_public);
       }
+  }
+  if(Record->getTagKind() == TTK_AModule || Record->getTagKind() == TTK_AEModule) {
+printf("[%s:%d] MODULE/EMODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+      auto StartLoc = Record->getLocStart();
+      std::string recname = Record->getName();
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
               Method->setAccess(AS_public);
