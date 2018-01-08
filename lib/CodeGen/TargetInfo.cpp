@@ -7969,7 +7969,11 @@ printf("[AtomiccABIInfo::%s:%d] AGGREGATERETURN %d\n", __FUNCTION__, __LINE__, i
         if (isAtomiccMethod)
             FI.getReturnInfo() = ABIArgInfo::getDirect();
         else
-            FI.getReturnInfo() = ABIArgInfo::getIndirect(CharUnits::fromQuantity(0));
+{
+printf("[%s:%d] ATOMICCCCCCCC getIndirect\n", __FUNCTION__, __LINE__);
+            //FI.getReturnInfo() = ABIArgInfo::getIndirect(CharUnits::fromQuantity(0));
+            FI.getReturnInfo() = ABIArgInfo::getIndirect(CharUnits::fromQuantity(4));
+}
       }
       else {
         if (const EnumType *EnumTy = RetTy->getAs<EnumType>())
