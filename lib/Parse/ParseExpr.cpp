@@ -279,8 +279,6 @@ static bool isFoldOperator(tok::TokenKind Kind) {
 
 static std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
 {
-printf("[%s:%d] START\n", __FUNCTION__, __LINE__);
-expr->dump();
     std::string retVal;
     if (auto item = dyn_cast<UnaryOperator>(expr))
     if (item->getOpcode() == UO_AddrOf)
@@ -304,7 +302,6 @@ printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_s
             }
         }
     }
-printf("[%s:%d] return %s\n", __FUNCTION__, __LINE__, retVal.c_str());
     return retVal;
 }
 static QualType ccharp;
@@ -620,7 +617,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
               if (auto rect = dyn_cast<RecordType>(sitem->getBase()->getType()))
               if (auto Record = dyn_cast<CXXRecordDecl>(rect->getDecl()))
               if(Record->getTagKind() == TTK_AModule || Record->getTagKind() == TTK_AEModule) {
-                  printf("[%s:%d] INTERFACEASSIGN ################################################################# \n", __FUNCTION__, __LINE__);
+                  printf("[%s:%d] INTERFACEASSIGN \n", __FUNCTION__, __LINE__);
                   FunctionDecl *CIDecl = getCI(Actions, OpLoc);
                   Expr *Args[] = {
                     getStringArg(Actions, methString(Actions, Actions.getLangOpts(), LHSExpr)),

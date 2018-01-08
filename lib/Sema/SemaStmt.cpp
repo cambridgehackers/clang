@@ -1455,6 +1455,8 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
   StmtResult transBody = transform.TransformStmt(body);
 
+  Expr *paramBlock;
+  if (Params.size()) {
   // Make the allocation for the capture value block.
   IdentifierInfo *blII = &Context.Idents.get("block");
   VarDecl *blockVariable = VarDecl::Create(Context, CurContext, RuleLoc, RuleLoc, blII,
@@ -1485,6 +1487,13 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), pindex++),
           Context.IntTy, RuleLoc), Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc), rval).get());
   } 
+      paramBlock = ImplicitCastExpr::Create(Context, longp, CK_ArrayToPointerDecay,
+          blockAddr, nullptr, VK_RValue);
+  }
+  else
+      paramBlock = ImplicitCastExpr::Create(Context, longp, CK_NullToPointer, 
+          IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), 0),
+              Context.IntTy, RuleLoc), nullptr, VK_RValue);
 
   Expr *Args[] = {
       // rule name
@@ -1494,7 +1503,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           llvm::APInt(32, Name.size() + 1), ArrayType::Normal, 0), RuleLoc),
           ccharp, CK_ArrayToPointerDecay).get(),
       // captured parameter block
-      ImplicitCastExpr::Create(Context, longp, CK_ArrayToPointerDecay, blockAddr, nullptr, VK_RValue),
+      paramBlock,
       // instantiate captured values into guard function by calling fixupFunction()
       buildTemplate(*this, Context.BoolTy, Params,
           new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc)),
