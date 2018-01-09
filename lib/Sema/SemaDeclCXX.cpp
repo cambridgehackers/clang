@@ -5866,6 +5866,14 @@ void setX86VectorCall(CXXMethodDecl *Method)
     EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
     Method->setType(Method->getASTContext().getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI));
 }
+static QualType getSimpleType(QualType ftype)
+{
+    if (auto ttype = dyn_cast<TypedefType>(ftype))
+        ftype = ttype->getDecl()->getUnderlyingType();
+    if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
+        ftype = stype->desugar();
+    return ftype;
+}
 void Sema::CheckCompletedCXXClass(CXXRecordDecl *Record) {
   if (!Record)
     return;
@@ -6050,40 +6058,24 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
       auto StartLoc = Record->getLocStart();
       std::string recname = Record->getName();
       for (auto bitem: Record->bases()) {
-          Decl *base = nullptr;
-          if (auto rec = dyn_cast<RecordType>(bitem.getType()))
-              base = rec->getDecl();
-          else if (auto stype = dyn_cast<TemplateSpecializationType>(bitem.getType()))
-              if (auto frec = dyn_cast<RecordType>(stype->desugar()))
-                  base = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl());
-          if (auto rec = dyn_cast_or_null<CXXRecordDecl>(base)) {
-              hoistInterface(*this, trec, base, "", StartLoc);
-              for (auto fitem: rec->fields()) {
-                  std::string fname = fitem->getName();
-                  QualType fieldType = fitem->getType();
-                  if (auto stype = dyn_cast<TemplateSpecializationType>(fieldType))
-                  if (auto frec = dyn_cast<RecordType>(stype->desugar()))
-                  if (auto crec = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl()))
-                      hoistInterface(*this, trec, crec, fname + "$", StartLoc);
-                  if (auto frec = dyn_cast<RecordType>(fieldType))
-                      hoistInterface(*this, trec, frec->getDecl(), fname + "$", StartLoc);
-                  hoistInterface(*this, trec, fitem, fname + "$", StartLoc);
+          if (auto base = dyn_cast<RecordType>(getSimpleType(bitem.getType())))
+          if (auto rec = dyn_cast<CXXRecordDecl>(base->getDecl())) {
+              hoistInterface(*this, trec, rec, "", StartLoc);
+              for (auto field: rec->fields()) {
+                  std::string fname = field->getName();
+                  Decl *decl = field;
+                  if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
+                      decl = frec->getDecl();
+                  hoistInterface(*this, trec, decl, fname + "$", StartLoc);
               }
           }
       }
       for (auto field: Record->fields()) {
-          bool interfaceItem = false;
           std::string fname = field->getName();
-          auto ftype = field->getType();
-          if (auto ttype = dyn_cast<TypedefType>(ftype))
-              ftype = ttype->getDecl()->getUnderlyingType();
-          if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
-          if (auto frec = dyn_cast<RecordType>(stype->desugar()))
-          if (auto crec = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl()))
-              interfaceItem |= hoistInterface(*this, trec, crec, fname + "$", StartLoc);
-          if (auto frec = dyn_cast<RecordType>(ftype))
-              interfaceItem |= hoistInterface(*this, trec, frec->getDecl(), fname + "$", StartLoc);
-          interfaceItem |= hoistInterface(*this, trec, field, fname + "$", StartLoc);
+          Decl *decl = field;
+          if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
+              decl = frec->getDecl();
+          bool interfaceItem = hoistInterface(*this, trec, decl, fname + "$", StartLoc);
           if (interfaceItem || field->getType()->isPointerType())
               field->setAccess(AS_public);
       }
