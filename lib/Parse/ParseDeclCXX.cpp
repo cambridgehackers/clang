@@ -1398,16 +1398,6 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   // FIXME: Are we consistent with the ordering of parsing of different
   // styles of attributes?
   MaybeParseCXX11Attributes(attrs);
-  AttributeList *myattr = attrs.getList();
-  while(myattr) {
-      if (myattr->getName()->getName() == "atomicc_interface")
-          TagType = DeclSpec::TST_ainterface;
-      else if (myattr->getName()->getName() == "atomicc_module")
-          TagType = DeclSpec::TST_amodule;
-      else if (myattr->getName()->getName() == "atomicc_emodule")
-          TagType = DeclSpec::TST_aemodule;
-      myattr = myattr->getNext();
-  }
 
   // Source location used by FIXIT to insert misplaced
   // C++11 attributes
@@ -3114,9 +3104,6 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   assert((TagType == DeclSpec::TST_struct ||
          TagType == DeclSpec::TST_interface ||
          TagType == DeclSpec::TST_union  ||
-         TagType == DeclSpec::TST_ainterface ||
-         TagType == DeclSpec::TST_amodule ||
-         TagType == DeclSpec::TST_aemodule ||
          TagType == DeclSpec::TST_class) && "Invalid TagType!");
 
   PrettyDeclStackTraceEntry CrashInfo(Actions, TagDecl, RecordLoc,
@@ -3260,7 +3247,14 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   // by default. Members of a class defined with the keywords struct or union
   // are public by default.
   AccessSpecifier CurAS;
-  if (TagType == DeclSpec::TST_class || TagType == DeclSpec::TST_amodule || TagType == DeclSpec::TST_aemodule)
+  bool hasInterface = false;
+  AttributeList *myattr = Attrs.getList();
+  while(myattr) {
+      if (myattr->getName()->getName() == "atomicc_interface")
+          hasInterface = true;
+      myattr = myattr->getNext();
+  }
+  if (TagType == DeclSpec::TST_class && !hasInterface)
     CurAS = AS_private;
   else
     CurAS = AS_public;

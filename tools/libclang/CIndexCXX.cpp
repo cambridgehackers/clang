@@ -66,7 +66,6 @@ enum CXCursorKind clang_getTemplateCursorKind(CXCursor C) {
       switch (PartialSpec->getTagKind()) {
       case TTK_Interface:
       case TTK_Struct: return CXCursor_StructDecl;
-      case TTK_AInterface: case TTK_AModule: case TTK_AEModule:
       case TTK_Class: return CXCursor_ClassDecl;
       case TTK_Union: return CXCursor_UnionDecl;
       case TTK_Enum: return CXCursor_NoDeclFound;

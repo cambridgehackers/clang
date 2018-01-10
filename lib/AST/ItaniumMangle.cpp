@@ -3066,9 +3066,6 @@ void CXXNameMangler::mangleType(const DependentNameType *T) {
       break;
     case ETK_Struct:
     case ETK_Class:
-    case ETK_AInterface:
-    case ETK_AModule:
-    case ETK_AEModule:
     case ETK_Interface:
       Out << "Ts";
       break;

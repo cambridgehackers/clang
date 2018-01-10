@@ -616,7 +616,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
               if (auto sitem = dyn_cast<MemberExpr>(item->getSubExpr()))
               if (auto rect = dyn_cast<RecordType>(sitem->getBase()->getType()))
               if (auto Record = dyn_cast<CXXRecordDecl>(rect->getDecl()))
-              if(Record->getTagKind() == TTK_AModule || Record->getTagKind() == TTK_AEModule) {
+              if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()) {
                   printf("[%s:%d] INTERFACEASSIGN \n", __FUNCTION__, __LINE__);
                   FunctionDecl *CIDecl = getCI(Actions, OpLoc);
                   Expr *Args[] = {

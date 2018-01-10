@@ -2173,9 +2173,6 @@ void MicrosoftCXXNameMangler::mangleTagTypeKind(TagTypeKind TTK) {
       Out << 'U';
       break;
     case TTK_Class:
-    case TTK_AInterface:
-    case TTK_AModule:
-    case TTK_AEModule:
       Out << 'V';
       break;
     case TTK_Enum:

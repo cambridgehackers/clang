@@ -7950,12 +7950,8 @@ class AtomiccABIInfo : public ABIInfo {
           //STy->dump();
           Decl *decl = STy->getDecl();
           if (auto rec = dyn_cast<CXXRecordDecl>(decl)) {
-            //if (auto stype = dyn_cast<TemplateSpecializationType>(fieldType)) 
-            //if (auto acl = dyn_cast<ClassTemplateDecl>(stype->getTemplateName().getAsTemplateDecl()))
-            if (rec->getTagKind() == TTK_AInterface
-             || rec->getTagKind() == TTK_AModule || rec->getTagKind() == TTK_AEModule)
+            if (rec->hasAttr<AtomiccInterfaceAttr>() || rec->hasAttr<AtomiccEModuleAttr>() || rec->hasAttr<AtomiccModuleAttr>())
                 isAtomiccMethod = true;
-            //rec->dump();
           }
       }
       break;

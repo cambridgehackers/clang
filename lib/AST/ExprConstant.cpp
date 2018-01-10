@@ -7169,7 +7169,6 @@ static int EvaluateBuiltinClassifyType(const CallExpr *E,
     if (const RecordType *RT = CanTy->getAs<RecordType>()) {
       switch (RT->getDecl()->getTagKind()) {
       case TagTypeKind::TTK_Struct:
-      case TagTypeKind::TTK_AInterface: case TagTypeKind::TTK_AModule: case TagTypeKind::TTK_AEModule:
       case TagTypeKind::TTK_Class:
       case TagTypeKind::TTK_Interface:
         return record_type_class;

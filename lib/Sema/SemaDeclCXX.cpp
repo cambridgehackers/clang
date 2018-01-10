@@ -52,7 +52,7 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
 //printf("[%s:%d]\n", __FUNCTION__, __LINE__);
 //field->dump();
     if (auto rec = dyn_cast<CXXRecordDecl>(field))
-    if (rec->getTagKind() == TTK_AInterface) {
+    if (rec->hasAttr<AtomiccInterfaceAttr>()) {
         ret = true;
         std::string recname = rec->getName();
         for (auto ritem: rec->methods()) {
@@ -1649,7 +1649,6 @@ static unsigned getRecordDiagFromTagKind(TagTypeKind Tag) {
   switch (Tag) {
   case TTK_Struct: return 0;
   case TTK_Interface: return 1;
-  case TTK_AInterface: case TTK_AModule: case TTK_AEModule:
   case TTK_Class:  return 2;
   default: llvm_unreachable("Invalid tag kind for record diagnostic!");
   }
@@ -2254,10 +2253,7 @@ Sema::CheckBaseSpecifier(CXXRecordDecl *Class,
     }
 
     return new (Context) CXXBaseSpecifier(SpecifierRange, Virtual,
-                                          Class->getTagKind() == TTK_Class
-                                          || Class->getTagKind() == TTK_AInterface
-                                          || Class->getTagKind() == TTK_AModule
-                                          || Class->getTagKind() == TTK_AEModule,
+                                          Class->getTagKind() == TTK_Class,
                                           Access, TInfo, EllipsisLoc);
   }
 
@@ -2331,10 +2327,7 @@ Sema::CheckBaseSpecifier(CXXRecordDecl *Class,
 
   // Create the base specifier.
   return new (Context) CXXBaseSpecifier(SpecifierRange, Virtual,
-                                        Class->getTagKind() == TTK_Class
-                                        || Class->getTagKind() == TTK_AInterface
-                                        || Class->getTagKind() == TTK_AModule
-                                        || Class->getTagKind() == TTK_AEModule,
+                                        Class->getTagKind() == TTK_Class,
                                         Access, TInfo, EllipsisLoc);
 }
 
@@ -6018,7 +6011,7 @@ void Sema::CheckCompletedCXXClass(CXXRecordDecl *Record) {
 
   Record->setCanPassInRegisters(computeCanPassInRegisters(*this, Record));
 
-  if(Record->getTagKind() == TTK_AInterface) {
+  if(Record->hasAttr<AtomiccInterfaceAttr>()) {
 printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
       auto StartLoc = Record->getLocStart();
       for (auto mitem: Record->methods()) {
@@ -6080,7 +6073,7 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
               field->setAccess(AS_public);
       }
   }
-  if(Record->getTagKind() == TTK_AModule || Record->getTagKind() == TTK_AEModule) {
+  if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()) {
 printf("[%s:%d] MODULE/EMODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
       auto StartLoc = Record->getLocStart();
       std::string recname = Record->getName();

@@ -474,9 +474,6 @@ void CXXRecordDecl::addedMember(Decl *D) {
       !isa<FieldDecl>(D) &&
       !isa<IndirectFieldDecl>(D) &&
       (!isa<TagDecl>(D) || cast<TagDecl>(D)->getTagKind() == TTK_Class ||
-        cast<TagDecl>(D)->getTagKind() == TTK_AInterface ||
-        cast<TagDecl>(D)->getTagKind() == TTK_AModule ||
-        cast<TagDecl>(D)->getTagKind() == TTK_AEModule ||
         cast<TagDecl>(D)->getTagKind() == TTK_Interface))
     data().HasOnlyCMembers = false;
 
@@ -1087,7 +1084,6 @@ void CXXRecordDecl::finishedDefaultedOrDeletedMember(CXXMethodDecl *D) {
 
 bool CXXRecordDecl::isCLike() const {
   if (getTagKind() == TTK_Class || getTagKind() == TTK_Interface ||
-  getTagKind() == TTK_AInterface || getTagKind() == TTK_AModule || getTagKind() == TTK_AEModule ||
       !TemplateOrInstantiation.isNull())
     return false;
   if (!hasDefinition())

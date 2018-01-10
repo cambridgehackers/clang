@@ -2785,10 +2785,8 @@ static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
     TagDecl *TagY = cast<TagDecl>(Y);
     return (TagX->getTagKind() == TagY->getTagKind()) ||
       ((TagX->getTagKind() == TTK_Struct || TagX->getTagKind() == TTK_Class ||
-        TagX->getTagKind() == TTK_AInterface || TagX->getTagKind() == TTK_AModule || TagX->getTagKind() == TTK_AEModule ||
         TagX->getTagKind() == TTK_Interface) &&
        (TagY->getTagKind() == TTK_Struct || TagY->getTagKind() == TTK_Class ||
-        TagY->getTagKind() == TTK_AInterface || TagY->getTagKind() == TTK_AModule || TagY->getTagKind() == TTK_AEModule ||
         TagY->getTagKind() == TTK_Interface));
   }
 

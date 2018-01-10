@@ -1936,7 +1936,6 @@ static unsigned getPaddingDiagFromTagKind(TagTypeKind Tag) {
   switch (Tag) {
   case TTK_Struct: return 0;
   case TTK_Interface: return 1;
-  case TTK_AInterface: case TTK_AModule: case TTK_AEModule:
   case TTK_Class: return 2;
   default: llvm_unreachable("Invalid tag kind for field padding diagnostic!");
   }
