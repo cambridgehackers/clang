@@ -579,6 +579,12 @@ def AtomiccReadyValid : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccSoftware : InheritableAttr {
+  let Spellings = [ GNU<"atomicc_software"> ];
+  let Subjects = SubjectList<[Field], WarnDiag, "ExpectedFieldOrGlobalVar">;
+  let Documentation = [Undocumented];
+}
+
 def AlignMac68k : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];

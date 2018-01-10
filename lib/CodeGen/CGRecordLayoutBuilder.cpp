@@ -726,6 +726,7 @@ CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
 {
   RecordDecl::field_iterator it = D->field_begin();
   unsigned Idx = 0;
+  std::string softwareItems;
   for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it) {
     const FieldDecl *FD = *it;
 
@@ -742,6 +743,13 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d\n", __FUNCTION__, __LINE__,
       while (Idx++ < FieldNo)
         Ty->structFieldMap += ',';
       Ty->structFieldMap += fname;
+      if (FD->hasAttrs())
+        for (auto item: FD->getAttrs())
+          if (!strcmp(item->getSpelling(), "atomicc_software")) {
+            if (softwareItems.length())
+              softwareItems += ",";
+            softwareItems += fname;
+          }
     }
   }
   if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D)) {
@@ -759,6 +767,8 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d\n", __FUNCTION__, __LINE__,
       }
     }
   }
+  if (softwareItems.length())
+    Ty->structFieldMap += ";" + softwareItems;
 }
 #endif
 
