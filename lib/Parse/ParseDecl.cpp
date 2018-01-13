@@ -5665,6 +5665,21 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
   assert(D.isPastIdentifier() &&
          "Haven't past the location of the identifier yet?");
 
+if (Tok.is(tok::period)) {
+printf("[%s:%d] HADAPERIODDDDDDDDDDDDDDDDDDDDDDDDDDDDD\n", __FUNCTION__, __LINE__);
+    ConsumeToken(); // tok::period
+    if (!Tok.is(tok::identifier)) {
+        printf("[%s:%d]MISSINGID\n", __FUNCTION__, __LINE__);
+        exit(-1);
+    }
+    IdentifierInfo *Id = D.getIdentifier();
+    std::string mname = Id->getName().str() + "$" + Tok.getIdentifierInfo()->getName().str();
+printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->getName().str().c_str(), mname.c_str());
+    IdentifierInfo &IdNew = Actions.Context.Idents.get(mname);
+    D.SetIdentifier(&IdNew, Tok.getLocation());
+    ConsumeToken(); // tok::identifier
+                //////FD->setAccess(AS_public);
+  }
   // Don't parse attributes unless we have parsed an unparenthesized name.
   if (D.hasName() && !D.getNumTypeObjects())
     MaybeParseCXX11Attributes(D);

@@ -62,6 +62,23 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                 std::string mname = interfaceName + ritem->getName().str();
                 Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
                 Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+                for (auto item: parent->decls())
+                    if (auto Method = dyn_cast<CXXMethodDecl>(item))
+                    if (Method->getDeclName().isIdentifier() && Method->getName() == mname) {
+printf("[%s:%d] name exists %s, skip\n", __FUNCTION__, __LINE__, mname.c_str());
+//HACK HACK HACK HACK
+                        Method->setAccess(AS_public);
+                SmallVector<ParmVarDecl*, 16> Params;
+                for (auto ipar: Method->parameters()) {
+                    std::string temp = Method->getName().str() + "$" + ipar->getIdentifier()->getName().str();
+                    IdentifierInfo &pname = Actions.Context.Idents.get(temp);
+printf("[%s:%d]update name %s -> %s\n", __FUNCTION__, __LINE__, ipar->getIdentifier()->getName().str().c_str(), temp.c_str());
+                    DeclarationName name(&pname);
+                    ipar->setDeclName(name);
+                }
+                Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+                        goto nextItem;
+                    }
                 IdentifierInfo &funcName = Actions.Context.Idents.get(mname);
                 const DeclarationNameInfo nName(DeclarationName(&funcName), loc);
                 SourceLocation NoLoc;
@@ -113,6 +130,7 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                 FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
                 Actions.ActOnFinishInlineFunctionDef(cast<CXXMethodDecl>(FD));
             }
+nextItem:;
         }
     }
     return ret;
