@@ -49,8 +49,6 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
 {
     std::string pname = parent->getName();
     bool ret = false;
-//printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-//field->dump();
     if (auto rec = dyn_cast<CXXRecordDecl>(field))
     if (rec->hasAttr<AtomiccInterfaceAttr>()) {
         ret = true;
@@ -58,30 +56,27 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
         for (auto ritem: rec->methods()) {
             if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
             if (Method->getDeclName().isIdentifier()) {
-                FunctionDecl *FD = nullptr;
                 std::string mname = interfaceName + ritem->getName().str();
                 Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
                 Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
                 for (auto item: parent->decls())
-                    if (auto Method = dyn_cast<CXXMethodDecl>(item))
-                    if (Method->getDeclName().isIdentifier()) {
-                        if (Method->getName() == mname) {
+                    if (auto TMethod = dyn_cast<CXXMethodDecl>(item))
+                    if (TMethod->getDeclName().isIdentifier()) {
+                        if (TMethod->getName() == mname) {
                             printf("[%s:%d] name exists %s, skip\n", __FUNCTION__, __LINE__, mname.c_str());
                             goto nextItem;
                         }
-                        printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), Method->getName().str().c_str());
+                        printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), TMethod->getName().str().c_str());
                     }
   if(parent->hasAttr<AtomiccModuleAttr>()) {
-printf("[%s:%d] ATTEMPT TO HOIST %s\n", __FUNCTION__, __LINE__, mname.c_str());
+printf("[%s:%d] ATTEMPT TO HOIST pname %s recname %s interface %s mname %s\n", __FUNCTION__, __LINE__, pname.c_str(), recname.c_str(), interfaceName.c_str(), mname.c_str());
 Method->dump();
 parent->dump();
 exit(-1);
 }
-printf("[%s:%d] HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH %s\n", __FUNCTION__, __LINE__, mname.c_str());
                 IdentifierInfo &funcName = Actions.Context.Idents.get(mname);
                 const DeclarationNameInfo nName(DeclarationName(&funcName), loc);
-                SourceLocation NoLoc;
-                FD = CXXMethodDecl::Create(
+                FunctionDecl *FD = CXXMethodDecl::Create(
                    ritem->getASTContext(), parent, loc,
                    nName, ritem->getType(), ritem->getTypeSourceInfo(),
                    ritem->getStorageClass(), ritem->isInlined(),
@@ -93,15 +88,10 @@ printf("[%s:%d] HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH %s\n", __FUNCTION__,
                     IdentifierInfo &pname = Actions.Context.Idents.get(ipar->getIdentifier()->getName().str());
                     ParmVarDecl *PD = ParmVarDecl::Create(Actions.Context, FD, loc, loc, &pname,
                         ipar->getType(), ipar->getTypeSourceInfo(), SC_None, ipar->getDefaultArg());
-                    PD->markUsed(Actions.Context);
                     Params.push_back(PD);
                 }
                 FD->setParams(Params);
-                FD->addAttr(::new (FD->getASTContext()) UsedAttr(FD->getLocStart(), FD->getASTContext(), 0));
-                Actions.MarkFunctionReferenced(FD->getLocation(), FD, true);
                 printf("[%s:%d] %p rec %s orig %s; %p pname %s HMETH %s\n", __FUNCTION__, __LINE__, Method, recname.c_str(), Method->getName().str().c_str(), FD, pname.c_str(), mname.c_str());
-
-                CXXMethodDecl *method = cast<CXXMethodDecl>(FD);
                 SmallVector<Stmt*, 32> Stmts;
                 if (!Method->getReturnType()->isVoidType()) {
                     StmtResult retStmt = new (Actions.Context) ReturnStmt(loc,
