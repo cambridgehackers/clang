@@ -305,27 +305,6 @@ printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_s
     return retVal;
 }
 static QualType ccharp;
-static FunctionDecl *getAIFC(Sema &Actions, SourceLocation OpLoc)
-{
-    static FunctionDecl *AIFCDecl;
-    if (!AIFCDecl) {
-        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
-        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
-        CLinkageDecl->setImplicit();
-        Parent->addDecl(CLinkageDecl);
-        SmallVector<ParmVarDecl *, 16> Params;
-        ParmVarDecl *Parm = ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr);
-        Params.push_back(Parm);
-        Params.push_back(Parm);
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        AIFCDecl = getACCFunction(Actions, CLinkageDecl, "atomiccInterfaceName",
-            Actions.Context.VoidTy, Params);
-    }
-    return AIFCDecl;
-}
 static FunctionDecl *getCI(Sema &Actions, SourceLocation OpLoc)
 {
     static FunctionDecl *CIDecl;
@@ -579,20 +558,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
               lkind = pty->getKind();
           if (const BuiltinType *pty = rtype->getAsPlaceholderType())
               rkind = pty->getKind();
-          if (lkind == BuiltinType::BoundMember || rkind == BuiltinType::BoundMember) {
-              printf("[%s:%d] ASSIGNMEMBER %d = %d\n", __FUNCTION__, __LINE__, lkind, rkind);
-              FunctionDecl *AIFCDecl = getAIFC(Actions, OpLoc);
-              Expr *Args[] = {
-                getStringArg(Actions, methString(Actions, Actions.getLangOpts(), LHSExpr)),
-                getStringArg(Actions, methString(Actions, Actions.getLangOpts(), RHSExpr)),
-                IntegerLiteral::Create(Actions.Context, llvm::APInt(
-                    Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc)
-              };
-              CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
-                  getACCCallRef(Actions, AIFCDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
-              return Actions.MaybeBindToTemporary(TheCall);
-          }
-          else if (auto LPT = dyn_cast<PointerType>(ltype)) {
+          if (auto LPT = dyn_cast<PointerType>(ltype)) {
               // Interface upcall assignment
               auto lelt = LPT->getPointeeType();
               Decl *myDecl = nullptr;
