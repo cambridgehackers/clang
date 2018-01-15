@@ -2055,10 +2055,22 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
 void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc, std::string mname, Expr *expr, AccessSpecifier Access)
 {
 //printf("[%s:%d] start %s DC %p\n", __FUNCTION__, __LINE__, mname.c_str(), DC);
+    Stmt *body = nullptr;
+    if (expr) {
+        SmallVector<Stmt*, 32> Stmts;
+        StmtResult retStmt = new (Actions.Context) ReturnStmt(Loc, expr, nullptr);
+        Stmts.push_back(retStmt.get());
+        body = new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, Loc, Loc);
+    }
     for (auto item: DC->decls())
         if (auto Method = dyn_cast<CXXMethodDecl>(item))
-        if (Method->getDeclName().isIdentifier() && Method->getName() == mname)
+        if (Method->getDeclName().isIdentifier() && Method->getName() == mname) {
+            if (body && !Method->hasBody()) {
+                Method->setBody(body);
+                Actions.ActOnFinishInlineFunctionDef(Method);
+            }
             return;
+        }
     const char *Dummy = nullptr;
     unsigned DiagID;
     SourceLocation NoLoc;
@@ -2094,7 +2106,7 @@ void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc, std::
                                              /*DeclsInPrototype=*/None,
                                              Loc, Loc, DFunc),
         parsedAttrs, Loc);
-    DFunc.setFunctionDefinitionKind(expr ? FDK_Declaration : FDK_Definition);
+    DFunc.setFunctionDefinitionKind(body ? FDK_Declaration : FDK_Definition);
     IdentifierInfo &funcName = Actions.Context.Idents.get(mname);
     DFunc.SetIdentifier(&funcName, Loc);
     LookupResult Previous(Actions, Actions.GetNameForDeclarator(DFunc),
@@ -2109,11 +2121,8 @@ void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc, std::
     FD->setAccess(Access);
     FD->setLexicalDeclContext(DC);
     DC->addDecl(New);
-    if (expr) {
-        StmtResult retStmt = new (Actions.Context) ReturnStmt(Loc, expr, nullptr);
-        SmallVector<Stmt*, 32> Stmts;
-        Stmts.push_back(retStmt.get());
-        FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, Loc, Loc));
+    if (body) {
+        FD->setBody(body);
         Actions.ActOnFinishInlineFunctionDef(FD);
     }
 printf("[%s:%d] adding Method %p mname %s\n", __FUNCTION__, __LINE__, FD, mname.c_str());
@@ -2125,11 +2134,12 @@ printf("[%s:%d] adding Method %p mname %s\n", __FUNCTION__, __LINE__, FD, mname.
 ///         'if' ctor-initializer[opt] compound-statement handler-seq
 ///
 Decl *Parser::ParseFunctionIfBlock(Decl *Decl, ParseScope &BodyScope) {
+  CXXMethodDecl *mdecl = cast<CXXMethodDecl>(Decl);
+  std::string mname = mdecl->getName();
+  SourceLocation loc = Tok.getLocation();
+  ExprResult Rexp;
+  if (Tok.is(tok::kw_if)) {
   assert(Tok.is(tok::kw_if) && "Expected 'if'");
-  std::string mname;
-  if (const CXXMethodDecl *mdecl = cast<CXXMethodDecl>(Decl)) {
-      mname = mdecl->getName();
-  }
   SourceLocation IfLoc = ConsumeToken();
   PrettyDeclStackTraceEntry CrashInfo(Actions, Decl, IfLoc,
                                       "parsing function if block");
@@ -2151,16 +2161,17 @@ Decl *Parser::ParseFunctionIfBlock(Decl *Decl, ParseScope &BodyScope) {
 assert(false && "not open");
     //return StmtError();
   }
-  SourceLocation loc = Tok.getLocation();
-  ExprResult Rexp = ParseExpression();
-printf("[%s:%d] name %s EXPINV %d METHODKKKKK %d\n", __FUNCTION__, __LINE__, mname.c_str(), Rexp.isInvalid(), isa<CXXMethodDecl>(Decl));
+  Rexp = ParseExpression();
   if (Rexp.isInvalid()) {
       SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
   }
-  else if (auto meth = dyn_cast<CXXMethodDecl>(Decl))
-      createGuardMethod(Actions, meth->getParent(), loc, mname + "__RDY", Rexp.get(), meth->getAccess());
   if (!T.consumeClose())
     {}
+  }
+  else
+      Rexp = Actions.ActOnCXXBoolLiteral(loc, tok::kw_true);
+printf("[%s:%d] name %s EXPINV %d METHODKKKKK %p\n", __FUNCTION__, __LINE__, mname.c_str(), Rexp.isInvalid(), mdecl);
+  createGuardMethod(Actions, mdecl->getParent(), loc, mname + "__RDY", Rexp.get(), mdecl->getAccess());
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
   StmtResult FnBody(ParseCompoundStatementBody());

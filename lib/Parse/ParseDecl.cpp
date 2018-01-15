@@ -5678,7 +5678,11 @@ printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->ge
     IdentifierInfo &IdNew = Actions.Context.Idents.get(mname);
     D.SetIdentifier(&IdNew, Tok.getLocation());
     ConsumeToken(); // tok::identifier
-                //////FD->setAccess(AS_public);
+    //AttributeFactory attrFactory;
+    ParsedAttributes VAttr(AttrFactory);
+    IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
+    VAttr.addNew(&AttrID, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
+    D.takeAttributes(VAttr, Tok.getLocation());
   }
   // Don't parse attributes unless we have parsed an unparenthesized name.
   if (D.hasName() && !D.getNumTypeObjects())

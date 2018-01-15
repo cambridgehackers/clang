@@ -512,7 +512,7 @@ void Parser::ParseLexedMethodDef(LexedMethod &LM) {
   ParseScope FnScope(this, Scope::FnScope|Scope::DeclScope);
   Actions.ActOnStartOfFunctionDef(getCurScope(), LM.D);
 
-  if (Tok.is(tok::kw_if)) {
+  if (Tok.is(tok::kw_if) || LM.D->hasAttr<VectorCallAttr>()) {
     ParseFunctionIfBlock(LM.D, FnScope);
 
     while (Tok.isNot(tok::eof))

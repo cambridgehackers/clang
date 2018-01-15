@@ -65,20 +65,19 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                 for (auto item: parent->decls())
                     if (auto Method = dyn_cast<CXXMethodDecl>(item))
                     if (Method->getDeclName().isIdentifier() && Method->getName() == mname) {
-printf("[%s:%d] name exists %s, skip\n", __FUNCTION__, __LINE__, mname.c_str());
+                        printf("[%s:%d] name exists %s, skip\n", __FUNCTION__, __LINE__, mname.c_str());
 //HACK HACK HACK HACK
-                        Method->setAccess(AS_public);
-                SmallVector<ParmVarDecl*, 16> Params;
-                for (auto ipar: Method->parameters()) {
-                    std::string temp = Method->getName().str() + "$" + ipar->getIdentifier()->getName().str();
-                    IdentifierInfo &pname = Actions.Context.Idents.get(temp);
-printf("[%s:%d]update name %s -> %s\n", __FUNCTION__, __LINE__, ipar->getIdentifier()->getName().str().c_str(), temp.c_str());
-                    DeclarationName name(&pname);
-                    ipar->setDeclName(name);
-                }
-                Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+                        //Method->setAccess(AS_public);
+                        //Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
                         goto nextItem;
                     }
+  if(parent->hasAttr<AtomiccModuleAttr>()) {
+printf("[%s:%d] ATTEMPT TO HOIST %s\n", __FUNCTION__, __LINE__, mname.c_str());
+Method->dump();
+parent->dump();
+exit(-1);
+}
+printf("[%s:%d] HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH %s\n", __FUNCTION__, __LINE__, mname.c_str());
                 IdentifierInfo &funcName = Actions.Context.Idents.get(mname);
                 const DeclarationNameInfo nName(DeclarationName(&funcName), loc);
                 SourceLocation NoLoc;
@@ -89,16 +88,16 @@ printf("[%s:%d]update name %s -> %s\n", __FUNCTION__, __LINE__, ipar->getIdentif
                    ritem->isConstexpr(), loc);
                 parent->addDecl(FD);
                 FD->setAccess(AS_public);
-                FD->setLexicalDeclContext(parent);
+                //FD->setLexicalDeclContext(parent);
                 SmallVector<Expr *, 16> Args;
                 SmallVector<ParmVarDecl*, 16> Params;
                 for (auto ipar: Method->parameters()) {
-                    IdentifierInfo &pname = Actions.Context.Idents.get(
-                        interfaceName + ipar->getIdentifier()->getName().str());
+                    IdentifierInfo &pname = Actions.Context.Idents.get(ipar->getIdentifier()->getName().str());
                     ParmVarDecl *PD = ParmVarDecl::Create(Actions.Context, FD, loc, loc, &pname,
                         ipar->getType(), ipar->getTypeSourceInfo(), SC_None, ipar->getDefaultArg());
                     PD->markUsed(Actions.Context);
                     Params.push_back(PD);
+#if 1
                     QualType ptype = PD->getType();
                     if (ptype->isReferenceType())
                         ptype = ptype->getPointeeType();
@@ -107,6 +106,7 @@ printf("[%s:%d]update name %s -> %s\n", __FUNCTION__, __LINE__, ipar->getIdentif
                                 loc, PD, false, loc, ptype, VK_LValue, nullptr),
                         nullptr, VK_RValue);
                     Args.push_back(aitem.get());
+#endif
                 }
                 FD->setParams(Params);
                 FD->addAttr(::new (FD->getASTContext()) UsedAttr(FD->getLocStart(), FD->getASTContext(), 0));
@@ -114,6 +114,8 @@ printf("[%s:%d]update name %s -> %s\n", __FUNCTION__, __LINE__, ipar->getIdentif
                 printf("[%s:%d] %p rec %s orig %s; %p pname %s HMETH %s\n", __FUNCTION__, __LINE__, Method, recname.c_str(), Method->getName().str().c_str(), FD, pname.c_str(), mname.c_str());
 
                 CXXMethodDecl *method = cast<CXXMethodDecl>(FD);
+                SmallVector<Stmt*, 32> Stmts;
+#if 1
                 MemberExpr *ME = new (Actions.Context) MemberExpr(
                     new (Actions.Context) CXXThisExpr(loc,
                          method->getThisType(Actions.Context), /*isImplicit=*/ true),
@@ -125,8 +127,8 @@ printf("[%s:%d]update name %s -> %s\n", __FUNCTION__, __LINE__, ipar->getIdentif
                     ME, Args, ResultType, Expr::getValueKindForType(ResultType), loc);
                 if (!FD->getReturnType()->isVoidType())
                     call = new (Actions.Context) ReturnStmt(loc, cast<Expr>(call), nullptr);
-                SmallVector<Stmt*, 32> Stmts;
                 Stmts.push_back(call);
+#endif
                 FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
                 Actions.ActOnFinishInlineFunctionDef(cast<CXXMethodDecl>(FD));
             }
@@ -6050,14 +6052,6 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
                   Method->setBody(new (Context) class CompoundStmt(Context, Stmts, StartLoc, StartLoc));
                   ActOnFinishInlineFunctionDef(Method);
               }
-              if (auto *FT = dyn_cast<FunctionProtoType>(Method->getType()))
-              if (FT->getCallConv() != CC_X86VectorCall) {
-                  for (auto ipar: Method->parameters()) {
-                      IdentifierInfo &pname = Method->getASTContext().Idents.get(
-                          mname + "$" + ipar->getIdentifier()->getName().str());
-                      ipar->setDeclName(DeclarationName(&pname));
-                  }
-              }
               setX86VectorCall(Method);
               Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
               MarkFunctionReferenced(Method->getLocation(), Method, true);
@@ -6068,6 +6062,24 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
       /* do hoisting for all class definitions */
       auto StartLoc = Record->getLocStart();
       std::string recname = Record->getName();
+      for (auto mitem: Record->methods()) { // before hoisting
+          if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
+          if (Method->getDeclName().isIdentifier()) {
+              std::string mname = mitem->getName();
+              if (auto AT = dyn_cast<AttributedType>(Method->getType()))
+              if (AT->getAttrKind() == AttributedType::attr_vectorcall) {
+                  Method->setAccess(AS_public);
+                  Method->addAttr(::new (Method->getASTContext()) VectorCallAttr(Method->getLocStart(), Method->getASTContext(), 0));
+printf("[%s:%d]ZZZMETH %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, __LINE__, Method, recname.c_str(), mname.c_str(), Method, Method->getAccess() == AS_public, Method->hasBody());
+//Method->dump();
+                  if (!StringRef(mname).endswith("__RDY"))
+                      createGuardMethod(*this, Method->getLexicalDeclContext(),
+                          StartLoc, mname + "__RDY",
+                          Method->hasBody() ? ActOnCXXBoolLiteral(StartLoc, tok::kw_true).get(): nullptr,
+                          Method->getAccess());
+              }
+          }
+      }
       for (auto bitem: Record->bases()) {
           if (auto base = dyn_cast<RecordType>(getSimpleType(bitem.getType())))
           if (auto rec = dyn_cast<CXXRecordDecl>(base->getDecl())) {
@@ -6101,17 +6113,11 @@ printf("[%s:%d] MODULE/EMODULE %s\n", __FUNCTION__, __LINE__, Record->getName().
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
           if (Method->getDeclName().isIdentifier()) {
               std::string mname = mitem->getName();
-              if (Method->getAccess() == AS_public) {
-                  setX86VectorCall(Method);
-                  if (!StringRef(mname).endswith("__RDY"))
-                      createGuardMethod(*this, Method->getLexicalDeclContext(),
-                          StartLoc, mname + "__RDY", ActOnCXXBoolLiteral(StartLoc, tok::kw_true).get(),
-                          Method->getAccess());
-              }
               printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, recname.c_str(), mname.c_str(), Method, Method->getAccess() == AS_public);
 //Method->dump();
               // We need to generate all methods in a module, since we don't know
               // until runtime which ones are connected to interfaces.
+              setX86VectorCall(Method);
               Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
               MarkFunctionReferenced(Method->getLocation(), Method, true);
           }
