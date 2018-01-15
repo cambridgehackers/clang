@@ -64,12 +64,12 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                 Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
                 for (auto item: parent->decls())
                     if (auto Method = dyn_cast<CXXMethodDecl>(item))
-                    if (Method->getDeclName().isIdentifier() && Method->getName() == mname) {
-                        printf("[%s:%d] name exists %s, skip\n", __FUNCTION__, __LINE__, mname.c_str());
-//HACK HACK HACK HACK
-                        //Method->setAccess(AS_public);
-                        //Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-                        goto nextItem;
+                    if (Method->getDeclName().isIdentifier()) {
+                        if (Method->getName() == mname) {
+                            printf("[%s:%d] name exists %s, skip\n", __FUNCTION__, __LINE__, mname.c_str());
+                            goto nextItem;
+                        }
+                        printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), Method->getName().str().c_str());
                     }
   if(parent->hasAttr<AtomiccModuleAttr>()) {
 printf("[%s:%d] ATTEMPT TO HOIST %s\n", __FUNCTION__, __LINE__, mname.c_str());
@@ -88,8 +88,6 @@ printf("[%s:%d] HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH %s\n", __FUNCTION__,
                    ritem->isConstexpr(), loc);
                 parent->addDecl(FD);
                 FD->setAccess(AS_public);
-                //FD->setLexicalDeclContext(parent);
-                SmallVector<Expr *, 16> Args;
                 SmallVector<ParmVarDecl*, 16> Params;
                 for (auto ipar: Method->parameters()) {
                     IdentifierInfo &pname = Actions.Context.Idents.get(ipar->getIdentifier()->getName().str());
@@ -97,16 +95,6 @@ printf("[%s:%d] HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH %s\n", __FUNCTION__,
                         ipar->getType(), ipar->getTypeSourceInfo(), SC_None, ipar->getDefaultArg());
                     PD->markUsed(Actions.Context);
                     Params.push_back(PD);
-#if 1
-                    QualType ptype = PD->getType();
-                    if (ptype->isReferenceType())
-                        ptype = ptype->getPointeeType();
-                    ExprResult aitem = ImplicitCastExpr::Create(Actions.Context, ptype, CK_LValueToRValue, 
-                            DeclRefExpr::Create(Actions.Context, NestedNameSpecifierLoc(),
-                                loc, PD, false, loc, ptype, VK_LValue, nullptr),
-                        nullptr, VK_RValue);
-                    Args.push_back(aitem.get());
-#endif
                 }
                 FD->setParams(Params);
                 FD->addAttr(::new (FD->getASTContext()) UsedAttr(FD->getLocStart(), FD->getASTContext(), 0));
@@ -115,20 +103,11 @@ printf("[%s:%d] HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH %s\n", __FUNCTION__,
 
                 CXXMethodDecl *method = cast<CXXMethodDecl>(FD);
                 SmallVector<Stmt*, 32> Stmts;
-#if 1
-                MemberExpr *ME = new (Actions.Context) MemberExpr(
-                    new (Actions.Context) CXXThisExpr(loc,
-                         method->getThisType(Actions.Context), /*isImplicit=*/ true),
-                    /*IsArrow=*/true, loc, FD, loc,
-                    Actions.Context.BoundMemberTy, VK_RValue, OK_Ordinary);
-                Actions.MarkMemberReferenced(ME);
-                QualType ResultType = FD->getReturnType().getNonLValueExprType(Actions.Context);
-                Stmt *call = new (Actions.Context) CXXMemberCallExpr(Actions.Context,
-                    ME, Args, ResultType, Expr::getValueKindForType(ResultType), loc);
-                if (!FD->getReturnType()->isVoidType())
-                    call = new (Actions.Context) ReturnStmt(loc, cast<Expr>(call), nullptr);
-                Stmts.push_back(call);
-#endif
+                if (!Method->getReturnType()->isVoidType()) {
+                    StmtResult retStmt = new (Actions.Context) ReturnStmt(loc,
+                       Actions.ActOnInitList(loc, None, loc).get(), nullptr);
+                    Stmts.push_back(retStmt.get());
+                }
                 FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
                 Actions.ActOnFinishInlineFunctionDef(cast<CXXMethodDecl>(FD));
             }
