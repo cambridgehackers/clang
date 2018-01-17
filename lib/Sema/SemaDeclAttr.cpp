@@ -3553,6 +3553,18 @@ printf("[%s:%d] depend %d\n", __FUNCTION__, __LINE__, E->isValueDependent());
       D->addAttr(::new (S.Context) AtomiccWidthAttr(TmpAttr));
 }
 
+static void handleAtomiccConnectAttr(Sema &S, Decl *D, const AttributeList &Attr) {
+  // Make sure that there is a string literal as the annotation's single
+  // argument.
+  StringRef Str;
+  if (!S.checkStringLiteralArgumentAttr(Attr, 0, Str))
+    return;
+
+  D->addAttr(::new (S.Context)
+             AtomiccConnectAttr(Attr.getRange(), S.Context, Str,
+                          Attr.getAttributeSpellingListIndex()));
+}
+
 static void handleAlignedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // check the attribute arguments.
   if (Attr.getNumArgs() > 1) {
@@ -6072,6 +6084,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_AtomiccSoftware:
     handleSimpleAttribute<AtomiccSoftwareAttr>(S, D, Attr);
+    break;
+  case AttributeList::AT_AtomiccConnect:
+    handleAtomiccConnectAttr(S, D, Attr);
     break;
   case AttributeList::AT_AlwaysInline:
     handleAlwaysInlineAttr(S, D, Attr);

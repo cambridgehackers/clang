@@ -5666,7 +5666,6 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
          "Haven't past the location of the identifier yet?");
 
 if (Tok.is(tok::period)) {
-printf("[%s:%d] HADAPERIODDDDDDDDDDDDDDDDDDDDDDDDDDDDD\n", __FUNCTION__, __LINE__);
     ConsumeToken(); // tok::period
     if (!Tok.is(tok::identifier)) {
         printf("[%s:%d]MISSINGID\n", __FUNCTION__, __LINE__);

@@ -545,10 +545,7 @@ def AlignValue : Attr {
 }
 
 def AtomiccWidth : Attr {
-  let Spellings = [
-      //CXX11<"clang", "atomicc_width">
-      GNU<"atomicc_width">
-  ];
+  let Spellings = [ GNU<"atomicc_width"> ];
   let Args = [ExprArgument<"Width">];
   let Subjects = SubjectList<[Var, TypedefName], WarnDiag,
                              "ExpectedVariableOrTypedef">;
@@ -576,6 +573,13 @@ def AtomiccEModule : InheritableAttr {
 def AtomiccReadyValid : InheritableAttr {
   let Spellings = [ GNU<"atomicc_ready_valid"> ];
   let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [Undocumented];
+}
+
+def AtomiccConnect : InheritableAttr {
+  let Spellings = [ GNU<"atomicc_connect"> ];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Args = [StringArgument<"Interfaces">];
   let Documentation = [Undocumented];
 }
 

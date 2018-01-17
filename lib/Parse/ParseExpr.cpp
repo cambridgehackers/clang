@@ -30,12 +30,8 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/SmallVector.h"
-#include "clang/AST/ExprCXX.h" //CXXDependentScopeMemberExpr
 using namespace clang;
 
-#define MODULE_SEPARATOR "$"
-Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
-FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params);
 /// \brief Simple precedence-based parser for binary/ternary operators.
 ///
 /// Note: we diverge from the C99 grammar when parsing the assignment-expression
@@ -277,65 +273,6 @@ static bool isFoldOperator(tok::TokenKind Kind) {
   return isFoldOperator(getBinOpPrecedence(Kind, false, true));
 }
 
-static std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
-{
-    std::string retVal;
-    if (auto item = dyn_cast<UnaryOperator>(expr))
-    if (item->getOpcode() == UO_AddrOf)
-        expr = item->getSubExpr();
-    if (auto item = dyn_cast<CXXDependentScopeMemberExpr>(expr)) {
-        std::string base =  methString(Actions, Opt, item->getBase());
-        if (base != "")
-            retVal = base + "$";
-        retVal +=  item->getMemberNameInfo().getName().getAsIdentifierInfo()->getName().str();
-    }
-    if (auto item = dyn_cast<MemberExpr>(expr)) {
-        std::string base =  methString(Actions, Opt, item->getBase());
-        if (base != "")
-            retVal = base + "$";
-        if (auto meth = item->getMemberDecl()) {
-            retVal += meth->getName();
-            if (auto Method = dyn_cast<FunctionDecl>(meth)) {
-printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_str());
-            Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-            Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
-            }
-        }
-    }
-    return retVal;
-}
-static QualType ccharp;
-static FunctionDecl *getCI(Sema &Actions, SourceLocation OpLoc)
-{
-    static FunctionDecl *CIDecl;
-    if (!CIDecl) {
-        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
-        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
-        CLinkageDecl->setImplicit();
-        Parent->addDecl(CLinkageDecl);
-        SmallVector<ParmVarDecl *, 16> Params;
-        ParmVarDecl *Parm = ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr);
-        Params.push_back(Parm);
-        Params.push_back(Parm);
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        CIDecl = getACCFunction(Actions, CLinkageDecl, "connectInterfaceNew",
-            Actions.Context.VoidTy, Params);
-    }
-    return CIDecl;
-}
-static Expr *getStringArg(Sema &Actions, std::string stringVal)
-{
-    SourceLocation OpLoc;
-    return Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context,
-        stringVal, StringLiteral::Ascii, /*Pascal*/ false,
-        Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
-        llvm::APInt(32, stringVal.length() + 1), ArrayType::Normal, /*IndexTypeQuals*/ 0), OpLoc),
-        ccharp, CK_ArrayToPointerDecay).get();
-}
-
 /// \brief Parse a binary expression that starts with \p LHS and has a
 /// precedence of at least \p MinPrec.
 ExprResult
@@ -547,56 +484,6 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
                          SourceRange(Actions.getExprRange(LHS.get()).getBegin(),
                                      Actions.getExprRange(RHS.get()).getEnd()));
 
-        if (MinPrec == prec::Assignment) {
-          // assignment to bind generic interface functions to concrete method
-          Expr *LHSExpr = LHS.get();
-          Expr *RHSExpr = RHS.get();
-          auto OpLoc = OpToken.getLocation();
-          int lkind = -1, rkind = -1;
-          auto ltype = LHS.get()->getType(), rtype = RHS.get()->getType();
-          if (const BuiltinType *pty = ltype->getAsPlaceholderType())
-              lkind = pty->getKind();
-          if (const BuiltinType *pty = rtype->getAsPlaceholderType())
-              rkind = pty->getKind();
-          if (auto LPT = dyn_cast<PointerType>(ltype)) {
-              // Interface upcall assignment
-              auto lelt = LPT->getPointeeType();
-              Decl *myDecl = nullptr;
-              if (auto ttype = dyn_cast<TypedefType>(lelt))
-                  lelt = ttype->getDecl()->getUnderlyingType();
-
-              if (auto stype = dyn_cast<TemplateSpecializationType>(lelt))
-              if (auto frec = dyn_cast<RecordType>(stype->desugar()))
-              if (auto crec = dyn_cast<ClassTemplateSpecializationDecl>(frec->getDecl()))
-              if (crec->hasAttr<AtomiccInterfaceAttr>())
-                  myDecl = crec;
-
-              if (auto frec = dyn_cast<RecordType>(lelt))
-              if (frec->getDecl()->hasAttr<AtomiccInterfaceAttr>())
-                  myDecl = frec->getDecl();
-
-              if (auto trec = dyn_cast_or_null<CXXRecordDecl>(myDecl))
-              // check for upcalls HW -> SW
-              if (auto item = dyn_cast<UnaryOperator>(RHSExpr))
-              if (item->getOpcode() == UO_AddrOf)
-              if (auto sitem = dyn_cast<MemberExpr>(item->getSubExpr()))
-              if (auto rect = dyn_cast<RecordType>(sitem->getBase()->getType()))
-              if (auto Record = dyn_cast<CXXRecordDecl>(rect->getDecl()))
-              if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()) {
-                  printf("[%s:%d] INTERFACEASSIGN \n", __FUNCTION__, __LINE__);
-                  FunctionDecl *CIDecl = getCI(Actions, OpLoc);
-                  Expr *Args[] = {
-                    getStringArg(Actions, methString(Actions, Actions.getLangOpts(), LHSExpr)),
-                    getStringArg(Actions, methString(Actions, Actions.getLangOpts(), RHSExpr)),
-                    IntegerLiteral::Create(Actions.Context, llvm::APInt(
-                        Actions.Context.getIntWidth(Actions.Context.LongTy), 0), Actions.Context.LongTy, OpLoc)
-                  };
-                  CallExpr *TheCall = new (Actions.Context) CallExpr(Actions.Context,
-                      getACCCallRef(Actions, CIDecl), Args, Actions.Context.VoidTy, VK_RValue, OpLoc);
-                  return Actions.MaybeBindToTemporary(TheCall);
-              }
-          }
-        } // end of (MinPrec == prec::Assignment)
         LHS = Actions.ActOnBinOp(getCurScope(), OpToken.getLocation(),
                                  OpToken.getKind(), LHS.get(), RHS.get());
 

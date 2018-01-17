@@ -2383,6 +2383,24 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
   }
 }
 
+std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
+{
+    std::string retVal;
+    if (auto item = dyn_cast<MemberExpr>(expr)) {
+        std::string base =  methString(Actions, Opt, item->getBase());
+        if (base != "")
+            retVal = base + "$";
+        if (auto meth = item->getMemberDecl()) {
+            retVal += meth->getName();
+            if (auto Method = dyn_cast<FunctionDecl>(meth)) {
+printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_str());
+            Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+            Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+            }
+        }
+    }
+    return retVal;
+}
 /// ParseCXXClassMemberDeclaration - Parse a C++ class member declaration.
 ///
 ///       member-declaration:
@@ -2518,6 +2536,34 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     ConsumeToken();
     return ParseCXXClassMemberDeclaration(AS, AccessAttrs,
                                           TemplateInfo, TemplateDiags);
+  }
+  if (Tok.is(tok::kw___connect)) {
+    auto ConnectLoc = ConsumeToken();
+    SmallVector<QualType, 8> FArgs;
+    FunctionProtoType::ExtProtoInfo EPI;
+    DeclarationNameInfo NameInfo;
+    CXXRecordDecl *thisRecord = cast<CXXRecordDecl>(Actions.CurContext);
+    CXXMethodDecl *FFN = CXXMethodDecl::Create(Actions.Context, thisRecord,
+        ConnectLoc, NameInfo, Actions.Context.getFunctionType(Actions.Context.VoidTy, FArgs, EPI),
+        nullptr, SC_None, false, false, ConnectLoc);
+    Actions.PushDeclContext(getCurScope(), FFN);
+    ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
+    assert(Tok.is(tok::equal));
+    ConsumeToken();
+    ExprResult RHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
+    Actions.PopDeclContext();
+    std::string lstr = methString(Actions, Actions.getLangOpts(), LHS.get());
+    std::string rstr = methString(Actions, Actions.getLangOpts(), RHS.get());
+    thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
+        Actions.Context, lstr + ":" + rstr, 0));
+    if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
+      // Skip to end of block or statement.
+      SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
+      // If we stopped at a ';', eat it.
+      TryConsumeToken(tok::semi);
+      return nullptr;
+    }
+    return nullptr;
   }
 
   ParsedAttributesWithRange attrs(AttrFactory);

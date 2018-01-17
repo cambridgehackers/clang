@@ -726,7 +726,7 @@ CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
 {
   RecordDecl::field_iterator it = D->field_begin();
   unsigned Idx = 0;
-  std::string softwareItems;
+  std::string softwareItems, connectList;
   for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it) {
     const FieldDecl *FD = *it;
 
@@ -768,7 +768,13 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d\n", __FUNCTION__, __LINE__,
     }
   }
   if (softwareItems.length())
-    Ty->structFieldMap += ";" + softwareItems;
+    Ty->structFieldMap += ",;" + softwareItems;
+  if (D->hasAttrs())
+    for (Attr *item: D->getAttrs())
+      if (auto attr = dyn_cast<AtomiccConnectAttr>(item))
+        connectList += attr->getInterfaces().str() + ",";
+  if (connectList.length())
+    Ty->structFieldMap += ",@" + connectList;
 }
 #endif
 
