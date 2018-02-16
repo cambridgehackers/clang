@@ -763,7 +763,10 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d\n", __FUNCTION__, __LINE__,
         SmallString<256> Buffer;
         llvm::raw_svector_ostream Out(Buffer);
         getCXXABI().getMangleContext().mangleName(ND, Out);
-        Ty->structFieldMap += Out.str().str() + ":" + MD->getName().str() + ",";
+        std::string mname = MD->getName();
+        if (FT->getReturnType()->isVoidType())
+            mname += "__ENA";
+        Ty->structFieldMap += Out.str().str() + ":" + mname + ",";
       }
     }
   }
