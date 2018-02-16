@@ -2117,6 +2117,7 @@ void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc, std::
         DC, Actions.GetTypeForDeclarator(DFunc, Actions.getCurScope()),
         Previous, TemplateParams, AddToScope);
     FunctionDecl *FD = New->getAsFunction();
+    FD->addAttr(::new (FD->getASTContext()) VectorCallAttr(FD->getLocStart(), FD->getASTContext(), 0));
     FD->setIsUsed();
     FD->setAccess(Access);
     FD->setLexicalDeclContext(DC);

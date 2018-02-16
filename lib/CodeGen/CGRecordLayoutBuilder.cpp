@@ -758,7 +758,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d\n", __FUNCTION__, __LINE__,
       MD = MD->getCanonicalDecl();
       if (!isa<CXXConstructorDecl>(MD) && !isa<CXXDestructorDecl>(MD))
       if (auto *FT = dyn_cast<FunctionType>(MD->getType()))
-      //if (FT->getCallConv() == CC_X86VectorCall)
+      if (FT->getCallConv() == CC_X86VectorCall)
       if (const auto *ND = dyn_cast<NamedDecl>(MD)) {
         SmallString<256> Buffer;
         llvm::raw_svector_ostream Out(Buffer);

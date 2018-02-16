@@ -68,8 +68,11 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                         }
                         printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), TMethod->getName().str().c_str());
                     }
+  if(rec->hasAttr<AtomiccSoftwareAttr>())
+      goto nextItem;
   if(parent->hasAttr<AtomiccModuleAttr>()) {
 printf("[%s:%d] ATTEMPT TO HOIST pname %s recname %s interface %s mname %s\n", __FUNCTION__, __LINE__, pname.c_str(), recname.c_str(), interfaceName.c_str(), mname.c_str());
+field->dump();
 Method->dump();
 parent->dump();
 exit(-1);
@@ -6086,7 +6089,8 @@ printf("[%s:%d] MODULE/EMODULE %s\n", __FUNCTION__, __LINE__, Record->getName().
 //Method->dump();
               // We need to generate all methods in a module, since we don't know
               // until runtime which ones are connected to interfaces.
-              setX86VectorCall(Method);
+              if (Method->hasAttr<VectorCallAttr>())
+                  setX86VectorCall(Method);
               Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
               MarkFunctionReferenced(Method->getLocation(), Method, true);
           }
