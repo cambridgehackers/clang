@@ -44,7 +44,6 @@
 #include <set>
 
 using namespace clang;
-void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation loc, std::string mname, Expr *expr, AccessSpecifier Access);
 static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, std::string interfaceName, SourceLocation loc)
 {
     std::string pname = parent->getName();
@@ -10839,11 +10838,6 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
               std::string mname = mitem->getName();
               printf("[%s:%d]GMETHOD %s %p\n", __FUNCTION__, __LINE__, mname.c_str(), Method);
               if (!StringRef(mname).endswith("__RDY")) {
-#if 0
-                  createGuardMethod(*this, Method->getLexicalDeclContext(),
-                      StartLoc, mname + "__RDY", ActOnCXXBoolLiteral(StartLoc, tok::kw_true).get(),
-                      Method->getAccess());
-#endif
                   SmallVector<Stmt*, 32> Stmts;
                   if (!Method->getReturnType()->isVoidType()) {
                       StmtResult retStmt = new (Context) ReturnStmt(StartLoc,
@@ -10863,7 +10857,6 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
       /* do hoisting for all class definitions */
       auto StartLoc = Record->getLocStart();
       std::string recname = Record->getName();
-printf("[%s:%d] STARTENDPROC %s\n", __FUNCTION__, __LINE__, recname.c_str());
       for (auto mitem: Record->methods()) { // before hoisting
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
           if (Method->getDeclName().isIdentifier()) {
@@ -10874,13 +10867,6 @@ printf("[%s:%d] STARTENDPROC %s\n", __FUNCTION__, __LINE__, recname.c_str());
                   Method->addAttr(::new (Method->getASTContext()) VectorCallAttr(Method->getLocStart(), Method->getASTContext(), 0));
 printf("[%s:%d]ZZZMETH %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, __LINE__, Method, recname.c_str(), mname.c_str(), Method, Method->getAccess() == AS_public, Method->hasBody());
 //Method->dump();
-#if 0
-                  if (!StringRef(mname).endswith("__RDY"))
-                      createGuardMethod(*this, Method->getLexicalDeclContext(),
-                          StartLoc, mname + "__RDY",
-                          Method->hasBody() ? ActOnCXXBoolLiteral(StartLoc, tok::kw_true).get(): nullptr,
-                          Method->getAccess());
-#endif
               }
           }
       }
