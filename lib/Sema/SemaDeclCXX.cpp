@@ -5843,21 +5843,6 @@ static bool computeCanPassInRegisters(Sema &S, CXXRecordDecl *D) {
 /// \brief Perform semantic checks on a class definition that has been
 /// completing, introducing implicitly-declared members, checking for
 /// abstract types, etc.
-void setX86VectorCall(CXXMethodDecl *Method)
-{
-    const FunctionProtoType *FPT = Method->getType()->castAs<FunctionProtoType>();
-    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
-    EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-    Method->setType(Method->getASTContext().getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI));
-}
-static QualType getSimpleType(QualType ftype)
-{
-    if (auto ttype = dyn_cast<TypedefType>(ftype))
-        ftype = ttype->getDecl()->getUnderlyingType();
-    if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
-        ftype = stype->desugar();
-    return ftype;
-}
 void Sema::CheckCompletedCXXClass(CXXRecordDecl *Record) {
   if (!Record)
     return;
@@ -10826,48 +10811,43 @@ void Sema::ActOnFinishCXXMemberDecls() {
   }
 }
 
+static QualType getSimpleType(QualType ftype)
+{
+    if (auto ttype = dyn_cast<TypedefType>(ftype))
+        ftype = ttype->getDecl()->getUnderlyingType();
+    if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
+        ftype = stype->desugar();
+    return ftype;
+}
 void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
   referenceDLLExportedClassMethods();
 if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
+  auto StartLoc = Record->getLocStart();
   if(Record->hasAttr<AtomiccInterfaceAttr>()) {
 printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
-      auto StartLoc = Record->getLocStart();
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
           if (Method->getDeclName().isIdentifier()) {
-              std::string mname = mitem->getName();
-              printf("[%s:%d]GMETHOD %s %p\n", __FUNCTION__, __LINE__, mname.c_str(), Method);
-              if (!StringRef(mname).endswith("__RDY")) {
-                  SmallVector<Stmt*, 32> Stmts;
-                  if (!Method->getReturnType()->isVoidType()) {
-                      StmtResult retStmt = new (Context) ReturnStmt(StartLoc,
-                          ActOnInitList(StartLoc, None, StartLoc).get(), nullptr);
-                      Stmts.push_back(retStmt.get());
-                  }
-                  Method->setBody(new (Context) class CompoundStmt(Context, Stmts, StartLoc, StartLoc));
-                  ActOnFinishInlineFunctionDef(Method);
+              printf("[%s:%d]GMETHOD %s %p\n", __FUNCTION__, __LINE__, mitem->getName().str().c_str(), Method);
+              SmallVector<Stmt*, 32> Stmts;
+              if (!Method->getReturnType()->isVoidType()) {
+                  StmtResult retStmt = new (Context) ReturnStmt(StartLoc,
+                      ActOnInitList(StartLoc, None, StartLoc).get(), nullptr);
+                  Stmts.push_back(retStmt.get());
               }
-              setX86VectorCall(Method);
-              Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-              MarkFunctionReferenced(Method->getLocation(), Method, true);
+              Method->setBody(new (Context) class CompoundStmt(Context, Stmts, StartLoc, StartLoc));
+              ActOnFinishInlineFunctionDef(Method);
           }
       }
   }
   else if (auto trec = dyn_cast<CXXRecordDecl>(Record)) {
       /* do hoisting for all class definitions */
-      auto StartLoc = Record->getLocStart();
-      std::string recname = Record->getName();
       for (auto mitem: Record->methods()) { // before hoisting
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
-          if (Method->getDeclName().isIdentifier()) {
-              std::string mname = mitem->getName();
-              if (auto AT = dyn_cast<AttributedType>(Method->getType()))
-              if (AT->getAttrKind() == AttributedType::attr_vectorcall) {
-                  Method->setAccess(AS_public);
-                  Method->addAttr(::new (Method->getASTContext()) VectorCallAttr(Method->getLocStart(), Method->getASTContext(), 0));
-printf("[%s:%d]ZZZMETH %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, __LINE__, Method, recname.c_str(), mname.c_str(), Method, Method->getAccess() == AS_public, Method->hasBody());
+          if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
+              Method->setAccess(AS_public);
+printf("[%s:%d]ZZZMETH %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public, Method->hasBody());
 //Method->dump();
-              }
           }
       }
       for (auto bitem: Record->bases()) {
@@ -10875,42 +10855,38 @@ printf("[%s:%d]ZZZMETH %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, _
           if (auto rec = dyn_cast<CXXRecordDecl>(base->getDecl())) {
               hoistInterface(*this, trec, rec, "", StartLoc);
               for (auto field: rec->fields()) {
-                  std::string fname = field->getName();
                   Decl *decl = field;
                   if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
                       decl = frec->getDecl();
-                  hoistInterface(*this, trec, decl, fname + "$", StartLoc);
+                  hoistInterface(*this, trec, decl, field->getName().str() + "$", StartLoc);
               }
           }
       }
       for (auto field: Record->fields()) {
-          std::string fname = field->getName();
           Decl *decl = field;
           if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
               decl = frec->getDecl();
-          bool interfaceItem = hoistInterface(*this, trec, decl, fname + "$", StartLoc);
+          bool interfaceItem = hoistInterface(*this, trec, decl, field->getName().str() + "$", StartLoc);
           if (interfaceItem || field->getType()->isPointerType())
               field->setAccess(AS_public);
       }
   }
-  if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()) {
+  if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()
+  || Record->hasAttr<AtomiccInterfaceAttr>()) {
 printf("[%s:%d] MODULE/EMODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
-      auto StartLoc = Record->getLocStart();
-      std::string recname = Record->getName();
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
               Method->setAccess(AS_public);
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
           if (Method->getDeclName().isIdentifier()) {
-              std::string mname = mitem->getName();
-              printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, recname.c_str(), mname.c_str(), Method, Method->getAccess() == AS_public);
+              printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public);
 //Method->dump();
-              // We need to generate all methods in a module, since we don't know
-              // until runtime which ones are connected to interfaces.
-              if (Method->hasAttr<VectorCallAttr>())
-                  setX86VectorCall(Method);
-              Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-              MarkFunctionReferenced(Method->getLocation(), Method, true);
+              if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
+                  if (const auto *AttrTy = Method->getType()->getAs<AttributedType>())
+                      Method->setType(AttrTy->getModifiedType());
+                  Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+                  MarkFunctionReferenced(Method->getLocation(), Method, true);
+              }
           }
       }
   }

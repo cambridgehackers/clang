@@ -5665,6 +5665,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
   assert(D.isPastIdentifier() &&
          "Haven't past the location of the identifier yet?");
 
+  bool isAtomicc = false;
 if (Tok.is(tok::period)) {
     ConsumeToken(); // tok::period
     if (!Tok.is(tok::identifier)) {
@@ -5677,7 +5678,12 @@ printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->ge
     IdentifierInfo &IdNew = Actions.Context.Idents.get(mname);
     D.SetIdentifier(&IdNew, Tok.getLocation());
     ConsumeToken(); // tok::identifier
-    //AttributeFactory attrFactory;
+    isAtomicc = true;
+  }
+  if (auto Record = dyn_cast<CXXRecordDecl>(Actions.CurContext))
+  if (Record->hasAttr<AtomiccInterfaceAttr>())
+    isAtomicc = true;
+  if (isAtomicc) {
     ParsedAttributes VAttr(AttrFactory);
     IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
     VAttr.addNew(&AttrID, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
