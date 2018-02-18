@@ -46,7 +46,6 @@
 using namespace clang;
 static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, std::string interfaceName, SourceLocation loc)
 {
-    std::string pname = parent->getName();
     bool ret = false;
     if (auto rec = dyn_cast<CXXRecordDecl>(field))
     if (rec->hasAttr<AtomiccInterfaceAttr>()) {
@@ -56,8 +55,8 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
             if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
             if (Method->getDeclName().isIdentifier()) {
                 std::string mname = interfaceName + ritem->getName().str();
-                Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-                Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+                //Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+                //Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
                 for (auto item: parent->decls())
                     if (auto TMethod = dyn_cast<CXXMethodDecl>(item))
                     if (TMethod->getDeclName().isIdentifier()) {
@@ -67,41 +66,15 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                         }
                         printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), TMethod->getName().str().c_str());
                     }
-  if(rec->hasAttr<AtomiccSoftwareAttr>())
-      goto nextItem;
-  if(parent->hasAttr<AtomiccModuleAttr>()) {
-printf("[%s:%d] ATTEMPT TO HOIST pname %s recname %s interface %s mname %s\n", __FUNCTION__, __LINE__, pname.c_str(), recname.c_str(), interfaceName.c_str(), mname.c_str());
-field->dump();
-Method->dump();
-parent->dump();
-exit(-1);
-}
-                IdentifierInfo &funcName = Actions.Context.Idents.get(mname);
-                const DeclarationNameInfo nName(DeclarationName(&funcName), loc);
-                FunctionDecl *FD = CXXMethodDecl::Create(
-                   ritem->getASTContext(), parent, loc,
-                   nName, ritem->getType(), ritem->getTypeSourceInfo(),
-                   ritem->getStorageClass(), ritem->isInlined(),
-                   ritem->isConstexpr(), loc);
-                parent->addDecl(FD);
-                FD->setAccess(AS_public);
-                SmallVector<ParmVarDecl*, 16> Params;
-                for (auto ipar: Method->parameters()) {
-                    IdentifierInfo &pname = Actions.Context.Idents.get(ipar->getIdentifier()->getName().str());
-                    ParmVarDecl *PD = ParmVarDecl::Create(Actions.Context, FD, loc, loc, &pname,
-                        ipar->getType(), ipar->getTypeSourceInfo(), SC_None, ipar->getDefaultArg());
-                    Params.push_back(PD);
+                if(rec->hasAttr<AtomiccSoftwareAttr>())
+                    goto nextItem;
+                if(parent->hasAttr<AtomiccModuleAttr>()) {
+                    printf("[%s:%d] ATTEMPT TO HOIST pname %s recname %s interface %s mname %s\n", __FUNCTION__, __LINE__, parent->getName().str().c_str(), recname.c_str(), interfaceName.c_str(), mname.c_str());
+                    field->dump();
+                    Method->dump();
+                    parent->dump();
+                    exit(-1);
                 }
-                FD->setParams(Params);
-                printf("[%s:%d] %p rec %s orig %s; %p pname %s HMETH %s\n", __FUNCTION__, __LINE__, Method, recname.c_str(), Method->getName().str().c_str(), FD, pname.c_str(), mname.c_str());
-                SmallVector<Stmt*, 32> Stmts;
-                if (!Method->getReturnType()->isVoidType()) {
-                    StmtResult retStmt = new (Actions.Context) ReturnStmt(loc,
-                       Actions.ActOnInitList(loc, None, loc).get(), nullptr);
-                    Stmts.push_back(retStmt.get());
-                }
-                FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
-                Actions.ActOnFinishInlineFunctionDef(cast<CXXMethodDecl>(FD));
             }
 nextItem:;
         }

@@ -2280,7 +2280,7 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
     }
 
     // Check for captured variables.
-    if (E->refersToEnclosingVariableOrCapture() && CurCodeDecl && isa<BlockDecl>(CurCodeDecl)) {
+    if (E->refersToEnclosingVariableOrCapture()) {
       if (auto *FD = LambdaCaptureFields.lookup(VD))
         return EmitCapturedFieldLValue(*this, FD, CXXABIThisValue);
       else if (CapturedStmtInfo) {
