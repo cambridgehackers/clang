@@ -1191,7 +1191,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
 
   if (Tok.is(tok::kw_try))
     return ParseFunctionTryBlock(Res, BodyScope);
-  else if (Tok.is(tok::kw_if) || Res->hasAttr<VectorCallAttr>()) // atomicc
+  else if (Tok.is(tok::kw_if)) // atomicc
     return ParseFunctionIfBlock(Res, BodyScope);    // atomicc
 
   // If we have a colon, then we're probably parsing a C++

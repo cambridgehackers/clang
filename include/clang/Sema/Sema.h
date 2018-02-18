@@ -3675,6 +3675,7 @@ public:
   StmtResult ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
                          SourceLocation WhileLoc, SourceLocation CondLParen,
                          Expr *Cond, SourceLocation CondRParen);
+
   void StartRuleStmt(SourceLocation RuleLoc);
   StmtResult FinishRuleStmt(SourceLocation RuleLoc,
                          StringRef Name, Expr *ConditionExpr, Stmt *body);

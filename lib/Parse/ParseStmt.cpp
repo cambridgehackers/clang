@@ -2140,7 +2140,6 @@ Decl *Parser::ParseFunctionIfBlock(Decl *Decl, ParseScope &BodyScope) {
   std::string mname = mdecl->getName();
   SourceLocation loc = Tok.getLocation();
   ExprResult Rexp;
-  if (Tok.is(tok::kw_if)) {
   assert(Tok.is(tok::kw_if) && "Expected 'if'");
   SourceLocation IfLoc = ConsumeToken();
   PrettyDeclStackTraceEntry CrashInfo(Actions, Decl, IfLoc,
@@ -2169,9 +2168,6 @@ assert(false && "not open");
   }
   if (!T.consumeClose())
     {}
-  }
-  else
-      Rexp = Actions.ActOnCXXBoolLiteral(loc, tok::kw_true);
 printf("[%s:%d] name %s EXPINV %d METHODKKKKK %p\n", __FUNCTION__, __LINE__, mname.c_str(), Rexp.isInvalid(), mdecl);
   createGuardMethod(Actions, mdecl->getParent(), loc, mname + "__RDY", Rexp.get(), mdecl->getAccess());
   assert(Tok.is(tok::l_brace));

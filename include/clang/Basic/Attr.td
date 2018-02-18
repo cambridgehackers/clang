@@ -549,7 +549,7 @@ def AtomiccWidth : Attr {
   let Args = [ExprArgument<"Width">];
   let Subjects = SubjectList<[Var, TypedefName], WarnDiag,
                              "ExpectedVariableOrTypedef">;
-  let Documentation = [AtomiccWidthDocs];
+  let Documentation = [Undocumented];
 }
 
 def AtomiccInterface : InheritableAttr {
