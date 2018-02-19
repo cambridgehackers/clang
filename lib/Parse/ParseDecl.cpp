@@ -5666,7 +5666,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
          "Haven't past the location of the identifier yet?");
 
   bool isAtomicc = false;
-if (Tok.is(tok::period)) {
+  while (Tok.is(tok::period)) {
     ConsumeToken(); // tok::period
     if (!Tok.is(tok::identifier)) {
         printf("[%s:%d]MISSINGID\n", __FUNCTION__, __LINE__);
@@ -5683,12 +5683,6 @@ printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->ge
   if (auto Record = dyn_cast<CXXRecordDecl>(Actions.CurContext))
   if (Record->hasAttr<AtomiccInterfaceAttr>())
     isAtomicc = true;
-  if (isAtomicc) {
-    ParsedAttributes VAttr(AttrFactory);
-    IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
-    VAttr.addNew(&AttrID, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
-    D.takeAttributes(VAttr, Tok.getLocation());
-  }
   // Don't parse attributes unless we have parsed an unparenthesized name.
   if (D.hasName() && !D.getNumTypeObjects())
     MaybeParseCXX11Attributes(D);
@@ -5718,7 +5712,7 @@ printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->ge
       ParsedAttributes attrs(AttrFactory);
       BalancedDelimiterTracker T(*this, tok::l_paren);
       T.consumeOpen();
-      ParseFunctionDeclarator(D, attrs, T, IsAmbiguous);
+      ParseFunctionDeclarator(D, attrs, T, IsAmbiguous, false, isAtomicc);
       PrototypeScope.Exit();
     } else if (Tok.is(tok::l_square)) {
       ParseBracketDeclarator(D);
@@ -5925,7 +5919,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                                      ParsedAttributes &FirstArgAttrs,
                                      BalancedDelimiterTracker &Tracker,
                                      bool IsAmbiguous,
-                                     bool RequiresArg) {
+                                     bool RequiresArg, bool isAtomicc) {
   assert(getCurScope()->isFunctionPrototypeScope() &&
          "Should call from a Function scope");
   // lparen is already consumed!
@@ -5962,6 +5956,10 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   LParenLoc = Tracker.getOpenLocation();
   StartLoc = LParenLoc;
 
+  if (isAtomicc) {
+    IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
+    FnAttrs.addNew(&AttrID, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
+  }
   if (isFunctionDeclaratorIdentifierList()) {
     if (RequiresArg)
       Diag(Tok, diag::err_argument_required_after_attribute);
