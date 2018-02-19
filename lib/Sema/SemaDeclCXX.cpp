@@ -44,9 +44,21 @@
 #include <set>
 
 using namespace clang;
+
+static QualType getSimpleType(QualType ftype)
+{
+    if (auto ttype = dyn_cast<TypedefType>(ftype))
+        ftype = ttype->getDecl()->getUnderlyingType();
+    if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
+        ftype = stype->desugar();
+    return ftype;
+}
 static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, std::string interfaceName, SourceLocation loc)
 {
     bool ret = false;
+    if (interfaceName != "")
+        if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
+            field = frec->getDecl();
     if (auto rec = dyn_cast<CXXRecordDecl>(field))
     if (rec->hasAttr<AtomiccInterfaceAttr>()) {
         ret = true;
@@ -55,8 +67,6 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
             if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
             if (Method->getDeclName().isIdentifier()) {
                 std::string mname = interfaceName + ritem->getName().str();
-                //Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-                //Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
                 for (auto item: parent->decls())
                     if (auto TMethod = dyn_cast<CXXMethodDecl>(item))
                     if (TMethod->getDeclName().isIdentifier()) {
@@ -10784,14 +10794,6 @@ void Sema::ActOnFinishCXXMemberDecls() {
   }
 }
 
-static QualType getSimpleType(QualType ftype)
-{
-    if (auto ttype = dyn_cast<TypedefType>(ftype))
-        ftype = ttype->getDecl()->getUnderlyingType();
-    if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
-        ftype = stype->desugar();
-    return ftype;
-}
 void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
   referenceDLLExportedClassMethods();
 if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
@@ -10817,32 +10819,20 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
       /* do hoisting for all class definitions */
       for (auto mitem: Record->methods()) { // before hoisting
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
-          if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
+          if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
               Method->setAccess(AS_public);
-printf("[%s:%d]ZZZMETH %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public, Method->hasBody());
-//Method->dump();
-          }
       }
-      for (auto bitem: Record->bases()) {
+      for (auto bitem: Record->bases())
           if (auto base = dyn_cast<RecordType>(getSimpleType(bitem.getType())))
           if (auto rec = dyn_cast<CXXRecordDecl>(base->getDecl())) {
               hoistInterface(*this, trec, rec, "", StartLoc);
-              for (auto field: rec->fields()) {
-                  Decl *decl = field;
-                  if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
-                      decl = frec->getDecl();
-                  hoistInterface(*this, trec, decl, field->getName().str() + "$", StartLoc);
-              }
+              for (auto field: rec->fields())
+                  hoistInterface(*this, trec, field, field->getName().str() + "$", StartLoc);
           }
-      }
-      for (auto field: Record->fields()) {
-          Decl *decl = field;
-          if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
-              decl = frec->getDecl();
-          bool interfaceItem = hoistInterface(*this, trec, decl, field->getName().str() + "$", StartLoc);
-          if (interfaceItem || field->getType()->isPointerType())
+      for (auto field: Record->fields())
+          if (hoistInterface(*this, trec, field, field->getName().str() + "$", StartLoc)
+           || field->getType()->isPointerType())
               field->setAccess(AS_public);
-      }
   }
   if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()
   || Record->hasAttr<AtomiccInterfaceAttr>()) {
