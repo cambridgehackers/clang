@@ -30,6 +30,7 @@
 using namespace clang;
 using namespace CodeGen;
 
+QualType getSimpleType(QualType ftype);
 namespace {
 /// The CGRecordLowering is responsible for lowering an ASTRecordLayout to an
 /// llvm::Type.  Some of the lowering is straightforward, some is not.  Here we
@@ -723,7 +724,43 @@ CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
   // Add bitfield info.
   RL->BitFields.swap(Builder.BitFields);
 #if 1
-{
+if (D->isUnion()) {
+printf("[%s:%d] UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n", __FUNCTION__, __LINE__);
+  for (auto field : D->fields()) {
+    std::string fname, tname;
+    if (Ty->structFieldMap.length())
+      Ty->structFieldMap += ',';
+    else
+      Ty->structFieldMap += '!';
+    if (!field->isBitField()) {
+      Decl *decl = field;
+      if (const NamedDecl *ND = dyn_cast<NamedDecl>(field))
+        fname = ND->getDeclName().getAsString();
+      if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
+        decl = frec->getDecl();
+      if (auto RFD = dyn_cast<CXXRecordDecl>(decl)) {
+          llvm::StructType *STy = ConvertRecordDeclType(RFD);
+          tname = "l_" + STy->getName().str();
+      }
+      else
+          tname = "NOTSTRUCT";
+#if 0
+     switch (Ty->getTypeID()) {
+     case Type::IntegerTyID:
+         return "INTEGER_" + utostr(cast<IntegerType>(Ty)->getBitWidth());
+     case Type::StructTyID:
+         return getStructName((cast<StructType>(Ty)));
+     case Type::ArrayTyID: {
+         const ArrayType *ATy = cast<ArrayType>(Ty);
+         return "ARRAY_" + utostr(ATy->getNumElements()) + "_" + typeName(ATy->getElementType());
+         }
+     }
+#endif
+      Ty->structFieldMap += fname + ":" + tname;
+    }
+  }
+}
+else {  // !isUnion()
   RecordDecl::field_iterator it = D->field_begin();
   unsigned Idx = 0;
   std::string softwareItems, connectList;
@@ -738,7 +775,7 @@ CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
       if (const NamedDecl *ND = dyn_cast<NamedDecl>(FD))
         fname = ND->getDeclName().getAsString();
       if (Idx > FieldNo) {
-printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d\n", __FUNCTION__, __LINE__, Idx, FieldNo);
+printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, __LINE__, Idx, FieldNo, fname.c_str());
       }
       while (Idx++ < FieldNo)
         Ty->structFieldMap += ',';

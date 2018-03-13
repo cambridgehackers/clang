@@ -45,10 +45,12 @@
 
 using namespace clang;
 
-static QualType getSimpleType(QualType ftype)
+QualType getSimpleType(QualType ftype)
 {
     if (auto ttype = dyn_cast<TypedefType>(ftype))
         ftype = ttype->getDecl()->getUnderlyingType();
+    if (auto etype = dyn_cast<ElaboratedType>(ftype))
+        ftype = etype->desugar();
     if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
         ftype = stype->desugar();
     return ftype;
@@ -10815,7 +10817,7 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
           }
       }
   }
-  else if (auto trec = dyn_cast<CXXRecordDecl>(Record)) {
+  else {
       /* do hoisting for all class definitions */
       for (auto mitem: Record->methods()) { // before hoisting
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
@@ -10825,12 +10827,12 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
       for (auto bitem: Record->bases())
           if (auto base = dyn_cast<RecordType>(getSimpleType(bitem.getType())))
           if (auto rec = dyn_cast<CXXRecordDecl>(base->getDecl())) {
-              hoistInterface(*this, trec, rec, "", StartLoc);
+              hoistInterface(*this, Record, rec, "", StartLoc);
               for (auto field: rec->fields())
-                  hoistInterface(*this, trec, field, field->getName().str() + "$", StartLoc);
+                  hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc);
           }
       for (auto field: Record->fields())
-          if (hoistInterface(*this, trec, field, field->getName().str() + "$", StartLoc)
+          if (hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc)
            || field->getType()->isPointerType())
               field->setAccess(AS_public);
   }
