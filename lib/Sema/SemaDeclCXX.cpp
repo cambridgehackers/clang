@@ -78,8 +78,25 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                         }
                         printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), TMethod->getName().str().c_str());
                     }
-                if(rec->hasAttr<AtomiccSoftwareAttr>())
+                if(rec->hasAttr<AtomiccSoftwareAttr>()) {
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
+printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZZ SOFTWAREATTRRRRR ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZz\n", __FUNCTION__, __LINE__);
                     goto nextItem;
+}
+                if(parent->hasAttr<AtomiccConnectAttr>()) {
+printf("[%s:%d] HOISTATOMICCCCCCONNNECT\n", __FUNCTION__, __LINE__);
+                    goto nextItem;
+                }
                 if(parent->hasAttr<AtomiccModuleAttr>()) {
                     printf("[%s:%d] ATTEMPT TO HOIST pname %s recname %s interface %s mname %s\n", __FUNCTION__, __LINE__, parent->getName().str().c_str(), recname.c_str(), interfaceName.c_str(), mname.c_str());
                     field->dump();
