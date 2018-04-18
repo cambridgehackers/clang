@@ -2386,7 +2386,7 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
 std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
 {
     std::string retVal;
-    if (auto item = dyn_cast<MemberExpr>(expr)) {
+    if (auto item = dyn_cast_or_null<MemberExpr>(expr)) {
         std::string base =  methString(Actions, Opt, item->getBase());
         if (base != "")
             retVal = base + "$";

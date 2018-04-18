@@ -589,6 +589,12 @@ def AtomiccSoftware : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccSerialize : InheritableAttr {
+  let Spellings = [ GNU<"atomicc_serialize"> ];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [Undocumented];
+}
+
 def AlignMac68k : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
