@@ -10833,10 +10833,35 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
               for (auto field: rec->fields())
                   hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc);
           }
-      for (auto field: Record->fields())
+      for (auto field: Record->fields()) {
+          if (Expr *cinit = field->getInClassInitializer()) {
+              field->setAccess(AS_public);
+              std::string lstr = field->getName();
+              std::string rstr;
+              printf("[%s:%d] initializer\n", __FUNCTION__, __LINE__);
+              //cinit->dump();
+              if (auto rr = dyn_cast<CXXConstructExpr>(cinit)) {
+                  Expr **item2 = rr->getArgs();
+                  if (auto ss = *item2++) {
+                      printf("[%s:%d]item2arg\n", __FUNCTION__, __LINE__);
+                      cinit = ss;
+                  }
+              }
+              cinit = cinit->IgnoreParenImpCasts();
+              while (auto memb = dyn_cast_or_null<MemberExpr>(cinit)) {
+                  if (rstr != "")
+                      rstr = "$" + rstr;
+                  rstr = memb->getMemberDecl()->getName().str() + rstr;
+                  cinit = memb->getBase();
+              }
+              printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
+              Record->addAttr(::new (Context) AtomiccConnectAttr(StartLoc, Context, lstr + ":" + rstr, 0));
+          }
+          else
           if (hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc)
            || field->getType()->isPointerType())
               field->setAccess(AS_public);
+}
   }
   if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()
   || Record->hasAttr<AtomiccInterfaceAttr>()) {
