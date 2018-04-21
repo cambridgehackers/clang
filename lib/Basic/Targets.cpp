@@ -9089,14 +9089,18 @@ public:
 //    WIntType = UnsignedInt;
 //    UseZeroLengthBitfieldAlignment = true;
 //    resetDataLayout("e-m:e-p:32:32-i1:8:32-i8:8:32-i16:16:32-i64:32-f64:32-a:0:32-n32");
-      LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
+      LongWidth = PointerWidth = 64;
+      LongAlign = PointerAlign = 64;
       DoubleAlign = LongLongAlign = 64;
-      LongDoubleWidth = LongDoubleAlign = 128;
-      LargeArrayMinWidth = LargeArrayAlign = 128;
+      LongDoubleWidth = 128;
+      LongDoubleAlign = 128;
+      LargeArrayMinWidth = 128;
+      LargeArrayAlign = 128;
       SuitableAlign = 128;
       SizeType    = UnsignedLong;
       PtrDiffType = IntPtrType = IntMaxType = Int64Type = SignedLong;
       RegParmMax = 0;
+      BoolWidth = BoolAlign = 1;
 
       // Pointers are 32-bit in x32.
       resetDataLayout("e-m:e-i64:64-f80:128-n8:16:32:64-S128");
