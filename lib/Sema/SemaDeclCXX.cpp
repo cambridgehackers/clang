@@ -44,6 +44,7 @@
 #include <set>
 
 using namespace clang;
+static int trace_hoist;//=1;
 
 QualType getSimpleType(QualType ftype)
 {
@@ -73,9 +74,11 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
                     if (auto TMethod = dyn_cast<CXXMethodDecl>(item))
                     if (TMethod->getDeclName().isIdentifier()) {
                         if (TMethod->getName() == mname) {
+                            if (trace_hoist)
                             printf("[%s:%d] recname %s name exists %s, skip\n", __FUNCTION__, __LINE__, recname.c_str(), mname.c_str());
                             goto nextItem;
                         }
+                        if (trace_hoist)
                         printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), TMethod->getName().str().c_str());
                     }
                 if(parent->hasAttr<AtomiccConnectAttr>()) {
@@ -10803,10 +10806,12 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
 if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
   auto StartLoc = Record->getLocStart();
   if(Record->hasAttr<AtomiccInterfaceAttr>()) {
+if (trace_hoist)
 printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
           if (Method->getDeclName().isIdentifier()) {
+              if (trace_hoist)
               printf("[%s:%d]GMETHOD %s %p\n", __FUNCTION__, __LINE__, mitem->getName().str().c_str(), Method);
               SmallVector<Stmt*, 32> Stmts;
               if (!Method->getReturnType()->isVoidType()) {
@@ -10854,6 +10859,7 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
                   rstr = memb->getMemberDecl()->getName().str() + rstr;
                   cinit = memb->getBase();
               }
+              if (trace_hoist)
               printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
               Record->addAttr(::new (Context) AtomiccConnectAttr(StartLoc, Context, lstr + ":" + rstr, 0));
           }
@@ -10865,12 +10871,12 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
   }
   if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()
   || Record->hasAttr<AtomiccInterfaceAttr>()) {
-printf("[%s:%d] MODULE/EMODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
               Method->setAccess(AS_public);
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
           if (Method->getDeclName().isIdentifier()) {
+              if (trace_hoist)
               printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public);
 //Method->dump();
               if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
