@@ -2100,6 +2100,7 @@ public:
            /*VariablyModified=*/false,
            /*Unexpanded parameter pack=*/false) {
     BuiltinTypeBits.Kind = K;
+    atomiccWidth = -1;
   }
 
   Kind getKind() const { return static_cast<Kind>(BuiltinTypeBits.Kind); }
@@ -2155,6 +2156,7 @@ public:
     return getKind() > Overload;
   }
 
+  long atomiccWidth; // atomicc
   static bool classof(const Type *T) { return T->getTypeClass() == Builtin; }
 };
 
@@ -3755,23 +3757,6 @@ public:
                       UTTKind UKind) {
     ID.AddPointer(BaseType.getAsOpaquePtr());
     ID.AddInteger((unsigned)UKind);
-  }
-};
-
-class AtomiccBitsType : public Type {
-  QualType BaseType;
-public:
-  int accbWidth;
-  AtomiccBitsType(QualType BaseType, int width)
-    //: Type(AtomiccBits, BaseType, false, false, false, false), accbWidth(width) {}
-    : Type(AtomiccBits, QualType(), /*Dependent=*/false,
-           /*InstantiationDependent=*/false,
-           /*VariablyModified=*/false, /*Unexpanded paramter pack=*/false), BaseType(BaseType), accbWidth(width) {}
-  QualType getBaseType() const { return BaseType; }
-  bool isSugared() const { return false; }
-  QualType desugar() const { return QualType(this, 0); }
-  static bool classof(const Type *T) {
-    return T->getTypeClass() == AtomiccBits;
   }
 };
 

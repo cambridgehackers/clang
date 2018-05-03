@@ -2610,9 +2610,6 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     //        namespaces and classes are both empty.
     case Type::Builtin:
       break;
-    case Type::AtomiccBits:
-printf("[%s:%d]ATOMICCCBITS\n", __FUNCTION__, __LINE__);
-      break;
 
     //     -- If T is a class type (including unions), its associated
     //        classes are: the class itself; the class of which it is a

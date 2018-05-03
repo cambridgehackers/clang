@@ -1021,7 +1021,6 @@ DEF_TRAVERSE_TYPE(UnaryTransformType, {
   TRY_TO(TraverseType(T->getBaseType()));
   TRY_TO(TraverseType(T->getUnderlyingType()));
 })
-DEF_TRAVERSE_TYPE(AtomiccBitsType, {})
 
 DEF_TRAVERSE_TYPE(AutoType, { TRY_TO(TraverseType(T->getDeducedType())); })
 DEF_TRAVERSE_TYPE(DeducedTemplateSpecializationType, {
@@ -1251,7 +1250,6 @@ DEF_TRAVERSE_TYPELOC(DecltypeType, {
 DEF_TRAVERSE_TYPELOC(UnaryTransformType, {
   TRY_TO(TraverseTypeLoc(TL.getUnderlyingTInfo()->getTypeLoc()));
 })
-DEF_TRAVERSE_TYPELOC(AtomiccBitsType, {})
 
 DEF_TRAVERSE_TYPELOC(AutoType, {
   TRY_TO(TraverseType(TL.getTypePtr()->getDeducedType()));

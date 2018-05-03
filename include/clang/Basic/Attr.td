@@ -547,8 +547,8 @@ def AlignValue : Attr {
 def AtomiccWidth : Attr {
   let Spellings = [ GNU<"atomicc_width"> ];
   let Args = [ExprArgument<"Width">];
-  let Subjects = SubjectList<[Var, TypedefName], WarnDiag,
-                             "ExpectedVariableOrTypedef">;
+  let Subjects = SubjectList<[Field, Var,TypedefName, CXXMethod],
+         WarnDiag, "ExpectedVariableOrTypedef">;
   let Documentation = [Undocumented];
 }
 

@@ -3795,7 +3795,6 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
       T = QualType();
       break;
     // These types are never variably-modified.
-    case Type::AtomiccBits:
     case Type::Builtin:
     case Type::Complex:
     case Type::Vector:

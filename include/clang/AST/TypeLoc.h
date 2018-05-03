@@ -2217,29 +2217,6 @@ inline T TypeLoc::getAsAdjusted() const {
   }
   return Cur.getAs<T>();
 }
-
-struct AtomiccBitsTypeLocInfo {
-  SourceLocation KWLoc;
-};
-
-class AtomiccBitsTypeLoc : public ConcreteTypeLoc<UnqualTypeLoc, AtomiccBitsTypeLoc, AtomiccBitsType,
-                                           AtomiccBitsTypeLocInfo> {
-public:
-  TypeLoc getValueLoc() const { return this->getInnerTypeLoc(); }
-
-  SourceRange getLocalSourceRange() const { return SourceRange(getKWLoc()); }
-
-  SourceLocation getKWLoc() const { return this->getLocalData()->KWLoc; }
-  void setKWLoc(SourceLocation Loc) { this->getLocalData()->KWLoc = Loc; }
-
-  void initializeLocal(ASTContext &Context, SourceLocation Loc) {
-    setKWLoc(Loc);
-  }
-
-  QualType getInnerType() const { //return HasNoInnerType();//this->getTypePtr()->getElementType(); 
-    return getTypePtr()->getBaseType();
-  }
-};
 }
 
 #endif

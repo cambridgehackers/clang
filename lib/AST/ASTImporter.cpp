@@ -6252,21 +6252,3 @@ bool ASTImporter::IsStructurallyEquivalent(QualType From, QualType To,
                                    false, Complain);
   return Ctx.IsStructurallyEquivalent(From, To);
 }
-#if 0
---- 878,892 ----
-      break;
-    }
-  
-+   case Type::AtomiccBits: {
-+ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-+     //if (!IsStructurallyEquivalent(Context,
-+                                   //cast<AtomiccBitsType>(T1)->getValueType(),
-+                                   //cast<AtomiccBitsType>(T2)->getValueType()))
-+       return false;
-+     break;
-+   }
-+ 
-    } // end switch
-  
-    return true;
-#endif

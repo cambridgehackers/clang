@@ -1890,12 +1890,6 @@ llvm::DIType *CGDebugInfo::CreateType(const RecordType *Ty) {
 
   return CreateTypeDefinition(Ty);
 }
-llvm::DIType *CGDebugInfo::CreateType(const AtomiccBitsType *Ty, llvm::DIFile *U) {
-  // Ignore the atomic wrapping
-  // FIXME: What is the correct representation?
-printf("[%s:%d] STUB\n", __FUNCTION__, __LINE__);
-  return NULL; //getOrCreateType(Ty->getValueType(), U);
-}
 
 llvm::DIType *CGDebugInfo::CreateTypeDefinition(const RecordType *Ty) {
   RecordDecl *RD = Ty->getDecl();
@@ -2695,9 +2689,6 @@ llvm::DIType *CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile *Unit) {
 
   case Type::Atomic:
     return CreateType(cast<AtomicType>(Ty), Unit);
-  case Type::AtomiccBits:
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-    return CreateType(cast<AtomiccBitsType>(Ty), Unit);
 
   case Type::Pipe:
     return CreateType(cast<PipeType>(Ty), Unit);

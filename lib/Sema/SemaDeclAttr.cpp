@@ -3523,22 +3523,18 @@ static void handleAtomiccWidthAttr(Sema &S, Decl *D,
     //return;
   }
 
-printf("[%s:%d] depend %d\n", __FUNCTION__, __LINE__, E->isValueDependent());
   unsigned DestWidth = 9;
   if (!E->isValueDependent()) {
 //E->isTypeDependent() ||
     llvm::APSInt itemWidth(32);
     if (E->isIntegerConstantExpr(itemWidth, S.Context)) {
       DestWidth = itemWidth.getZExtValue();
-      const IdentifierInfo *foo = T.getBaseTypeIdentifier();
-      printf("[%s:%d] value %d qual %p %s\n", __FUNCTION__, __LINE__, DestWidth, foo, foo? foo->getNameStart():"none");
     }
     else
       printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-    QualType NewTy = QualType(T.getTypePtr(), 0);
-    AtomiccBitsType *Ty = new (S.Context, TypeAlignment)AtomiccBitsType(T, DestWidth);
-    //S.Context.Types.push_back(Ty);
-    NewTy = QualType(Ty, 0);
+    BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+    Ty->atomiccWidth = DestWidth;
+    QualType NewTy = QualType(Ty, 0);
 
     // Install the new type.
     if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(D))

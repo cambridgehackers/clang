@@ -5989,11 +5989,6 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     UnaryTransformType::UTTKind UKind = (UnaryTransformType::UTTKind)Record[2];
     return Context.getUnaryTransformType(BaseType, UnderlyingType, UKind);
   }
-  case TYPE_ATOMICC_BITS: {
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-    QualType UnderlyingType = readType(*Loc.F, Record, Idx);
-    return Context.getDecltypeType(ReadExpr(*Loc.F), UnderlyingType);
-  }
 
   case TYPE_AUTO: {
     QualType Deduced = readType(*Loc.F, Record, Idx);
@@ -6581,11 +6576,6 @@ void TypeLocReader::VisitAtomicTypeLoc(AtomicTypeLoc TL) {
 }
 
 void TypeLocReader::VisitPipeTypeLoc(PipeTypeLoc TL) {
-  TL.setKWLoc(ReadSourceLocation());
-}
-
-void TypeLocReader::VisitAtomiccBitsTypeLoc(AtomiccBitsTypeLoc TL) {
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
   TL.setKWLoc(ReadSourceLocation());
 }
 

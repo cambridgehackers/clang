@@ -7116,7 +7116,6 @@ static int EvaluateBuiltinClassifyType(const CallExpr *E,
     case BuiltinType::ULong:
     case BuiltinType::ULongLong:
     case BuiltinType::UInt128:
-    //???? case BuiltinType::AtomiccBits:
       return integer_type_class;
 
     case BuiltinType::NullPtr:

@@ -2530,15 +2530,6 @@ void MicrosoftCXXNameMangler::mangleType(const UnaryTransformType *T,
     << Range;
 }
 
-void MicrosoftCXXNameMangler::mangleType(const AtomiccBitsType *T,
-                                         Qualifiers, SourceRange Range) {
-  DiagnosticsEngine &Diags = Context.getDiags();
-  unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-    "cannot mangle this unary transform type yet");
-  Diags.Report(Range.getBegin(), DiagID)
-    << Range;
-}
-
 void MicrosoftCXXNameMangler::mangleType(const AutoType *T, Qualifiers,
                                          SourceRange Range) {
   assert(T->getDeducedType().isNull() && "expecting a dependent type!");

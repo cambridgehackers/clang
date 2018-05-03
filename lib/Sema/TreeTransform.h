@@ -5425,28 +5425,6 @@ QualType TreeTransform<Derived>::TransformTypeOfType(TypeLocBuilder &TLB,
 
   return Result;
 }
-template<typename Derived>
-QualType TreeTransform<Derived>::TransformAtomiccBitsType(TypeLocBuilder &TLB,
-                                                     AtomiccBitsTypeLoc TL) {
-  QualType ValueType = getDerived().TransformType(TLB, TL.getValueLoc());
-  if (ValueType.isNull())
-    return QualType();
-
-  QualType Result = TL.getType();
-  if (getDerived().AlwaysRebuild() ||
-      ValueType != TL.getValueLoc().getType()) {
-    //Result = getDerived().RebuildAtomiccBitsType(ValueType, TL.getKWLoc());
-    //if (Result.isNull())
-      return QualType();
-  }
-
-  //AtomiccBitsTypeLoc NewTL = TLB.push<AtomiccBitsTypeLoc>(Result);
-  //NewTL.setKWLoc(TL.getKWLoc());
-  //NewTL.setLParenLoc(TL.getLParenLoc());
-  //NewTL.setRParenLoc(TL.getRParenLoc());
-
-  return Result;
-}
 
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformDecltypeType(TypeLocBuilder &TLB,

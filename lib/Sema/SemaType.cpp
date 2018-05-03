@@ -5222,9 +5222,6 @@ namespace {
       Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
       TL.getValueLoc().initializeFullCopy(TInfo->getTypeLoc());
     }
-    void VisitAtomiccBitsTypeLoc(AtomiccBitsTypeLoc TL) {
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-    }
 
     void VisitTypeLoc(TypeLoc TL) {
       // FIXME: add other typespec types and change this to an assert.
@@ -6973,7 +6970,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
 
     case AttributeList::AT_AtomiccWidth:
-printf("[%s:%d]ATOMICCWIDTH\n", __FUNCTION__, __LINE__);
       attr.setUsedAsTypeAttr();
       break;
     }

@@ -711,11 +711,6 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
       return false;
     break;
   }
-  case Type::AtomiccBits: {
-printf("[%s:%d] missing support\n", __FUNCTION__, __LINE__);
-exit(-1);
-    break;
-  }
 
   } // end switch
 
