@@ -744,18 +744,6 @@ printf("[%s:%d] UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n", __FUNCTION__, __LINE__);
       }
       else
           tname = "NOTSTRUCT";
-#if 0
-     switch (Ty->getTypeID()) {
-     case Type::IntegerTyID:
-         return "INTEGER_" + utostr(cast<IntegerType>(Ty)->getBitWidth());
-     case Type::StructTyID:
-         return getStructName((cast<StructType>(Ty)));
-     case Type::ArrayTyID: {
-         const ArrayType *ATy = cast<ArrayType>(Ty);
-         return "ARRAY_" + utostr(ATy->getNumElements()) + "_" + typeName(ATy->getElementType());
-         }
-     }
-#endif
       Ty->structFieldMap += fname + ":" + tname;
     }
   }
