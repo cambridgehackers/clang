@@ -1721,10 +1721,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Align = Target->getShortAlign();
       break;
     case BuiltinType::UInt:
-    case BuiltinType::Int:
-      Width = Target->getIntWidth();
+    case BuiltinType::Int: {
+      long width = cast<BuiltinType>(T)->atomiccWidth;
+      Width = width != -1 ? width : Target->getIntWidth();
       Align = Target->getIntAlign();
       break;
+      }
     case BuiltinType::ULong:
     case BuiltinType::Long:
       Width = Target->getLongWidth();
