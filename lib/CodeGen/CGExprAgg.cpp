@@ -464,7 +464,13 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
   for (uint64_t i = 0; i != NumInitElements; ++i) {
     // Advance to the next element.
     if (i > 0) {
+#if 1 // atomicc
+      llvm::Value *indices[] = { zero, llvm::ConstantInt::get(CGF.SizeTy, i) };
+      element = Builder.CreateInBoundsGEP(DestPtr.getPointer(), indices, "arrayinit.element");
+      //element = Builder.CreateInBoundsGEP(begin, llvm::ConstantInt::get(CGF.SizeTy, i), "arrayinit.element");
+#else
       element = Builder.CreateInBoundsGEP(element, one, "arrayinit.element");
+#endif
 
       // Tell the cleanup that it needs to destroy up to this
       // element.  TODO: some of these stores can be trivially
