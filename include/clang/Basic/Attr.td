@@ -570,12 +570,6 @@ def AtomiccEModule : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def AtomiccReadyValid : InheritableAttr {
-  let Spellings = [ GNU<"atomicc_ready_valid"> ];
-  let Subjects = SubjectList<[CXXRecord]>;
-  let Documentation = [Undocumented];
-}
-
 def AtomiccConnect : InheritableAttr {
   let Spellings = [ GNU<"atomicc_connect"> ];
   let Subjects = SubjectList<[CXXRecord]>;

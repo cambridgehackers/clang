@@ -6075,9 +6075,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case AttributeList::AT_AtomiccEModule:
     handleSimpleAttribute<AtomiccEModuleAttr>(S, D, Attr);
     break;
-  case AttributeList::AT_AtomiccReadyValid:
-    handleSimpleAttribute<AtomiccReadyValidAttr>(S, D, Attr);
-    break;
   case AttributeList::AT_AtomiccSoftware:
     handleSimpleAttribute<AtomiccSoftwareAttr>(S, D, Attr);
     break;
