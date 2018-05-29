@@ -42,7 +42,6 @@
 #include <map>
 
 using namespace clang;
-QualType getSimpleType(QualType ftype);
 
 unsigned ASTContext::NumImplicitDefaultConstructors;
 unsigned ASTContext::NumImplicitDefaultConstructorsDeclared;
@@ -1876,45 +1875,13 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Width = toBits(Layout.getSize());
     Align = toBits(Layout.getAlignment());
     AlignIsRequired = RD->hasAttr<AlignedAttr>();
-    if (const auto *rec = dyn_cast<CXXRecordDecl>(RD)) {
-      if (rec->hasAttr<AtomiccSerializeAttr>()) {
-printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR\n", __FUNCTION__, __LINE__);
-        uint64_t rsize = 0;
-        for (const Decl *field : rec->fields()) {
-          if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
-            field = frec->getDecl();
-          if (auto rec = dyn_cast<CXXRecordDecl>(field)) {
-            if (rec->hasAttr<AtomiccInterfaceAttr>())
-            for (auto ritem: rec->methods())
-                if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
-                if (Method->getDeclName().isIdentifier()) {
-                    uint64_t psize = 0;
-                    for (auto item: Method->parameters())
-                         psize += getTypeSize(item->getType());
-                    if (psize > rsize)
-                        rsize = psize;
-printf("[%s:%d] method %s psize %d rsize %d\n", __FUNCTION__, __LINE__, ritem->getName().str().c_str(), (int)psize, (int)rsize);
-                }
-printf("[%s:%d] maxsize %d\n", __FUNCTION__, __LINE__, (int) rsize);
-           }
-           else {
-printf("[%s:%d]FFFO\n", __FUNCTION__, __LINE__);
-field->dump();
-#if 0
-             if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType()//->getTypePtr()
-)) {
-               const_cast<BuiltinType *>(Ty)->atomiccWidth = rsize;
-printf("[%s:%d] afterddd\n", __FUNCTION__, __LINE__);
-Ty->dump();
-field->dump();
-             }
-#endif
-           }
-        }
-        Width = rsize;
-        Align = 1;
-        AlignIsRequired = false;
-      }
+    if (const auto *rec = dyn_cast<CXXRecordDecl>(RD))
+    if (rec->hasAttr<AtomiccSerializeAttr>()) {
+printf("[%s:%d]RRRRRRRbefore %d\n", __FUNCTION__, __LINE__, (int)Width);
+        for (const Decl *field : rec->fields())
+          if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType()))
+            Width = Ty->atomiccWidth;
+printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR %d\n", __FUNCTION__, __LINE__, (int)Width);
     }
     break;
   }

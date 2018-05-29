@@ -10824,6 +10824,38 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
           }
       }
   }
+  else if(Record->hasAttr<AtomiccSerializeAttr>()) {
+      uint64_t rsize = 0;
+      for (const Decl *field : Record->fields()) {
+          if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
+            field = frec->getDecl();
+          if (auto rec = dyn_cast<CXXRecordDecl>(field)) {
+            if (rec->hasAttr<AtomiccInterfaceAttr>())
+            for (auto ritem: rec->methods())
+                if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
+                if (Method->getDeclName().isIdentifier()) {
+                    uint64_t psize = 0;
+                    for (auto item: Method->parameters())
+                         psize += Context.getTypeSize(item->getType());
+                    if (psize > rsize)
+                        rsize = psize;
+                }
+           }
+           else if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType()))
+               const_cast<BuiltinType *>(Ty)->atomiccWidth = rsize;
+      }
+      IdentifierInfo *blII = &Context.Idents.get("dummy");
+      BuiltinType *Ty = new (Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+      Ty->atomiccWidth = rsize;
+      QualType NewTy = QualType(Ty, 0);
+      FieldDecl *dummyField = FieldDecl::Create(Context, Record, StartLoc, StartLoc, blII, NewTy,
+            /*TInfo*/nullptr, /*BitWidth=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
+      dummyField->setAccess(AS_public);
+      Record->addDecl(dummyField);
+      dummyField->markUsed(Context);
+printf("[%s:%d]RRRRREEEEEEEEEEEEEEEEEEEEEEEE\n", __FUNCTION__, __LINE__);
+Record->dump();
+  }
   else {
       /* do hoisting for all class definitions */
       for (auto mitem: Record->methods()) { // before hoisting
