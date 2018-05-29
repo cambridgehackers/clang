@@ -163,7 +163,7 @@ protected:
     friend class UnaryExprOrTypeTraitExpr;
     unsigned : NumExprBits;
 
-    unsigned Kind : 2;
+    unsigned Kind : 3;   // Atomicc: added UETT_BitSize
     unsigned IsType : 1; // true if operand is a type, false if an expression.
   };
 

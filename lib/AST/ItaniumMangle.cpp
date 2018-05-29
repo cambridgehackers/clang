@@ -3663,6 +3663,9 @@ recurse:
     }
     
     switch(SAE->getKind()) {
+    case UETT_BitSize:
+      Out << 'b';
+      break;
     case UETT_SizeOf:
       Out << 's';
       break;

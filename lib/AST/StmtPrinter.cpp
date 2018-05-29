@@ -1544,6 +1544,9 @@ void StmtPrinter::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Node){
   case UETT_SizeOf:
     OS << "sizeof";
     break;
+  case UETT_BitSize:
+    OS << "__bitsize";
+    break;
   case UETT_AlignOf:
     if (Policy.Alignof)
       OS << "alignof";

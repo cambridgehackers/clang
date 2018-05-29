@@ -2274,6 +2274,33 @@ static bool HandleSizeof(EvalInfo &Info, SourceLocation Loc,
   return true;
 }
 
+/// Get the size of the given type in char units.
+static bool HandleBitSize(EvalInfo &Info, SourceLocation Loc,
+                         QualType Type, CharUnits &Size) {
+  // sizeof(void), __alignof__(void), sizeof(function) = 1 as a gcc
+  // extension.
+  if (Type->isVoidType() || Type->isFunctionType()) {
+    Size = CharUnits::One();
+    return true;
+  }
+
+  if (Type->isDependentType()) {
+    Info.FFDiag(Loc);
+    return false;
+  }
+
+  if (!Type->isConstantSizeType()) {
+    // sizeof(vla) is not a constantexpr: C99 6.5.3.4p2.
+    // FIXME: Better diagnostic.
+    Info.FFDiag(Loc);
+    return false;
+  }
+
+printf("[%s:%d]BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB %ld\n", __FUNCTION__, __LINE__,(long) Info.Ctx.getTypeSize(Type));
+  Size = CharUnits::fromQuantity(Info.Ctx.getTypeSize(Type));
+  return true;
+}
+
 /// Update a pointer value to model pointer arithmetic.
 /// \param Info - Information about the ongoing evaluation.
 /// \param E - The expression being evaluated, for diagnostic purposes.
@@ -8698,6 +8725,18 @@ bool IntExprEvaluator::VisitUnaryExprOrTypeTraitExpr(
 
     CharUnits Sizeof;
     if (!HandleSizeof(Info, E->getExprLoc(), SrcTy, Sizeof))
+      return false;
+    return Success(Sizeof, E);
+  }
+  case UETT_BitSize: {
+    QualType SrcTy = E->getTypeOfArgument();
+    // C++ [expr.sizeof]p2: "When applied to a reference or a reference type,
+    //   the result is the size of the referenced type."
+    if (const ReferenceType *Ref = SrcTy->getAs<ReferenceType>())
+      SrcTy = Ref->getPointeeType();
+
+    CharUnits Sizeof;
+    if (!HandleBitSize(Info, E->getExprLoc(), SrcTy, Sizeof))
       return false;
     return Success(Sizeof, E);
   }
