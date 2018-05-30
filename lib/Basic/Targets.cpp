@@ -9105,7 +9105,8 @@ public:
       BoolWidth = BoolAlign = 1;
 
       // Pointers are 32-bit in x32.
-      resetDataLayout("e-m:e-i64:8-f80:128-n8:16:32:64-S128");
+      //resetDataLayout("e-m:e-i64:8-f80:128-n8:16:32:64-S128");
+      resetDataLayout("e-m:e-i64:8-f80:128-n8-S128");
       // change default integer alignment to 8 bits
 
       // x86-64 has atomics up to 16 bytes.
