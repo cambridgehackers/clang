@@ -3539,8 +3539,14 @@ static void handleAtomiccWidthAttr(Sema &S, Decl *D,
     // Install the new type.
     if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(D))
       TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
-    else
-      cast<ValueDecl>(D)->setType(NewTy);
+    else if (auto DD = dyn_cast<DeclaratorDecl>(D)) {
+        TypeSourceInfo *TSI = DD->getTypeSourceInfo();
+        TSI->overrideType(NewTy); // ???????????????????????????????????
+        cast<ValueDecl>(D)->setType(NewTy);
+    }
+    else {
+        assert(0 && "WASNOTADECLARATORDECL");
+    }
     D->addAttr(::new (S.Context)
                AtomiccWidthAttr(Attr.getRange(), S.Context, E,
                Attr.getAttributeSpellingListIndex()));
