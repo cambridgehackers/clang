@@ -2074,6 +2074,9 @@ void ASTDumper::VisitUnaryExprOrTypeTraitExpr(
     const UnaryExprOrTypeTraitExpr *Node) {
   VisitExpr(Node);
   switch(Node->getKind()) {
+  case UETT_BitSize:
+    OS << " __bitsize";
+    break;
   case UETT_SizeOf:
     OS << " sizeof";
     break;
