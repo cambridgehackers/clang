@@ -6970,6 +6970,35 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
 
     case AttributeList::AT_AtomiccWidth:
+#if 1
+{
+  Expr *E = attr.getArgAsExpr(0);
+  if (!type->isIntegerType()) {
+    printf("[%s:%d] atomicc_width not integer type\n", __FUNCTION__, __LINE__);
+    //Diag(AttrLoc, diag::warn_attribute_pointer_or_reference_only)
+      //<< &TmpAttr /*TmpAttr.getName()*/ << T << D->getSourceRange();
+    //return;
+  }
+  if (!E->isValueDependent()) {
+    unsigned DestWidth = 9;
+    llvm::APSInt itemWidth(32);
+    if (E->isIntegerConstantExpr(itemWidth, state.getSema().Context)) {
+      DestWidth = itemWidth.getZExtValue();
+    }
+    else
+      printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
+    BuiltinType *Ty = new (state.getSema().Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+    Ty->atomiccWidth = DestWidth;
+    type = QualType(Ty, 0);
+printf("[%s:%d] SSSSSSSSWWWWWWWWWWWWWWWWWW width %d\n", __FUNCTION__, __LINE__, DestWidth);
+type.dump();
+  }
+else {
+printf("[%s:%d] VVVVVVVVVVVAAAAAAAAALLLLLLLLUEDEP\n", __FUNCTION__, __LINE__);
+E->dump();
+}
+}
+#endif
       attr.setUsedAsTypeAttr();
       break;
     }
