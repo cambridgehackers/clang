@@ -171,6 +171,59 @@ static void instantiateDependentAlignValueAttr(
                         Aligned->getSpellingListIndex());
 }
 
+static void instantiateDependentAtomiccWidthAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const AtomiccWidthAttr *attr, Decl *New) {
+  // The alignment expression is a constant expression.
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(attr->getWidth(), TemplateArgs);
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+  if (!Result.isInvalid()) {
+#if 1
+  Expr *E = Result.getAs<Expr>();
+  QualType T;
+  if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
+    T = TD->getUnderlyingType();
+  else if (ValueDecl *VD = dyn_cast<ValueDecl>(New))
+    T = VD->getType();
+  else
+    llvm_unreachable("Unknown decl type for atomicc_width");
+  if (!T->isIntegerType()) {
+    printf("[%s:%d] atomicc_width not integer type\n", __FUNCTION__, __LINE__);
+  }
+  unsigned DestWidth = 9;
+  if (!E->isValueDependent()) {
+    llvm::APSInt itemWidth(32);
+    if (E->isIntegerConstantExpr(itemWidth, S.Context)) {
+      DestWidth = itemWidth.getZExtValue();
+    }
+    else
+      printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
+    BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+    Ty->atomiccWidth = DestWidth;
+    QualType NewTy = QualType(Ty, 0);
+printf("[%s:%d] WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW width %d\n", __FUNCTION__, __LINE__, (int) DestWidth);
+    // Install the new type.
+    if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
+      TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
+    else if (auto DD = dyn_cast<DeclaratorDecl>(New)) {
+        TypeSourceInfo *TSI = DD->getTypeSourceInfo();
+        TSI->overrideType(NewTy); // ???????????????????????????????????
+        cast<ValueDecl>(New)->setType(NewTy);
+    }
+    else {
+        assert(0 && "WASNOTADECLARATORDECL");
+    }
+  }
+#endif
+    New->addAttr(::new (S.Context)
+        AtomiccWidthAttr(attr->getRange(), S.Context, E, attr->getSpellingListIndex()));
+  }
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+New->dump();
+}
+
 static void instantiateDependentAllocAlignAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const AllocAlignAttr *Align, Decl *New) {
@@ -449,6 +502,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                         TmplAttr->getSpellingListIndex(),
                         isa<NSConsumedAttr>(TmplAttr),
                         /*template instantiation*/ true);
+      continue;
+    }
+
+    if (auto attr = dyn_cast<AtomiccWidthAttr>(TmplAttr)) {
+      instantiateDependentAtomiccWidthAttr(*this, TemplateArgs, attr, New);
       continue;
     }
 
@@ -5119,6 +5177,8 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
           << Context.getTypeDeclType(Spec);
       } else {
         // We should have found something, but didn't.
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+D->dump();
         llvm_unreachable("Unable to find instantiation of declaration!");
       }
     }
