@@ -10853,8 +10853,6 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
       dummyField->setAccess(AS_public);
       Record->addDecl(dummyField);
       dummyField->markUsed(Context);
-printf("[%s:%d]RRRRREEEEEEEEEEEEEEEEEEEEEEEE\n", __FUNCTION__, __LINE__);
-Record->dump();
   }
   else {
       /* do hoisting for all class definitions */

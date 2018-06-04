@@ -9327,6 +9327,12 @@ TreeTransform<Derived>::TransformCStyleCastExpr(CStyleCastExpr *E) {
       Type == E->getTypeInfoAsWritten() &&
       SubExpr.get() == E->getSubExpr())
     return E;
+if (const BuiltinType *BT = dyn_cast<BuiltinType>(E->getType()))
+if (BT->getKind() == BuiltinType::ULong || BT->getKind() == BuiltinType::Long)
+if (dyn_cast<FunctionProtoType>(Type->getType())) {
+printf("[%s:%d] cast to 'long' not inherit 'dependent' type info JJJJJJJJJJJJJJJJJJ \n", __FUNCTION__, __LINE__);
+     Type = InventTypeSourceInfo(E->getType());
+}
 
   return getDerived().RebuildCStyleCastExpr(E->getLParenLoc(),
                                             Type,

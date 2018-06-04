@@ -2096,6 +2096,22 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
   if (!destIsPtr && !srcIsPtr) {
     // Except for std::nullptr_t->integer and lvalue->reference, which are
     // handled above, at least one of the two arguments must be a pointer.
+printf("[%s:%d]CASTTTkkkkkTTT %d/%d %d/%d\n", __FUNCTION__, __LINE__, DestType->isAnyPointerType(), DestType->isBlockPointerType(), SrcType->isAnyPointerType(), SrcType->isBlockPointerType());
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+uint64_t ssize = Self.Context.getTypeSize(SrcType);
+uint64_t dsize = Self.Context.getTypeSize(DestType);
+printf("[%s:%d] ssize %d dsize %d\n", __FUNCTION__, __LINE__, (int)ssize, (int)dsize);
+SrcType->dump();
+DestType->dump();
+if (auto item = dyn_cast<BuiltinType>(SrcType)) {
+printf("[%s:%d] source\n", __FUNCTION__, __LINE__);
+  return TC_Success;
+}
+else if (auto item = dyn_cast<BuiltinType>(DestType)) {
+printf("[%s:%d] dest\n", __FUNCTION__, __LINE__);
+  return TC_Success;
+}
+else
     return TC_NotApplicable;
   }
 
