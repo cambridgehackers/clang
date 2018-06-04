@@ -2283,20 +2283,12 @@ static bool HandleBitSize(EvalInfo &Info, SourceLocation Loc,
     Size = CharUnits::One();
     return true;
   }
-
-  if (Type->isDependentType()) {
-    Info.FFDiag(Loc);
-    return false;
-  }
-
-  if (!Type->isConstantSizeType()) {
+  if (Type->isDependentType() || !Type->isConstantSizeType()) {
     // sizeof(vla) is not a constantexpr: C99 6.5.3.4p2.
     // FIXME: Better diagnostic.
     Info.FFDiag(Loc);
     return false;
   }
-
-printf("[%s:%d]BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB %ld\n", __FUNCTION__, __LINE__,(long) Info.Ctx.getTypeSize(Type));
   Size = CharUnits::fromQuantity(Info.Ctx.getTypeSize(Type));
   return true;
 }

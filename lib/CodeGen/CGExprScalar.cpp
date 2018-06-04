@@ -1545,7 +1545,15 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   // a default case, so the compiler will warn on a missing case.  The cases
   // are in the same order as in the CastKind enum.
   switch (Kind) {
-  case CK_Dependent: llvm_unreachable("dependent cast kind in IR gen!");
+  case CK_Dependent:
+  {
+    Value *Src = Visit(const_cast<Expr*>(E));
+    llvm::Type *SrcTy = Src->getType();
+    llvm::Type *DstTy = ConvertType(DestTy);
+printf("[%s:%d] allowdepeenndndndno\n", __FUNCTION__, __LINE__);
+    return Builder.CreateBitCast(Src, DstTy);
+  }
+    llvm_unreachable("dependent cast kind in IR gen!");
   case CK_BuiltinFnToFnPtr:
     llvm_unreachable("builtin functions are handled elsewhere");
 
