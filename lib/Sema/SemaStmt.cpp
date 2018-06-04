@@ -1348,7 +1348,7 @@ static Expr *buildTemplate(Sema &Actions, QualType RetType,
     SmallVector<clang::ParmVarDecl *, 16> &Params, Stmt *Body)
 {
   static int counter;
-  SourceLocation RuleLoc;
+  SourceLocation RuleLoc = Actions.getCurFunctionDecl()->getLocation();
   FunctionProtoType::ExtProtoInfo EPI;
   SmallVector<QualType, 8> FArgs;
 
@@ -1377,12 +1377,15 @@ static Expr *buildTemplate(Sema &Actions, QualType RetType,
   IdentifierInfo *IFn = &Actions.Context.Idents.get("ruleTemplate" + llvm::utostr(counter++));
   DeclarationNameInfo NameInfo(IFn, RuleLoc);
   CXXMethodDecl *Method = CXXMethodDecl::Create(Actions.Context, cast<CXXRecordDecl>(DC),
-      RuleLoc, NameInfo, FType, nullptr, SC_None, false, false, RuleLoc);
+      RuleLoc, NameInfo, FType, Actions.Context.CreateTypeSourceInfo(FType), SC_None, false, false, RuleLoc);
   Method->setIsUsed();
   Method->markUsed(Actions.Context);
   Method->setParams(Params);
   Method->setBody(Body);
   Method->addAttr(::new (Actions.Context) UsedAttr(RuleLoc, Actions.Context, 0));
+  Method->setAccess(AS_public);
+  CXXRecordDecl *RR = cast<CXXRecordDecl>(DC);
+  RR->addDecl(Method);   // must be a member of class so that template instantiation works correctly
   Actions.ActOnFinishInlineFunctionDef(Method);
   return CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
       getACCCallRef(Actions, Method), nullptr, TSI, RuleLoc, RuleLoc);
