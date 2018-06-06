@@ -254,6 +254,7 @@ public:
     case CXXStaticCastExprClass:
     case CXXDynamicCastExprClass:
     case CXXReinterpretCastExprClass:
+    case CXXBitCastExprClass:
     case CXXConstCastExprClass:
       return true;
     default:
@@ -371,6 +372,38 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXReinterpretCastExprClass;
+  }
+
+  friend TrailingObjects;
+  friend class CastExpr;
+};
+class CXXBitCastExpr final
+    : public CXXNamedCastExpr,
+      private llvm::TrailingObjects<CXXBitCastExpr,
+                                    CXXBaseSpecifier *> {
+  CXXBitCastExpr(QualType ty, ExprValueKind vk, CastKind kind,
+                         Expr *op, unsigned pathSize,
+                         TypeSourceInfo *writtenTy, SourceLocation l,
+                         SourceLocation RParenLoc,
+                         SourceRange AngleBrackets)
+    : CXXNamedCastExpr(CXXBitCastExprClass, ty, vk, kind, op,
+                       pathSize, writtenTy, l, RParenLoc, AngleBrackets) {}
+
+  CXXBitCastExpr(EmptyShell Empty, unsigned pathSize)
+    : CXXNamedCastExpr(CXXBitCastExprClass, Empty, pathSize) { }
+
+public:
+  static CXXBitCastExpr *Create(const ASTContext &Context, QualType T,
+                                        ExprValueKind VK, CastKind Kind,
+                                        Expr *Op, const CXXCastPath *Path,
+                                 TypeSourceInfo *WrittenTy, SourceLocation L,
+                                        SourceLocation RParenLoc,
+                                        SourceRange AngleBrackets);
+  static CXXBitCastExpr *CreateEmpty(const ASTContext &Context,
+                                             unsigned pathSize);
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXBitCastExprClass;
   }
 
   friend TrailingObjects;

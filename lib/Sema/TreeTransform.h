@@ -2478,6 +2478,12 @@ public:
                                                         SubExpr,
                                                         RParenLoc);
 
+    case Stmt::CXXBitCastExprClass:
+      return getDerived().RebuildCXXBitCastExpr(OpLoc, LAngleLoc, TInfo,
+                                                        RAngleLoc, LParenLoc,
+                                                        SubExpr,
+                                                        RParenLoc);
+
     case Stmt::CXXConstCastExprClass:
       return getDerived().RebuildCXXConstCastExpr(OpLoc, LAngleLoc, TInfo,
                                                    RAngleLoc, LParenLoc,
@@ -2534,6 +2540,18 @@ public:
                                                  Expr *SubExpr,
                                                  SourceLocation RParenLoc) {
     return getSema().BuildCXXNamedCast(OpLoc, tok::kw_reinterpret_cast,
+                                       TInfo, SubExpr,
+                                       SourceRange(LAngleLoc, RAngleLoc),
+                                       SourceRange(LParenLoc, RParenLoc));
+  }
+  ExprResult RebuildCXXBitCastExpr(SourceLocation OpLoc,
+                                                 SourceLocation LAngleLoc,
+                                                 TypeSourceInfo *TInfo,
+                                                 SourceLocation RAngleLoc,
+                                                 SourceLocation LParenLoc,
+                                                 Expr *SubExpr,
+                                                 SourceLocation RParenLoc) {
+    return getSema().BuildCXXNamedCast(OpLoc, tok::kw___bit_cast,
                                        TInfo, SubExpr,
                                        SourceRange(LAngleLoc, RAngleLoc),
                                        SourceRange(LParenLoc, RParenLoc));
@@ -9809,6 +9827,12 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXReinterpretCastExpr(
                                                       CXXReinterpretCastExpr *E) {
+  return getDerived().TransformCXXNamedCastExpr(E);
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCXXBitCastExpr(CXXBitCastExpr *E) {
   return getDerived().TransformCXXNamedCastExpr(E);
 }
 

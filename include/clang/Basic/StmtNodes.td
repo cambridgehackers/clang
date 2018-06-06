@@ -108,6 +108,7 @@ def CXXNamedCastExpr : DStmt<ExplicitCastExpr, 1>;
 def CXXStaticCastExpr : DStmt<CXXNamedCastExpr>;
 def CXXDynamicCastExpr : DStmt<CXXNamedCastExpr>;
 def CXXReinterpretCastExpr : DStmt<CXXNamedCastExpr>;
+def CXXBitCastExpr : DStmt<CXXNamedCastExpr>;
 def CXXConstCastExpr : DStmt<CXXNamedCastExpr>;
 def CXXFunctionalCastExpr : DStmt<ExplicitCastExpr>;
 def CXXTypeidExpr : DStmt<Expr>;

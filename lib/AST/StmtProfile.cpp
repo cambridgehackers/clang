@@ -1464,6 +1464,11 @@ StmtProfiler::VisitCXXReinterpretCastExpr(const CXXReinterpretCastExpr *S) {
   VisitCXXNamedCastExpr(S);
 }
 
+void
+StmtProfiler::VisitCXXBitCastExpr(const CXXBitCastExpr *S) {
+  VisitCXXNamedCastExpr(S);
+}
+
 void StmtProfiler::VisitCXXConstCastExpr(const CXXConstCastExpr *S) {
   VisitCXXNamedCastExpr(S);
 }

@@ -78,6 +78,7 @@ namespace {
     // Top-level semantics-checking routines.
     void CheckConstCast();
     void CheckReinterpretCast();
+    void CheckBitCast();
     void CheckStaticCast();
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
@@ -290,6 +291,17 @@ Sema::BuildCXXNamedCast(SourceLocation OpLoc, tok::TokenKind Kind,
                                                       nullptr, DestTInfo, OpLoc,
                                                       Parens.getEnd(),
                                                       AngleBrackets));
+  }
+  case tok::kw___bit_cast: {
+    if (!TypeDependent) {
+      Op.CheckBitCast();
+      if (Op.SrcExpr.isInvalid())
+        return ExprError();
+      DiscardMisalignedMemberAddress(DestType.getTypePtr(), E);
+    }
+    return CXXBitCastExpr::Create(Context, Op.ResultType,
+        Op.ValueKind, CK_ToUnion, Op.SrcExpr.get(),
+        nullptr, DestTInfo, OpLoc, Parens.getEnd(), AngleBrackets);
   }
   case tok::kw_static_cast: {
     if (!TypeDependent) {
@@ -2096,22 +2108,6 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
   if (!destIsPtr && !srcIsPtr) {
     // Except for std::nullptr_t->integer and lvalue->reference, which are
     // handled above, at least one of the two arguments must be a pointer.
-printf("[%s:%d]CASTTTkkkkkTTT %d/%d %d/%d\n", __FUNCTION__, __LINE__, DestType->isAnyPointerType(), DestType->isBlockPointerType(), SrcType->isAnyPointerType(), SrcType->isBlockPointerType());
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-uint64_t ssize = Self.Context.getTypeSize(SrcType);
-uint64_t dsize = Self.Context.getTypeSize(DestType);
-printf("[%s:%d] ssize %d dsize %d\n", __FUNCTION__, __LINE__, (int)ssize, (int)dsize);
-SrcType->dump();
-DestType->dump();
-if (auto item = dyn_cast<BuiltinType>(SrcType)) {
-printf("[%s:%d] source\n", __FUNCTION__, __LINE__);
-  return TC_Success;
-}
-else if (auto item = dyn_cast<BuiltinType>(DestType)) {
-printf("[%s:%d] dest\n", __FUNCTION__, __LINE__);
-  return TC_Success;
-}
-else
     return TC_NotApplicable;
   }
 
@@ -2721,4 +2717,36 @@ ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,
   return Op.complete(CXXFunctionalCastExpr::Create(Context, Op.ResultType,
                          Op.ValueKind, CastTypeInfo, Op.Kind,
                          Op.SrcExpr.get(), &Op.BasePath, LPLoc, RPLoc));
+}
+
+static bool invalidType(QualType Ty)
+{
+  return Ty->isVectorType() || Ty->isAnyPointerType() || Ty->isBlockPointerType()
+     || Ty->getAs<MemberPointerType>() || Ty->isNullPtrType();
+}
+void CastOperation::CheckBitCast() {
+  assert (ValueKind == VK_RValue && !isPlaceholder(BuiltinType::Overload));
+  SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
+  if (SrcExpr.isInvalid()) // if conversion failed, don't report another error
+    return;
+  assert (SrcExpr.get()->getType() != Self.Context.OverloadTy && !DestType->getAs<ReferenceType>());
+  QualType SrcType = Self.Context.getCanonicalType(SrcExpr.get()->getType());
+  QualType aDestType = Self.Context.getCanonicalType(DestType);
+  assert (!invalidType(aDestType) && !invalidType(SrcType) && SrcType != aDestType);
+  uint64_t ssize = Self.Context.getTypeSize(SrcType);
+  uint64_t dsize = Self.Context.getTypeSize(aDestType);
+  if (auto item = dyn_cast<BuiltinType>(SrcType)) {
+    printf("[%s:%d] source\n", __FUNCTION__, __LINE__);
+  }
+  else if (auto item = dyn_cast<BuiltinType>(aDestType)) {
+    printf("[%s:%d] dest\n", __FUNCTION__, __LINE__);
+  }
+  else {
+    diagnoseBadCast(Self, diag::err_bad_cxx_cast_generic, CT_Reinterpret, OpRange, SrcExpr.get(),
+                      DestType, /*listInitialization=*/false);
+    SrcExpr = ExprError();
+  }
+printf("[%s:%d] ssize %d dsize %d\n", __FUNCTION__, __LINE__, (int)ssize, (int)dsize);
+SrcType->dump();
+aDestType->dump();
 }

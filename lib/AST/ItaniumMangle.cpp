@@ -3822,6 +3822,9 @@ recurse:
   case Expr::CXXReinterpretCastExprClass:
     mangleCastExpression(E, "rc");
     break;
+  case Expr::CXXBitCastExprClass:
+    mangleCastExpression(E, "bc");
+    break;
   case Expr::CXXConstCastExprClass:
     mangleCastExpression(E, "cc");
     break;

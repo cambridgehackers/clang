@@ -336,6 +336,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXDynamicCastExprClass:
   case Expr::CXXReinterpretCastExprClass:
+  case Expr::CXXBitCastExprClass:
   case Expr::CXXConstCastExprClass:
   case Expr::ObjCBridgedCastExprClass:
     // Only in C++ can casts be interesting at all.

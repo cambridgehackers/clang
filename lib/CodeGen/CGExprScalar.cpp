@@ -500,6 +500,8 @@ public:
     return EmitNullValue(E->getType());
   }
   Value *VisitExplicitCastExpr(ExplicitCastExpr *E) {
+printf("[%s:%d] scalarBRBRBIIT %d\n", __FUNCTION__, __LINE__, E->getCastKind());
+E->dump();
     CGF.CGM.EmitExplicitCastExprType(E, &CGF);
     return VisitCastExpr(E);
   }
@@ -1548,7 +1550,6 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_Dependent:
   {
     Value *Src = Visit(const_cast<Expr*>(E));
-    llvm::Type *SrcTy = Src->getType();
     llvm::Type *DstTy = ConvertType(DestTy);
 printf("[%s:%d] allowdepeenndndndno\n", __FUNCTION__, __LINE__);
     return Builder.CreateBitCast(Src, DstTy);
@@ -1565,6 +1566,7 @@ printf("[%s:%d] allowdepeenndndndno\n", __FUNCTION__, __LINE__);
     return EmitLoadOfLValue(LV, CE->getExprLoc());
   }
 
+  case CK_ToUnion: // atomicc
   case CK_CPointerToObjCPointerCast:
   case CK_BlockPointerToObjCPointerCast:
   case CK_AnyPointerToBlockPointerCast:
@@ -1703,7 +1705,6 @@ printf("[%s:%d] allowdepeenndndndno\n", __FUNCTION__, __LINE__);
   case CK_IntegralComplexToFloatingComplex:
   case CK_FloatingComplexToIntegralComplex:
   case CK_ConstructorConversion:
-  case CK_ToUnion:
     llvm_unreachable("scalar cast to non-scalar value");
 
   case CK_LValueToRValue:

@@ -1190,6 +1190,7 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitOpaqueValueLValue(cast<OpaqueValueExpr>(E));
   case Expr::SubstNonTypeTemplateParmExprClass:
     return EmitLValue(cast<SubstNonTypeTemplateParmExpr>(E)->getReplacement());
+  case Expr::CXXBitCastExprClass:
   case Expr::ImplicitCastExprClass:
   case Expr::CStyleCastExprClass:
   case Expr::CXXFunctionalCastExprClass:

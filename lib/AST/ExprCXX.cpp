@@ -630,6 +630,30 @@ CXXReinterpretCastExpr::CreateEmpty(const ASTContext &C, unsigned PathSize) {
   return new (Buffer) CXXReinterpretCastExpr(EmptyShell(), PathSize);
 }
 
+CXXBitCastExpr *
+CXXBitCastExpr::Create(const ASTContext &C, QualType T,
+                               ExprValueKind VK, CastKind K, Expr *Op,
+                               const CXXCastPath *BasePath,
+                               TypeSourceInfo *WrittenTy, SourceLocation L, 
+                               SourceLocation RParenLoc,
+                               SourceRange AngleBrackets) {
+  unsigned PathSize = (BasePath ? BasePath->size() : 0);
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  CXXBitCastExpr *E =
+    new (Buffer) CXXBitCastExpr(T, VK, K, Op, PathSize, WrittenTy, L,
+                                        RParenLoc, AngleBrackets);
+  if (PathSize)
+    std::uninitialized_copy_n(BasePath->data(), BasePath->size(),
+                              E->getTrailingObjects<CXXBaseSpecifier *>());
+  return E;
+}
+
+CXXBitCastExpr *
+CXXBitCastExpr::CreateEmpty(const ASTContext &C, unsigned PathSize) {
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  return new (Buffer) CXXBitCastExpr(EmptyShell(), PathSize);
+}
+
 CXXConstCastExpr *CXXConstCastExpr::Create(const ASTContext &C, QualType T,
                                            ExprValueKind VK, Expr *Op,
                                            TypeSourceInfo *WrittenTy,

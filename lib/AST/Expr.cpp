@@ -2812,6 +2812,7 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
   case ObjCBridgedCastExprClass:
   case CXXDynamicCastExprClass:
   case CXXReinterpretCastExprClass:
+  case CXXBitCastExprClass:
   case CXXConstCastExprClass: {
     const CastExpr *CE = cast<CastExpr>(this);
 
@@ -3055,6 +3056,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case CStyleCastExprClass:
   case CXXStaticCastExprClass:
   case CXXReinterpretCastExprClass:
+  case CXXBitCastExprClass:
   case CXXConstCastExprClass:
   case CXXFunctionalCastExprClass: {
     // While volatile reads are side-effecting in both C and C++, we treat them

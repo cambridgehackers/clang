@@ -4537,6 +4537,10 @@ public:
     CCEDiag(E, diag::note_constexpr_invalid_cast) << 0;
     return static_cast<Derived*>(this)->VisitCastExpr(E);
   }
+  bool VisitCXXBitCastExpr(const CXXBitCastExpr *E) {
+    CCEDiag(E, diag::note_constexpr_invalid_cast) << 0;
+    return static_cast<Derived*>(this)->VisitCastExpr(E);
+  }
   bool VisitCXXDynamicCastExpr(const CXXDynamicCastExpr *E) {
     CCEDiag(E, diag::note_constexpr_invalid_cast) << 1;
     return static_cast<Derived*>(this)->VisitCastExpr(E);
@@ -8864,7 +8868,6 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_DerivedToBase:
   case CK_UncheckedDerivedToBase:
   case CK_Dynamic:
-  case CK_ToUnion:
   case CK_ArrayToPointerDecay:
   case CK_FunctionToPointerDecay:
   case CK_NullToPointer:
@@ -8907,6 +8910,7 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_CopyAndAutoreleaseBlockObject:
     return Error(E);
 
+  case CK_ToUnion: //atomicc
   case CK_UserDefinedConversion:
   case CK_LValueToRValue:
   case CK_AtomicToNonAtomic:
@@ -10504,6 +10508,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXFunctionalCastExprClass:
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXReinterpretCastExprClass:
+  case Expr::CXXBitCastExprClass:
   case Expr::CXXConstCastExprClass:
   case Expr::ObjCBridgedCastExprClass: {
     const Expr *SubExpr = cast<CastExpr>(E)->getSubExpr();

@@ -597,7 +597,11 @@ static Expr *findPeephole(Expr *op, CastKind kind) {
 
 void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   if (const auto *ECE = dyn_cast<ExplicitCastExpr>(E))
+{
+printf("[%s:%d] aggBRBRBIIT %d\n", __FUNCTION__, __LINE__, E->getCastKind());
+ECE->dump();
     CGF.CGM.EmitExplicitCastExprType(ECE, &CGF);
+}
   switch (E->getCastKind()) {
   case CK_Dynamic: {
     // FIXME: Can this actually happen? We have no test coverage for it.
@@ -775,6 +779,12 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_ZeroToOCLQueue:
   case CK_AddressSpaceConversion:
   case CK_IntToOCLSampler:
+#if 1
+printf("[%s:%d] castkind XXXXXXXXXXXXXXXXXXXX %d\n", __FUNCTION__, __LINE__, E->getCastKind());
+E->dump();
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+E->getSubExpr()->dump();
+#endif
     llvm_unreachable("cast kind invalid for aggregate types");
   }
 }

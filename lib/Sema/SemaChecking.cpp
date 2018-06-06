@@ -7709,6 +7709,7 @@ static const Expr *EvalAddr(const Expr *E,
     return EvalAddr(cast<ExprWithCleanups>(E)->getSubExpr(), refVars,
                     ParentDecl);
 
+  case Stmt::CXXBitCastExprClass:
   // For casts, we need to handle conversions from arrays to
   // pointer values, and pointer-to-pointer conversions.
   case Stmt::ImplicitCastExprClass:
