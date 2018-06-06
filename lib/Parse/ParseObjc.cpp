@@ -1072,6 +1072,7 @@ IdentifierInfo *Parser::ParseObjCSelectorPiece(SourceLocation &SelectorLoc) {
   case tok::kw_public:
   case tok::kw_register:
   case tok::kw_reinterpret_cast:
+  case tok::kw___bit_cast:
   case tok::kw_restrict:
   case tok::kw_return:
   case tok::kw_short:

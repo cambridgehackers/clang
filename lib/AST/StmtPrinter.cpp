@@ -1982,6 +1982,9 @@ void StmtPrinter::VisitCXXDynamicCastExpr(CXXDynamicCastExpr *Node) {
 void StmtPrinter::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr *Node) {
   VisitCXXNamedCastExpr(Node);
 }
+void StmtPrinter::VisitCXXBitCastExpr(CXXBitCastExpr *Node) {
+  VisitCXXNamedCastExpr(Node);
+}
 
 void StmtPrinter::VisitCXXConstCastExpr(CXXConstCastExpr *Node) {
   VisitCXXNamedCastExpr(Node);

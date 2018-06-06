@@ -1325,6 +1325,11 @@ void ASTStmtWriter::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr *E) {
   Code = serialization::EXPR_CXX_REINTERPRET_CAST;
 }
 
+void ASTStmtWriter::VisitCXXBitCastExpr(CXXBitCastExpr *E) {
+  VisitCXXNamedCastExpr(E);
+  Code = serialization::EXPR_CXX_REINTERPRET_CAST;
+}
+
 void ASTStmtWriter::VisitCXXConstCastExpr(CXXConstCastExpr *E) {
   VisitCXXNamedCastExpr(E);
   Code = serialization::EXPR_CXX_CONST_CAST;

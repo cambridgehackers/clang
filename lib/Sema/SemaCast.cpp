@@ -78,6 +78,7 @@ namespace {
     // Top-level semantics-checking routines.
     void CheckConstCast();
     void CheckReinterpretCast();
+    void CheckBitCast();
     void CheckStaticCast();
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
@@ -210,6 +211,11 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
                                         SourceRange OpRange,
                                         unsigned &msg,
                                         CastKind &Kind);
+static TryCastResult TryBitCast(Sema &Self, ExprResult &SrcExpr,
+                                        QualType DestType, bool CStyle,
+                                        SourceRange OpRange,
+                                        unsigned &msg,
+                                        CastKind &Kind);
 
 
 /// ActOnCXXNamedCast - Parse {dynamic,static,reinterpret,const}_cast's.
@@ -290,6 +296,37 @@ Sema::BuildCXXNamedCast(SourceLocation OpLoc, tok::TokenKind Kind,
                                                       nullptr, DestTInfo, OpLoc,
                                                       Parens.getEnd(),
                                                       AngleBrackets));
+  }
+  case tok::kw___bit_cast: {
+    if (!TypeDependent) {
+printf("[%s:%d] beffffCheckbitttititittCast\n", __FUNCTION__, __LINE__);
+      Op.CheckBitCast();
+      if (Op.SrcExpr.isInvalid())
+        return ExprError();
+      DiscardMisalignedMemberAddress(DestType.getTypePtr(), E);
+    }
+    Expr *tmp = Op.SrcExpr.get();
+printf("[%s:%d]BCBCBCBCBCBCBCBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB %d\n", __FUNCTION__, __LINE__, TypeDependent);
+Op.ResultType->dump();
+tmp->dump();
+#if 0 // jcajcaJCA
+    if (dyn_cast<DeclRefExpr>(tmp)) {
+        //ExprResult er = ImpCastExprToType(tmp, tmp->getType(), CK_LValueToRValue);
+        ExprResult er = ImplicitCastExpr::Create(Context, tmp->getType(), CK_NoOp
+//CK_LValueToRValue
+, tmp, nullptr, VK_RValue);
+        tmp = er.get();
+    }
+printf("[%s:%d] BEFIMP\n", __FUNCTION__, __LINE__);
+tmp->dump();
+    auto jca = ImpCastExprToType(tmp, Op.ResultType, CK_BitCast);
+printf("[%s:%d] TRRRREE\n", __FUNCTION__, __LINE__);
+jca.get()->dump();
+    return jca;
+#else
+    return CXXBitCastExpr::Create(Context, Op.ResultType,
+        Op.ValueKind, Op.Kind, tmp, nullptr, DestTInfo, OpLoc, Parens.getEnd(), AngleBrackets);
+#endif
   }
   case tok::kw_static_cast: {
     if (!TypeDependent) {
@@ -2096,22 +2133,6 @@ static TryCastResult TryReinterpretCast(Sema &Self, ExprResult &SrcExpr,
   if (!destIsPtr && !srcIsPtr) {
     // Except for std::nullptr_t->integer and lvalue->reference, which are
     // handled above, at least one of the two arguments must be a pointer.
-printf("[%s:%d]CASTTTkkkkkTTT %d/%d %d/%d\n", __FUNCTION__, __LINE__, DestType->isAnyPointerType(), DestType->isBlockPointerType(), SrcType->isAnyPointerType(), SrcType->isBlockPointerType());
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-uint64_t ssize = Self.Context.getTypeSize(SrcType);
-uint64_t dsize = Self.Context.getTypeSize(DestType);
-printf("[%s:%d] ssize %d dsize %d\n", __FUNCTION__, __LINE__, (int)ssize, (int)dsize);
-SrcType->dump();
-DestType->dump();
-if (auto item = dyn_cast<BuiltinType>(SrcType)) {
-printf("[%s:%d] source\n", __FUNCTION__, __LINE__);
-  return TC_Success;
-}
-else if (auto item = dyn_cast<BuiltinType>(DestType)) {
-printf("[%s:%d] dest\n", __FUNCTION__, __LINE__);
-  return TC_Success;
-}
-else
     return TC_NotApplicable;
   }
 
@@ -2721,4 +2742,68 @@ ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,
   return Op.complete(CXXFunctionalCastExpr::Create(Context, Op.ResultType,
                          Op.ValueKind, CastTypeInfo, Op.Kind,
                          Op.SrcExpr.get(), &Op.BasePath, LPLoc, RPLoc));
+}
+
+static TryCastResult TryBitCast(Sema &Self, ExprResult &SrcExpr,
+                                        QualType DestType, bool CStyle,
+                                        SourceRange OpRange,
+                                        unsigned &msg,
+                                        CastKind &Kind) {
+  DestType = Self.Context.getCanonicalType(DestType);
+  QualType SrcType = SrcExpr.get()->getType();
+  if (SrcType == Self.Context.OverloadTy || DestType->getAs<ReferenceType>()) {
+assert(0);
+  }
+  SrcType = Self.Context.getCanonicalType(SrcType);
+  if ((DestType->getAs<MemberPointerType>() && SrcType->getAs<MemberPointerType>())
+   || (SrcType->isNullPtrType() && DestType->isIntegralType(Self.Context))
+   || DestType->isVectorType() || SrcType->isVectorType()
+   || SrcType == DestType
+   || DestType->isAnyPointerType() || DestType->isBlockPointerType()
+   || SrcType->isAnyPointerType() || SrcType->isBlockPointerType()) {
+      assert(0);
+  }
+printf("[%s:%d]BITCASTTTkkkkkTTT %d/%d %d/%d\n", __FUNCTION__, __LINE__, DestType->isAnyPointerType(), DestType->isBlockPointerType(), SrcType->isAnyPointerType(), SrcType->isBlockPointerType());
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+uint64_t ssize = Self.Context.getTypeSize(SrcType);
+uint64_t dsize = Self.Context.getTypeSize(DestType);
+printf("[%s:%d] ssize %d dsize %d\n", __FUNCTION__, __LINE__, (int)ssize, (int)dsize);
+SrcType->dump();
+DestType->dump();
+if (auto item = dyn_cast<BuiltinType>(SrcType)) {
+printf("[%s:%d] source\n", __FUNCTION__, __LINE__);
+  return TC_Success;
+}
+else if (auto item = dyn_cast<BuiltinType>(DestType)) {
+printf("[%s:%d] dest\n", __FUNCTION__, __LINE__);
+  return TC_Success;
+}
+  return TC_NotApplicable;
+}                                     
+void CastOperation::CheckBitCast() {
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+  if (ValueKind == VK_RValue && !isPlaceholder(BuiltinType::Overload))
+    SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
+  else
+    assert(0); //checkNonOverloadPlaceholders();
+  if (SrcExpr.isInvalid()) // if conversion failed, don't report another error
+    return;
+
+  unsigned msg = diag::err_bad_cxx_cast_generic;
+  TryCastResult tcr = TryBitCast(Self, SrcExpr, DestType, /*CStyle*/false, OpRange, msg, Kind);
+  if (tcr != TC_Success && msg != 0) {
+    if (SrcExpr.isInvalid()) // if conversion failed, don't report another error
+      return;
+    if (SrcExpr.get()->getType() == Self.Context.OverloadTy) {
+      assert(0); ////FIXME: &f<int>; is overloaded and resolvable 
+    } else {
+      diagnoseBadCast(Self, msg, CT_Reinterpret, OpRange, SrcExpr.get(),
+                      DestType, /*listInitialization=*/false);
+    }
+    SrcExpr = ExprError();
+  } else if (tcr == TC_Success) {
+    if (Self.getLangOpts().allowsNonTrivialObjCLifetimeQualifiers())
+      assert(0); //checkObjCConversion(Sema::CCK_OtherCast);
+    DiagnoseReinterpretUpDownCast(Self, SrcExpr.get(), DestType, OpRange);
+  }
 }

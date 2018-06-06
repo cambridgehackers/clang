@@ -2203,6 +2203,9 @@ DEF_TRAVERSE_STMT(CXXDynamicCastExpr, {
 DEF_TRAVERSE_STMT(CXXReinterpretCastExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
 })
+DEF_TRAVERSE_STMT(CXXBitCastExpr, {
+  TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
+})
 
 DEF_TRAVERSE_STMT(CXXStaticCastExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));

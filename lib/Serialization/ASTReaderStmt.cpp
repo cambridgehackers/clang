@@ -1321,6 +1321,10 @@ void ASTStmtReader::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr *E) {
   return VisitCXXNamedCastExpr(E);
 }
 
+void ASTStmtReader::VisitCXXBitCastExpr(CXXBitCastExpr *E) {
+  return VisitCXXNamedCastExpr(E);
+}
+
 void ASTStmtReader::VisitCXXConstCastExpr(CXXConstCastExpr *E) {
   return VisitCXXNamedCastExpr(E);
 }

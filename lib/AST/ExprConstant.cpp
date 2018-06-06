@@ -4537,6 +4537,10 @@ public:
     CCEDiag(E, diag::note_constexpr_invalid_cast) << 0;
     return static_cast<Derived*>(this)->VisitCastExpr(E);
   }
+  bool VisitCXXBitCastExpr(const CXXBitCastExpr *E) {
+    CCEDiag(E, diag::note_constexpr_invalid_cast) << 0;
+    return static_cast<Derived*>(this)->VisitCastExpr(E);
+  }
   bool VisitCXXDynamicCastExpr(const CXXDynamicCastExpr *E) {
     CCEDiag(E, diag::note_constexpr_invalid_cast) << 1;
     return static_cast<Derived*>(this)->VisitCastExpr(E);

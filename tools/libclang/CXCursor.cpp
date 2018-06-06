@@ -392,6 +392,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
 
   case Stmt::CXXReinterpretCastExprClass:
+  case Stmt::CXXBitCastExprClass:
     K = CXCursor_CXXReinterpretCastExpr;
     break;
 

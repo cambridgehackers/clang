@@ -730,7 +730,23 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
     llvm_unreachable("should not be emitting lvalue bitcast as rvalue");
 
   case CK_Dependent:
-  case CK_BitCast:
+  case CK_BitCast: {
+#if 1
+printf("[%s:%d] castkind XXXXXXXXXXXXXXXXXXXX %d\n", __FUNCTION__, __LINE__, E->getCastKind());
+E->dump();
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+E->getSubExpr()->dump();
+    Visit(E->getSubExpr());
+    QualType Ty = E->getSubExpr()->getType();
+    //Builder.CreateBitCast(Dest.getAddress(), CGF.ConvertType(Ty));
+
+    Address CastPtr =
+      Builder.CreateElementBitCast(Dest.getAddress(), CGF.ConvertType(Ty));
+    EmitInitializationToLValue(E->getSubExpr(),
+                               CGF.MakeAddrLValue(CastPtr, Ty));
+    break;
+#endif
+  }
   case CK_ArrayToPointerDecay:
   case CK_FunctionToPointerDecay:
   case CK_NullToPointer:
@@ -775,6 +791,12 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_ZeroToOCLQueue:
   case CK_AddressSpaceConversion:
   case CK_IntToOCLSampler:
+#if 1
+printf("[%s:%d] castkind XXXXXXXXXXXXXXXXXXXX %d\n", __FUNCTION__, __LINE__, E->getCastKind());
+E->dump();
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+E->getSubExpr()->dump();
+#endif
     llvm_unreachable("cast kind invalid for aggregate types");
   }
 }

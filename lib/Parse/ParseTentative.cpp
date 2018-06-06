@@ -995,6 +995,7 @@ Parser::isExpressionOrTypeSpecifierSimple(tok::TokenKind Kind) {
   case tok::kw_new:
   case tok::kw_operator:
   case tok::kw_reinterpret_cast:
+  case tok::kw___bit_cast:
   case tok::kw_static_cast:
   case tok::kw_this:
   case tok::kw_throw:
