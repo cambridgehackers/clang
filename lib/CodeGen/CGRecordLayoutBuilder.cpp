@@ -787,7 +787,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
       if (!isa<CXXConstructorDecl>(MD) && !isa<CXXDestructorDecl>(MD)) {
         QualType ty = MD->getType();
         if (auto AT = dyn_cast<AttributedType>(ty))
-          ty = AT->desugar();
+          ty = AT->getModifiedType();
       if (auto *FT = dyn_cast<FunctionType>(ty))
       if (FT->getCallConv() == CC_X86VectorCall)
       if (const auto *ND = dyn_cast<NamedDecl>(MD)) {

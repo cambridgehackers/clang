@@ -2055,22 +2055,9 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
 static void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc, std::string mname, Expr *expr, AccessSpecifier Access)
 {
 //printf("[%s:%d] start %s DC %p\n", __FUNCTION__, __LINE__, mname.c_str(), DC);
-    Stmt *body = nullptr;
-    if (expr) {
-        SmallVector<Stmt*, 32> Stmts;
-        StmtResult retStmt = new (Actions.Context) ReturnStmt(Loc, expr, nullptr);
-        Stmts.push_back(retStmt.get());
-        body = new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, Loc, Loc);
-    }
-    for (auto item: DC->decls())
-        if (auto Method = dyn_cast<CXXMethodDecl>(item))
-        if (Method->getDeclName().isIdentifier() && Method->getName() == mname) {
-            if (body && !Method->hasBody()) {
-                Method->setBody(body);
-                Actions.ActOnFinishInlineFunctionDef(Method);
-            }
-            return;
-        }
+    SmallVector<Stmt*, 32> Stmts;
+    StmtResult retStmt = new (Actions.Context) ReturnStmt(Loc, expr, nullptr);
+    Stmts.push_back(retStmt.get());
     const char *Dummy = nullptr;
     unsigned DiagID;
     SourceLocation NoLoc;
@@ -2084,31 +2071,20 @@ static void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc
     Declarator DFunc(DSBool, Declarator::MemberContext);
     IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
     parsedAttrs.addNew(&AttrID, Loc, nullptr, Loc, nullptr, 0, AttributeList::AS_GNU);
+    IdentifierInfo &AttrIDu = Actions.Context.Idents.get("used");
+    parsedAttrs.addNew(&AttrIDu, Loc, nullptr, Loc, nullptr, 0, AttributeList::AS_GNU);
     DFunc.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
-                                             /*IsAmbiguous=*/false,
-                                             /*LParenLoc=*/NoLoc,
-                                             /*Params=*/nullptr,
-                                             /*NumParams=*/0,
-                                             /*EllipsisLoc=*/NoLoc,
-                                             /*RParenLoc=*/NoLoc,
-                                             /*TypeQuals=*/0,
-                                             /*RefQualifierIsLvalueRef=*/true,
-                                             /*RefQualifierLoc=*/NoLoc,
-                                             /*ConstQualifierLoc=*/NoLoc,
-                                             /*VolatileQualifierLoc=*/NoLoc,
-                                             /*RestrictQualifierLoc=*/NoLoc,
-                                             /*MutableLoc=*/NoLoc,
-                                             EST_None,
-                                             /*ESpecRange=*/SourceRange(),
-                                             /*Exceptions=*/nullptr,
-                                             /*ExceptionRanges=*/nullptr,
-                                             /*NumExceptions=*/0,
-                                             /*NoexceptExpr=*/nullptr,
-                                             /*ExceptionSpecTokens=*/nullptr,
-                                             /*DeclsInPrototype=*/None,
-                                             Loc, Loc, DFunc),
-        parsedAttrs, Loc);
-    DFunc.setFunctionDefinitionKind(body ? FDK_Declaration : FDK_Definition);
+         /*IsAmbiguous=*/false, /*LParenLoc=*/NoLoc, /*Params=*/nullptr,
+         /*NumParams=*/0, /*EllipsisLoc=*/NoLoc, /*RParenLoc=*/NoLoc,
+         /*TypeQuals=*/0, /*RefQualifierIsLvalueRef=*/true,
+         /*RefQualifierLoc=*/NoLoc, /*ConstQualifierLoc=*/NoLoc,
+         /*VolatileQualifierLoc=*/NoLoc, /*RestrictQualifierLoc=*/NoLoc,
+         /*MutableLoc=*/NoLoc, EST_None, /*ESpecRange=*/SourceRange(),
+         /*Exceptions=*/nullptr, /*ExceptionRanges=*/nullptr,
+         /*NumExceptions=*/0, /*NoexceptExpr=*/nullptr,
+         /*ExceptionSpecTokens=*/nullptr, /*DeclsInPrototype=*/None,
+         Loc, Loc, DFunc), parsedAttrs, Loc);
+    DFunc.setFunctionDefinitionKind(FDK_Declaration);
     IdentifierInfo &funcName = Actions.Context.Idents.get(mname);
     DFunc.SetIdentifier(&funcName, Loc);
     LookupResult Previous(Actions, Actions.GetNameForDeclarator(DFunc),
@@ -2123,12 +2099,9 @@ static void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc
     FD->setAccess(Access);
     FD->setLexicalDeclContext(DC);
     DC->addDecl(New);
-    if (body) {
-        FD->setBody(body);
-        Actions.ActOnFinishInlineFunctionDef(FD);
-    }
-printf("[%s:%d] adding Method %p mname %s\n", __FUNCTION__, __LINE__, FD, mname.c_str());
-//FD->dump();
+    FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, Loc, Loc));
+    Actions.ActOnFinishInlineFunctionDef(FD);
+    Actions.MarkFunctionReferenced(FD->getLocation(), FD, true);
 }
 /// ParseFunctionIfBlock - Parse a C++ function-if-block.
 ///

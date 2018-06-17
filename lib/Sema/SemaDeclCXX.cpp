@@ -10883,10 +10883,8 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
           if (hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc)
            || field->getType()->isPointerType())
               field->setAccess(AS_public);
-}
-  }
-  if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()
-  || Record->hasAttr<AtomiccInterfaceAttr>()) {
+      }
+  if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()) {
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
               Method->setAccess(AS_public);
@@ -10895,16 +10893,11 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
               if (trace_hoist)
               printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public);
 //Method->dump();
-#if 1
-              if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
-                  if (const auto *AttrTy = Method->getType()->getAs<AttributedType>())
-                      Method->setType(AttrTy->getModifiedType());
-                  Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+              if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
                   MarkFunctionReferenced(Method->getLocation(), Method, true);
-              }
-#endif
           }
       }
+  }
   }
 }
 }

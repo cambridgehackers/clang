@@ -5959,6 +5959,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   if (isAtomicc) {
     IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
     FnAttrs.addNew(&AttrID, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
+    IdentifierInfo &AttrIDu = Actions.Context.Idents.get("used");
+    FnAttrs.addNew(&AttrIDu, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
   }
   if (isFunctionDeclaratorIdentifierList()) {
     if (RequiresArg)
