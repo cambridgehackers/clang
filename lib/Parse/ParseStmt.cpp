@@ -2052,7 +2052,7 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
   return Actions.ActOnFinishFunctionBody(Decl, FnBody.get());
 }
 
-void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc, std::string mname, Expr *expr, AccessSpecifier Access)
+static void createGuardMethod(Sema &Actions, DeclContext *DC, SourceLocation Loc, std::string mname, Expr *expr, AccessSpecifier Access)
 {
 //printf("[%s:%d] start %s DC %p\n", __FUNCTION__, __LINE__, mname.c_str(), DC);
     Stmt *body = nullptr;
@@ -2169,6 +2169,9 @@ assert(false && "not open");
   if (!T.consumeClose())
     {}
 printf("[%s:%d] name %s EXPINV %d METHODKKKKK %p\n", __FUNCTION__, __LINE__, mname.c_str(), Rexp.isInvalid(), mdecl);
+  mdecl->setIsUsed();
+  mdecl->addAttr(::new (mdecl->getASTContext()) UsedAttr(mdecl->getLocStart(), mdecl->getASTContext(), 0));
+  Actions.MarkFunctionReferenced(mdecl->getLocation(), mdecl, true);
   createGuardMethod(Actions, mdecl->getParent(), loc, mname + "__RDY", Rexp.get(), mdecl->getAccess());
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();

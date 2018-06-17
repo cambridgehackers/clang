@@ -61,6 +61,7 @@ using namespace clang;
 using namespace CodeGen;
 
 static const char AnnotationSection[] = "llvm.metadata";
+std::map<CXXMethodDecl *, int> InterfaceDecls;
 
 static CGCXXABI *createCXXABI(CodeGenModule &CGM) {
   switch (CGM.getTarget().getCXXABI().getKind()) {
@@ -382,6 +383,10 @@ void InstrProfStats::reportDiagnostics(DiagnosticsEngine &Diags,
 
 void CodeGenModule::Release() {
   EmitDeferred();
+  for (auto item: InterfaceDecls)
+    if (item.second)
+      GetAddrOfGlobal(item.first);
+  InterfaceDecls.clear();
   EmitVTablesOpportunistically();
   applyGlobalValReplacements();
   applyReplacements();
@@ -3969,6 +3974,28 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     for (auto *I : cast<CXXRecordDecl>(D)->decls())
       if (isa<VarDecl>(I) || isa<CXXRecordDecl>(I))
         EmitTopLevelDecl(I);
+    if (cast<CXXRecordDecl>(D)->hasAttr<AtomiccInterfaceAttr>()) {
+        getTypes().getCGRecordLayout(cast<CXXRecordDecl>(D));
+#if 0
+        //getTypes().ConvertRecordDeclType(cast<CXXRecordDecl>(D));
+        //getTypes().ConvertTypeForMem(D->getType());
+    for (auto *I : cast<CXXRecordDecl>(D)->methods()) {
+printf("[%s:%d]METH\n", __FUNCTION__, __LINE__);
+I->dump();
+        //addDeferredDeclToEmit(I);
+    //const auto *FD = cast<FunctionDecl>(I);
+        //auto CanonTy = Context.getCanonicalType(I->getType());
+        //auto Ty = getTypes().ConvertFunctionType(CanonTy, I);
+      const CGFunctionInfo &FI = getTypes().arrangeGlobalDeclaration(I);
+      llvm::Type *Ty = getTypes().GetFunctionType(FI);
+        llvm::FunctionType *FTy = cast<llvm::FunctionType>(Ty);
+        StringRef MangledName = getMangledName(I);
+        llvm::Function::Create(FTy, llvm::Function::ExternalLinkage, MangledName, &getModule());
+        //GetAddrOfGlobal(I//, ForDefinition);  // generate declaration into IR file
+        //EmitTopLevelDecl(I);
+    }
+#endif
+    }
     break;
     // No code generation needed.
   case Decl::UsingShadow:
@@ -4151,6 +4178,13 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
         Spec->getSpecializationKind() == TSK_ExplicitInstantiationDefinition &&
         Spec->hasDefinition())
       DebugInfo->completeTemplateDefinition(*Spec);
+    if (auto RD = dyn_cast<CXXRecordDecl>(D)) {
+    if (cast<CXXRecordDecl>(D)->hasAttr<AtomiccInterfaceAttr>()) {
+        getTypes().getCGRecordLayout(cast<CXXRecordDecl>(D));
+#if 0
+#endif
+    }
+    }
     break;
   }
 

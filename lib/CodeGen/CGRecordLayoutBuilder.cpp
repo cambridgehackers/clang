@@ -31,6 +31,7 @@ using namespace clang;
 using namespace CodeGen;
 
 QualType getSimpleType(QualType ftype);
+extern std::map<CXXMethodDecl *, int> InterfaceDecls;
 namespace {
 /// The CGRecordLowering is responsible for lowering an ASTRecordLayout to an
 /// llvm::Type.  Some of the lowering is straightforward, some is not.  Here we
@@ -779,10 +780,15 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
   }
   if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D)) {
     Ty->structFieldMap += ",/";
+//printf("[%s:%d]beforemethoodododododod\n", __FUNCTION__, __LINE__);
     for (auto *MD : RD->methods()) {
+//MD->dump();
       MD = MD->getCanonicalDecl();
-      if (!isa<CXXConstructorDecl>(MD) && !isa<CXXDestructorDecl>(MD))
-      if (auto *FT = dyn_cast<FunctionType>(MD->getType()))
+      if (!isa<CXXConstructorDecl>(MD) && !isa<CXXDestructorDecl>(MD)) {
+        QualType ty = MD->getType();
+        if (auto AT = dyn_cast<AttributedType>(ty))
+          ty = AT->desugar();
+      if (auto *FT = dyn_cast<FunctionType>(ty))
       if (FT->getCallConv() == CC_X86VectorCall)
       if (const auto *ND = dyn_cast<NamedDecl>(MD)) {
         SmallString<256> Buffer;
@@ -791,7 +797,12 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         std::string mname = MD->getName();
         if (FT->getReturnType()->isVoidType())
             mname += "__ENA";
+        if (RD->hasAttr<AtomiccInterfaceAttr>()) {
+//printf("[%s:%d] interface %s method %s:%s\n", __FUNCTION__, __LINE__, RD->getName().str().c_str(), Out.str().str().c_str(), mname.c_str());
+            InterfaceDecls[MD] = 1;
+        }
         Ty->structFieldMap += Out.str().str() + ":" + mname + ",";
+      }
       }
     }
   }
