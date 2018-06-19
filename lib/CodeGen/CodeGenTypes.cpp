@@ -698,7 +698,6 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
     DeferredRecords.push_back(RD);
     return Ty;
   }
-  addRecordTypeName(RD, Entry, "");  // for Atomicc, since this is recursively called before 'isCompleteDefinition'
 
   // Okay, this is a definition of a type.  Compile the implementation now.
   bool InsertResult = RecordsBeingLaidOut.insert(Key).second;
