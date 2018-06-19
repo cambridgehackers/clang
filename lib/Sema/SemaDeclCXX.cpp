@@ -10808,6 +10808,7 @@ if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
   if(Record->hasAttr<AtomiccInterfaceAttr>()) {
 if (trace_hoist)
 printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+      //Record->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface;
       Consumer.HandleTopLevelDecl(DeclGroupRef(Record));
   }
   else if(Record->hasAttr<AtomiccSerializeAttr>()) {
@@ -10885,6 +10886,10 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
               field->setAccess(AS_public);
       }
   if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()) {
+      //if(Record->hasAttr<AtomiccModuleAttr>())
+          //Record->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;
+      //else
+          //Record->AtomiccAttr = CXXRecordDecl::AtomiccAttr_EModule;
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
               Method->setAccess(AS_public);

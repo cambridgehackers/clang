@@ -1361,6 +1361,8 @@ void ASTDumper::VisitCXXRecordDecl(const CXXRecordDecl *D) {
   VisitRecordDecl(D);
   if (!D->isCompleteDefinition())
     return;
+  if (D->AtomiccAttr)
+    OS << "ATOMICCATTRDDD[" << D->AtomiccAttr << "]";
 
   for (const auto &I : D->bases()) {
     dumpChild([=] {

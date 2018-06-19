@@ -54,14 +54,16 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
   SmallString<256> TypeName;
   llvm::raw_svector_ostream OS(TypeName);
   StringRef Name = RD->getKindName();
-  if (RD->hasAttr<AtomiccSerializeAttr>())
+  if (auto CRD = dyn_cast<CXXRecordDecl>(RD)) {
+  if (CRD->hasAttr<AtomiccSerializeAttr>())
       Name = "serialize";
-  else if (RD->hasAttr<AtomiccInterfaceAttr>())
+  else if (CRD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
       Name = "ainterface";
-  else if (RD->hasAttr<AtomiccEModuleAttr>())
+  else if (CRD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)
       Name = "emodule";
-  else if (RD->hasAttr<AtomiccModuleAttr>())
+  else if (CRD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module)
       Name = "module";
+  }
   OS << Name << '.';
   
   // Name the codegen type after the typedef name
@@ -696,6 +698,7 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
     DeferredRecords.push_back(RD);
     return Ty;
   }
+  addRecordTypeName(RD, Entry, "");  // for Atomicc, since this is recursively called before 'isCompleteDefinition'
 
   // Okay, this is a definition of a type.  Compile the implementation now.
   bool InsertResult = RecordsBeingLaidOut.insert(Key).second;

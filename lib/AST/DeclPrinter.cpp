@@ -904,6 +904,8 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
     else if (auto S = dyn_cast<ClassTemplateSpecializationDecl>(D))
       printTemplateArguments(S->getTemplateArgs());
   }
+  if (D->AtomiccAttr)
+    Out << "ATOMICCATTR[" << D->AtomiccAttr << "]";
 
   if (D->isCompleteDefinition()) {
     // Print the base classes

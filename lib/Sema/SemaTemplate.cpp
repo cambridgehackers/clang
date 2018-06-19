@@ -3068,6 +3068,7 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
                                                 ClassTemplate->getLocation(),
                                                      ClassTemplate,
                                                      Converted, nullptr);
+      Decl->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
       ClassTemplate->AddSpecialization(Decl, InsertPos);
       if (ClassTemplate->isOutOfLine())
         Decl->setLexicalDeclContext(ClassTemplate->getLexicalDeclContext());
@@ -7500,6 +7501,7 @@ Sema::ActOnClassTemplateSpecialization(Scope *S, unsigned TagSpec,
                                                 ClassTemplate,
                                                 Converted,
                                                 PrevDecl);
+    //Specialization->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
     SetNestedNameSpecifier(Specialization, SS);
     if (TemplateParameterLists.size() > 0) {
       Specialization->setTemplateParameterListsInfo(Context,
@@ -8598,6 +8600,7 @@ Sema::ActOnExplicitInstantiation(Scope *S,
                                                 ClassTemplate,
                                                 Converted,
                                                 PrevDecl);
+    //Specialization->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
     SetNestedNameSpecifier(Specialization, SS);
 
     if (!HasNoEffect && !PrevDecl) {

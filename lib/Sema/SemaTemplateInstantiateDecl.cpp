@@ -1321,6 +1321,7 @@ Decl *TemplateDeclInstantiator::VisitClassTemplateDecl(ClassTemplateDecl *D) {
                             Pattern->getLocStart(), Pattern->getLocation(),
                             Pattern->getIdentifier(), PrevDecl,
                             /*DelayTypeCreation=*/true);
+  //RecordInst->AtomiccAttr = Pattern->AtomiccAttr;
 
   if (QualifierLoc)
     RecordInst->setQualifierInfo(QualifierLoc);
@@ -1554,6 +1555,7 @@ Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
     = CXXRecordDecl::Create(SemaRef.Context, D->getTagKind(), Owner,
                             D->getLocStart(), D->getLocation(),
                             D->getIdentifier(), PrevDecl);
+  //Record->AtomiccAttr = D->AtomiccAttr;
 
   // Substitute the nested name specifier, if any.
   if (SubstQualifier(D, Record))
