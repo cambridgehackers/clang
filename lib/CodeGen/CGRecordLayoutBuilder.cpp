@@ -797,7 +797,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         std::string mname = MD->getName();
         if (FT->getReturnType()->isVoidType())
             mname += "__ENA";
-        if (RD->hasAttr<AtomiccInterfaceAttr>()) {
+        if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
 //printf("[%s:%d] interface %s method %s:%s\n", __FUNCTION__, __LINE__, RD->getName().str().c_str(), Out.str().str().c_str(), mname.c_str());
             InterfaceDecls[MD] = 1;
         }

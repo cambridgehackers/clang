@@ -6078,17 +6078,14 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleAtomiccWidthAttr(S, D, Attr);
     break;
   case AttributeList::AT_AtomiccInterface:
-    handleSimpleAttribute<AtomiccInterfaceAttr>(S, D, Attr);
     if(auto RD = dyn_cast<CXXRecordDecl>(D))
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface;
     break;
   case AttributeList::AT_AtomiccModule:
-    handleSimpleAttribute<AtomiccModuleAttr>(S, D, Attr);
     if(auto RD = dyn_cast<CXXRecordDecl>(D))
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;
     break;
   case AttributeList::AT_AtomiccEModule:
-    handleSimpleAttribute<AtomiccEModuleAttr>(S, D, Attr);
     if(auto RD = dyn_cast<CXXRecordDecl>(D))
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_EModule;
     break;

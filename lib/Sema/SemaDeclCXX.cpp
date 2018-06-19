@@ -63,7 +63,7 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
         if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
             field = frec->getDecl();
     if (auto rec = dyn_cast<CXXRecordDecl>(field))
-    if (rec->hasAttr<AtomiccInterfaceAttr>()) {
+    if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
         ret = true;
         std::string recname = rec->getName();
         for (auto ritem: rec->methods()) {
@@ -85,7 +85,7 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
 printf("[%s:%d] HOISTATOMICCCCCCONNNECT\n", __FUNCTION__, __LINE__);
                     goto nextItem;
                 }
-                if(parent->hasAttr<AtomiccModuleAttr>()) {
+                if(parent->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module) {
                     printf("[%s:%d] ATTEMPT TO HOIST pname %s recname %s interface %s mname %s\n", __FUNCTION__, __LINE__, parent->getName().str().c_str(), recname.c_str(), interfaceName.c_str(), mname.c_str());
                     field->dump();
                     Method->dump();
@@ -10805,10 +10805,9 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
   referenceDLLExportedClassMethods();
 if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
   auto StartLoc = Record->getLocStart();
-  if(Record->hasAttr<AtomiccInterfaceAttr>()) {
+  if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
 if (trace_hoist)
 printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
-      //Record->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface;
       Consumer.HandleTopLevelDecl(DeclGroupRef(Record));
   }
   else if(Record->hasAttr<AtomiccSerializeAttr>()) {
@@ -10817,7 +10816,7 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
           if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
             field = frec->getDecl();
           if (auto rec = dyn_cast<CXXRecordDecl>(field)) {
-            if (rec->hasAttr<AtomiccInterfaceAttr>())
+            if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
             for (auto ritem: rec->methods())
                 if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
                 if (Method->getDeclName().isIdentifier()) {
@@ -10885,11 +10884,7 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
            || field->getType()->isPointerType())
               field->setAccess(AS_public);
       }
-  if(Record->hasAttr<AtomiccModuleAttr>() || Record->hasAttr<AtomiccEModuleAttr>()) {
-      //if(Record->hasAttr<AtomiccModuleAttr>())
-          //Record->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;
-      //else
-          //Record->AtomiccAttr = CXXRecordDecl::AtomiccAttr_EModule;
+  if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
               Method->setAccess(AS_public);

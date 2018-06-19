@@ -7950,7 +7950,7 @@ class AtomiccABIInfo : public ABIInfo {
           //STy->dump();
           Decl *decl = STy->getDecl();
           if (auto rec = dyn_cast<CXXRecordDecl>(decl)) {
-            if (rec->hasAttr<AtomiccInterfaceAttr>() || rec->hasAttr<AtomiccEModuleAttr>() || rec->hasAttr<AtomiccModuleAttr>())
+            if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface || rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule || rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module)
                 isAtomiccMethod = true;
           }
       }

@@ -5681,7 +5681,7 @@ printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->ge
     isAtomicc = true;
   }
   if (auto Record = dyn_cast<CXXRecordDecl>(Actions.CurContext))
-  if (Record->hasAttr<AtomiccInterfaceAttr>())
+  if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
     isAtomicc = true;
   // Don't parse attributes unless we have parsed an unparenthesized name.
   if (D.hasName() && !D.getNumTypeObjects())

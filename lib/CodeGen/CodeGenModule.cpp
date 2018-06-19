@@ -3974,7 +3974,7 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     for (auto *I : cast<CXXRecordDecl>(D)->decls())
       if (isa<VarDecl>(I) || isa<CXXRecordDecl>(I))
         EmitTopLevelDecl(I);
-    if (cast<CXXRecordDecl>(D)->hasAttr<AtomiccInterfaceAttr>())
+    if (cast<CXXRecordDecl>(D)->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface && cast<CXXRecordDecl>(D)->isCompleteDefinition())
         getTypes().getCGRecordLayout(cast<CXXRecordDecl>(D));
     break;
     // No code generation needed.
@@ -4159,7 +4159,7 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
         Spec->hasDefinition())
       DebugInfo->completeTemplateDefinition(*Spec);
     if (auto RD = dyn_cast<CXXRecordDecl>(D))
-    if (RD->hasAttr<AtomiccInterfaceAttr>())
+    if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
       getTypes().getCGRecordLayout(RD);
     break;
   }
