@@ -761,8 +761,17 @@ else {  // !isUnion()
     if (!FD->isBitField()) {
       unsigned FieldNo = RL->getLLVMFieldNo(FD);
       std::string fname;
-      if (const NamedDecl *ND = dyn_cast<NamedDecl>(FD))
+      if (const NamedDecl *ND = dyn_cast<NamedDecl>(FD)) {
         fname = ND->getDeclName().getAsString();
+        if (const AtomiccVerilogPortAttr *A = FD->getAttr<AtomiccVerilogPortAttr>()) {
+          if (A->isInput())
+              fname += ":Input";
+          if (A->isOutput())
+              fname += ":Output";
+          if (A->isInout())
+              fname += ":Inout";
+        }
+      }
       if (Idx > FieldNo) {
 printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, __LINE__, Idx, FieldNo, fname.c_str());
       }

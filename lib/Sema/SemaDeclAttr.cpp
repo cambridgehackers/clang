@@ -6095,6 +6095,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case AttributeList::AT_AtomiccSerialize:
     handleSimpleAttribute<AtomiccSerializeAttr>(S, D, Attr);
     break;
+  case AttributeList::AT_AtomiccVerilogPort:
+    handleSimpleAttribute<AtomiccVerilogPortAttr>(S, D, Attr);
+    break;
   case AttributeList::AT_AtomiccConnect:
     handleAtomiccConnectAttr(S, D, Attr);
     break;
