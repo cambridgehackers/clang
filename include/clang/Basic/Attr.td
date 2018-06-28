@@ -553,11 +553,8 @@ def AtomiccWidth : Attr {
 }
 
 def AtomiccVerilogPort : Attr {
-  let Spellings = [Keyword<"__input">, Keyword<"__output">, Keyword<"__inout">];
+  let Spellings = [Keyword<"__input">, Keyword<"__output">, Keyword<"__inout">, Keyword<"__parameter">];
   let Subjects = SubjectList<[Field], ErrorDiag, "ExpectedParameterOrTypedef">;
-  let Accessors = [Accessor<"isInput", [Keyword<"__input">]>,
-                   Accessor<"isOutput", [Keyword<"__output">]>,
-                   Accessor<"isInout", [Keyword<"__inout">]>];
   let Documentation = [Undocumented];
 }
 
