@@ -852,7 +852,7 @@ StmtResult Parser::ParseRuleStatement() {
   std::string RuleName = Tok.getIdentifierInfo()->getName();
   ConsumeToken();
   Actions.StartRuleStmt(RuleLoc);
-  Expr *GuardExpr;
+  Expr *GuardExpr = nullptr;
   if (Tok.is(tok::kw_if)) {
     ConsumeToken();  // eat the 'if'.
     if (Tok.isNot(tok::l_paren)) {
@@ -865,8 +865,6 @@ StmtResult Parser::ParseRuleStatement() {
       return StmtError();
     GuardExpr = Cond.get().second;
   }
-  else // default guard is 'if (true)'
-    GuardExpr = Actions.ActOnCXXBoolLiteral(RuleLoc, tok::kw_true).get();
   StmtResult BodyStmt(ParseStatement(nullptr));
   if (Tok.is(tok::code_completion)) {
     Actions.CodeCompleteAfterIf(getCurScope());

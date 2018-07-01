@@ -1452,12 +1452,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
         thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
   }
 
-  // Remap captured variables using transfrom.paramMap
-  ExprResult transCond = transform.TransformExpr(ConditionExpr);
-  SmallVector<Stmt*, 32> stmtsCond;
-  stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
-  StmtResult transBody = transform.TransformStmt(body);
-
   Expr *paramBlock;
   if (Params.size()) {
   // Make the allocation for the capture value block.
@@ -1498,6 +1492,20 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), 0),
               Context.IntTy, RuleLoc), nullptr, VK_RValue);
 
+  // Remap captured variables using transfrom.paramMap
+  StmtResult transBody = transform.TransformStmt(body);
+  SmallVector<Stmt*, 32> stmtsCond;
+  Expr *guardF = nullptr;
+  if (ConditionExpr) {
+      ExprResult transCond = transform.TransformExpr(ConditionExpr);
+      stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
+      guardF = buildTemplate(*this, Context.BoolTy, Params,
+          new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc));
+  }
+  else
+      guardF = IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.LongTy), 0),
+              Context.LongTy, RuleLoc);
+
   Expr *Args[] = {
       // rule name
       ImpCastExprToType(StringLiteral::Create(Context, Name,
@@ -1508,8 +1516,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
       // captured parameter block
       paramBlock,
       // instantiate captured values into guard function by calling fixupFunction()
-      buildTemplate(*this, Context.BoolTy, Params,
-          new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc)),
+      guardF,
       // instantiate captured values into method function by calling fixupFunction()
       buildTemplate(*this, Context.VoidTy, Params, transBody.get())
   };
