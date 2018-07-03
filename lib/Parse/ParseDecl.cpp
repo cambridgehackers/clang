@@ -3685,6 +3685,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw___input:      // Atomicc
     case tok::kw___output:     // Atomicc
     case tok::kw___inout:      // Atomicc
+    case tok::kw___parameter:  // Atomicc
     case tok::kw___private:
     case tok::kw___global:
     case tok::kw___local:
