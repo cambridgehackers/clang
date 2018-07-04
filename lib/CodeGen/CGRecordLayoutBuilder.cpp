@@ -772,13 +772,21 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
       while (Idx++ < FieldNo)
         Ty->structFieldMap += ',';
       Ty->structFieldMap += fname;
-      if (FD->hasAttrs())
+      std::string params, sep;
+      if (FD->hasAttrs()) {
         for (auto item: FD->getAttrs())
           if (!strcmp(item->getSpelling(), "atomicc_software")) {
             if (softwareItems.length())
               softwareItems += ",";
             softwareItems += fname;
           }
+          else if (auto param = dyn_cast<AtomiccVerilogParamAttr>(item)) {
+              params += sep + param->getParam().str();
+              sep = ";";
+          }
+      }
+      if (params != "")
+          Ty->structFieldMap += "<" + params + ">";
     }
   }
   if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D)) {

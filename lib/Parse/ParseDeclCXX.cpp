@@ -2673,6 +2673,50 @@ printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c
   ExprResult BitfieldSize;
   bool ExpectSemi = true;
 
+//atomicc
+  if (Tok.is(tok::hash)) {
+      ConsumeToken();
+      BalancedDelimiterTracker T(*this, tok::l_paren);
+      if (T.expectAndConsume(diag::err_expected_lparen_after, "verilog parameters", tok::r_paren)) {
+          printf("[%s:%d]badlparen\n", __FUNCTION__, __LINE__);
+      }
+      do {
+        if (Tok.isNot(tok::identifier)) {
+            printf("[%s:%d] ACCCCCCCCCCCCCCCCCCCCCidparmtoken %s\n", __FUNCTION__, __LINE__, Tok.getName());
+        }
+        std::string name = Tok.getIdentifierInfo()->getName();
+        auto ParamLoc = ConsumeToken();
+        std::string valStr = name + ":";
+        if (!TryConsumeToken(tok::equal)) {
+            printf("[%s:%d] ERRRRRR ACCCCCCCCCCCCCCCCCCCCCeqparmtoken %s\n", __FUNCTION__, __LINE__, Tok.getName());
+        }
+        if (isTokenStringLiteral()) {
+            ExprResult itemVal = ParseStringLiteralExpression();
+            if (auto str = dyn_cast<StringLiteral>(itemVal.get())) {
+               valStr += "\"" + str->getString().str() + "\"";
+            }
+        }
+        else {
+            const char *TokStart = Tok.getLiteralData();
+            valStr += std::string(TokStart, TokStart + Tok.getLength());
+            ConsumeToken();
+        }
+        QualType ResTy = Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+             llvm::APInt(Actions.Context.getTypeSize(Actions.Context.getSizeType()),
+             valStr.length()), ArrayType::Normal, /*IndexTypeQuals*/ 0);
+        ArgsVector ArgExprs;
+        ArgExprs.push_back(StringLiteral::Create(Actions.Context, valStr,
+             StringLiteral::Ascii, false, ResTy, ParamLoc));
+        IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_param");
+        DS.getAttributes().addNew(&AttrID, ParamLoc, nullptr, ParamLoc,
+             ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
+      } while (TryConsumeToken(tok::comma));
+      // Match the ')'
+      T.consumeClose();
+      if (T.getCloseLocation().isInvalid()) {
+          printf("[%s:%d]inval\n", __FUNCTION__, __LINE__);
+      }
+  }
   // Parse the first declarator.
   if (ParseCXXMemberDeclaratorBeforeInitializer(
           DeclaratorInfo, VS, BitfieldSize, LateParsedAttrs)) {
