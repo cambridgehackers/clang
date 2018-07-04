@@ -9456,12 +9456,17 @@ void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         std::string PrettySourceValue = Value.toString(10);
         std::string PrettyTargetValue = PrettyPrintInRange(Value, TargetRange);
 
+        bool skip = false;
+        if (auto Ty = dyn_cast<BuiltinType>(T))
+            skip = Ty->atomiccWidth != -1;
+        if (!skip) {
         S.DiagRuntimeBehavior(
             E->getExprLoc(), E,
             S.PDiag(diag::warn_impcast_integer_precision_constant)
                 << PrettySourceValue << PrettyTargetValue << E->getType() << T
                 << E->getSourceRange() << clang::SourceRange(CC));
         return;
+        }
       }
     }
 
