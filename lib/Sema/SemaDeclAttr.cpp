@@ -6094,8 +6094,26 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface;
     break;
   case AttributeList::AT_AtomiccModule:
-    if(auto RD = dyn_cast<CXXRecordDecl>(D))
+    if(auto RD = dyn_cast<CXXRecordDecl>(D)) {
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;
+      auto StartLoc = D->getLocation();
+      BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+      Ty->atomiccWidth = 1;
+      QualType NewTy = QualType(Ty, 0);
+      auto TSI = S.Context.CreateTypeSourceInfo(NewTy);
+      IdentifierInfo *blII = &S.Context.Idents.get("__defaultClock");
+      FieldDecl *clockField = FieldDecl::Create(S.Context, RD, StartLoc, StartLoc, blII, NewTy,
+            TSI, /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
+      clockField->setAccess(AS_public);
+      RD->addDecl(clockField);
+      clockField->markUsed(S.Context);
+      IdentifierInfo *rblII = &S.Context.Idents.get("__defaultnReset");
+      FieldDecl *resetField = FieldDecl::Create(S.Context, RD, StartLoc, StartLoc, rblII, NewTy,
+            TSI, /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
+      resetField->setAccess(AS_public);
+      RD->addDecl(resetField);
+      resetField->markUsed(S.Context);
+    }
     break;
   case AttributeList::AT_AtomiccEModule:
     if(auto RD = dyn_cast<CXXRecordDecl>(D))
