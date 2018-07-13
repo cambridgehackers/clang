@@ -2383,22 +2383,41 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
   }
 }
 
+static int trace_meth;//= 1;
 std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
 {
+static int nesting = 0;
+    nesting++;
     std::string retVal;
     if (auto item = dyn_cast_or_null<MemberExpr>(expr)) {
         std::string base =  methString(Actions, Opt, item->getBase());
+        if (trace_meth) {
+            printf("[%s:%d]nest %d BASE %s\n", __FUNCTION__, __LINE__, nesting, base.c_str());
+            item->getBase()->getType()->dump();
+        }
         if (base != "")
             retVal = base + "$";
         if (auto meth = item->getMemberDecl()) {
-            retVal += meth->getName();
+            std::string mname = meth->getName();
+            if (trace_meth) {
+                printf("[%s:%d]nest %d method %d meth %s\n", __FUNCTION__, __LINE__, nesting, dyn_cast<FunctionDecl>(meth) != nullptr, mname.c_str());
+                meth->getType()->dump();
+            }
+            if (mname == "_") // hack for now...
+                retVal = retVal.substr(0, retVal.length() - 1);
+            else
+                retVal += mname;
             if (auto Method = dyn_cast<FunctionDecl>(meth)) {
-printf("[%s:%d]METHOD %s\n", __FUNCTION__, __LINE__, Method->getName().str().c_str());
-            Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-            Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+                if (trace_meth)
+                    printf("[%s:%d]nest %d METHOD %s, meth %s\n", __FUNCTION__, __LINE__, nesting, Method->getName().str().c_str(), mname.c_str());
+                Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
+                Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
             }
         }
     }
+    if (trace_meth)
+        printf("[%s:%d]nest %d END %s\n", __FUNCTION__, __LINE__, nesting, retVal.c_str());
+    nesting--;
     return retVal;
 }
 /// ParseCXXClassMemberDeclaration - Parse a C++ class member declaration.

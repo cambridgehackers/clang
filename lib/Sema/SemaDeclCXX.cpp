@@ -10859,7 +10859,7 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
               field->setAccess(AS_public);
               std::string lstr = field->getName();
               std::string rstr;
-              printf("[%s:%d] initializer\n", __FUNCTION__, __LINE__);
+              printf("[%s:%d] initializer lstr %s\n", __FUNCTION__, __LINE__, lstr.c_str());
               //cinit->dump();
               if (auto rr = dyn_cast<CXXConstructExpr>(cinit)) {
                   Expr **item2 = rr->getArgs();
