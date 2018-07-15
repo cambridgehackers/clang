@@ -849,7 +849,7 @@ StmtResult Parser::ParseRuleStatement() {
   assert(Tok.is(tok::kw___rule) && "Not a rule stmt!");
   SourceLocation RuleLoc = ConsumeToken();  // eat the 'rule'.
   assert(Tok.is(tok::identifier) && "No rule name!");
-  std::string RuleName = Tok.getIdentifierInfo()->getName();
+  std::string RuleName = "RULE" + Tok.getIdentifierInfo()->getName().str();
   ConsumeToken();
   Actions.StartRuleStmt(RuleLoc);
   Expr *GuardExpr = nullptr;
