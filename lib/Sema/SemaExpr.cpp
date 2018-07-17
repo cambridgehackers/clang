@@ -47,6 +47,8 @@
 using namespace clang;
 using namespace sema;
 
+extern FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params);
+extern Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
 /// \brief Determine whether the use of this declaration is valid, without
 /// emitting diagnostics.
 bool Sema::CanUseDecl(NamedDecl *D, bool TreatUnavailableAsInvalid) {
@@ -5104,6 +5106,26 @@ static void checkDirectCallValidity(Sema &S, const Expr *Fn,
   }
 }
 
+static QualType ccharp, int1type;
+static FunctionDecl *getValidReady(Sema &Actions, SourceLocation OpLoc)
+{
+    static FunctionDecl *ValidReadyDecl;
+    if (!ValidReadyDecl) {
+        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+        Ty->atomiccWidth = 1;
+        int1type = QualType(Ty, 0);
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
+        ValidReadyDecl = getACCFunction(Actions, CLinkageDecl, "__ValidReadyRuntime", int1type, Params);
+    }
+    return ValidReadyDecl;
+}
 /// ActOnCallExpr - Handle a call to Fn with the specified array of arguments.
 /// This provides the location of the left/right parens and a list of comma
 /// locations.
@@ -5115,6 +5137,33 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
   if (Result.isInvalid()) return ExprError();
   Fn = Result.get();
 
+  if (auto item = dyn_cast<UnresolvedLookupExpr>(Fn)) {
+    std::string name = item->getName().getAsString();
+    if (name == "__valid" || name == "__ready") {
+      FunctionDecl *ValidReadyDecl = getValidReady(*this, LParenLoc);
+      for (size_t i = 0, e = ArgExprs.size(); i != e; i++) {
+        if (ArgExprs[i]->getType() == Context.BoundMemberTy) {
+          std::string rstr;
+          Expr *val = ArgExprs[i];
+          while (auto memb = dyn_cast_or_null<MemberExpr>(val)) {
+            if (rstr != "")
+              rstr = "$" + rstr;
+            rstr = memb->getMemberDecl()->getName().str() + rstr;
+            val = memb->getBase();
+            if (auto citem = dyn_cast_or_null<CastExpr>(val))
+              val = citem->getSubExpr();
+          }
+          name += ":" + rstr;
+          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, name,
+              StringLiteral::Ascii, /*Pascal*/ false,
+              Context.getConstantArrayType(Context.CharTy.withConst(),
+              llvm::APInt(32, name.size() + 1), ArrayType::Normal, 0), LParenLoc),
+              ccharp, CK_ArrayToPointerDecay).get();
+          Fn = getACCCallRef(*this, ValidReadyDecl);
+        }
+      }
+    }
+  }
   if (checkArgsForPlaceholders(*this, ArgExprs))
     return ExprError();
 
