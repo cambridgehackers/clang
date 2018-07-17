@@ -5678,7 +5678,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     }
     IdentifierInfo *Id = D.getIdentifier();
     std::string mname = Id->getName().str() + "$" + Tok.getIdentifierInfo()->getName().str();
-printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->getName().str().c_str(), mname.c_str());
+    //printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->getName().str().c_str(), mname.c_str());
     IdentifierInfo &IdNew = Actions.Context.Idents.get(mname);
     D.SetIdentifier(&IdNew, Tok.getLocation());
     ConsumeToken(); // tok::identifier

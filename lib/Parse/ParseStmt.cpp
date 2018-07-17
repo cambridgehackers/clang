@@ -2088,7 +2088,6 @@ assert(false && "not open");
   }
   if (!T.consumeClose())
     {}
-printf("[%s:%d] name %s EXPINV %d METHODKKKKK %p\n", __FUNCTION__, __LINE__, mname.c_str(), Rexp.isInvalid(), mdecl);
   mdecl->setIsUsed();
   mdecl->addAttr(::new (mdecl->getASTContext()) UsedAttr(mdecl->getLocStart(), mdecl->getASTContext(), 0));
   Actions.MarkFunctionReferenced(mdecl->getLocation(), mdecl, true);
