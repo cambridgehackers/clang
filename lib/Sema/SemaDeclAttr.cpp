@@ -3525,7 +3525,6 @@ static void handleAtomiccWidthAttr(Sema &S, Decl *D,
 
   unsigned DestWidth = 9;
   if (!E->isValueDependent()) {
-//E->isTypeDependent() ||
     llvm::APSInt itemWidth(32);
     if (E->isIntegerConstantExpr(itemWidth, S.Context)) {
       DestWidth = itemWidth.getZExtValue();
@@ -3536,7 +3535,6 @@ static void handleAtomiccWidthAttr(Sema &S, Decl *D,
     Ty->atomiccWidth = DestWidth;
     QualType NewTy = QualType(Ty, 0);
 
-printf("[%s:%d] WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW width %d\n", __FUNCTION__, __LINE__, (int) DestWidth);
     // Install the new type.
     if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(D))
       TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
@@ -3553,11 +3551,11 @@ printf("[%s:%d] WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW width %d\n", __FUNCTION__, __LINE
                Attr.getAttributeSpellingListIndex()));
   }
   else {// Save dependent expressions in the AST to be instantiated.
-printf("[%s:%d] VVVVVVVVVVVAAAAAAAAALLLLLLLLUEDEP\n", __FUNCTION__, __LINE__);
-E->dump();
-      D->addAttr(::new (S.Context) AtomiccWidthAttr(TmpAttr));
-D->dump();
-}
+    printf("[%s:%d] VVVVVVVVVVVAAAAAAAAALLLLLLLLUEDEP\n", __FUNCTION__, __LINE__);
+    E->dump();
+    D->addAttr(::new (S.Context) AtomiccWidthAttr(TmpAttr));
+    D->dump();
+  }
 }
 
 static void handleAtomiccConnectAttr(Sema &S, Decl *D, const AttributeList &Attr) {

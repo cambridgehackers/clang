@@ -5153,11 +5153,11 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
             if (auto citem = dyn_cast_or_null<CastExpr>(val))
               val = citem->getSubExpr();
           }
-          name += ":" + rstr;
-          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, name,
+          rstr += (name == "__valid" ? "__ENA" : "__RDY");
+          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
               StringLiteral::Ascii, /*Pascal*/ false,
               Context.getConstantArrayType(Context.CharTy.withConst(),
-              llvm::APInt(32, name.size() + 1), ArrayType::Normal, 0), LParenLoc),
+              llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
               ccharp, CK_ArrayToPointerDecay).get();
           Fn = getACCCallRef(*this, ValidReadyDecl);
         }

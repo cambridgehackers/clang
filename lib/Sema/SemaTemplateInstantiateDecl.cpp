@@ -178,9 +178,7 @@ static void instantiateDependentAtomiccWidthAttr(
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(attr->getWidth(), TemplateArgs);
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
   if (!Result.isInvalid()) {
-#if 1
   Expr *E = Result.getAs<Expr>();
   QualType T;
   if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
@@ -203,7 +201,6 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
     BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
     Ty->atomiccWidth = DestWidth;
     QualType NewTy = QualType(Ty, 0);
-printf("[%s:%d] WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW width %d\n", __FUNCTION__, __LINE__, (int) DestWidth);
     // Install the new type.
     if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
       TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
@@ -216,12 +213,9 @@ printf("[%s:%d] WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW width %d\n", __FUNCTION__, __LINE
         assert(0 && "WASNOTADECLARATORDECL");
     }
   }
-#endif
     New->addAttr(::new (S.Context)
         AtomiccWidthAttr(attr->getRange(), S.Context, E, attr->getSpellingListIndex()));
   }
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-New->dump();
 }
 
 static void instantiateDependentAllocAlignAttr(
