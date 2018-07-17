@@ -500,8 +500,6 @@ public:
     return EmitNullValue(E->getType());
   }
   Value *VisitExplicitCastExpr(ExplicitCastExpr *E) {
-printf("[%s:%d] scalarBRBRBIIT %d\n", __FUNCTION__, __LINE__, E->getCastKind());
-E->dump();
     CGF.CGM.EmitExplicitCastExprType(E, &CGF);
     return VisitCastExpr(E);
   }

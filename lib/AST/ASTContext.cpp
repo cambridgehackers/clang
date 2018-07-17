@@ -1877,11 +1877,9 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     AlignIsRequired = RD->hasAttr<AlignedAttr>();
     if (const auto *rec = dyn_cast<CXXRecordDecl>(RD))
     if (rec->hasAttr<AtomiccSerializeAttr>()) {
-printf("[%s:%d]RRRRRRRbefore %d\n", __FUNCTION__, __LINE__, (int)Width);
         for (const Decl *field : rec->fields())
           if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType()))
             Width = Ty->atomiccWidth;
-printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR %d\n", __FUNCTION__, __LINE__, (int)Width);
     }
     break;
   }
