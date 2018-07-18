@@ -6989,10 +6989,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
         Ty->atomiccWidth = DestWidth;
         type = QualType(Ty, 0);
       }
-      else {
-        printf("[%s:%d] VVVVVVVVVVVAAAAAAAAALLLLLLLLUEDEP\n", __FUNCTION__, __LINE__);
-        E->dump();
-      }
       attr.setUsedAsTypeAttr();
       break;
       }

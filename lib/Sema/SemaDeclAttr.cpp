@@ -3551,10 +3551,7 @@ static void handleAtomiccWidthAttr(Sema &S, Decl *D,
                Attr.getAttributeSpellingListIndex()));
   }
   else {// Save dependent expressions in the AST to be instantiated.
-    printf("[%s:%d] VVVVVVVVVVVAAAAAAAAALLLLLLLLUEDEP\n", __FUNCTION__, __LINE__);
-    E->dump();
     D->addAttr(::new (S.Context) AtomiccWidthAttr(TmpAttr));
-    D->dump();
   }
 }
 
