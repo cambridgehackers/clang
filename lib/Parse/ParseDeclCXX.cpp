@@ -2403,7 +2403,7 @@ static int nesting = 0;
                 printf("[%s:%d]nest %d method %d meth %s\n", __FUNCTION__, __LINE__, nesting, dyn_cast<FunctionDecl>(meth) != nullptr, mname.c_str());
                 meth->getType()->dump();
             }
-            if (mname == "_") // hack for now...
+            if (nesting != 1 && mname == "_") // hack for now...
                 retVal = retVal.substr(0, retVal.length() - 1);
             else
                 retVal += mname;
