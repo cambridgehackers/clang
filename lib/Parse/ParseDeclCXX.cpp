@@ -2556,7 +2556,8 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     return ParseCXXClassMemberDeclaration(AS, AccessAttrs,
                                           TemplateInfo, TemplateDiags);
   }
-  if (Tok.is(tok::kw___connect)) {
+  if (Tok.is(tok::kw___connect) || Tok.is(tok::kw___forward)) {
+    bool isConnect = Tok.is(tok::kw___connect);
     auto ConnectLoc = ConsumeToken();
     SmallVector<QualType, 8> FArgs;
     FunctionProtoType::ExtProtoInfo EPI;
@@ -2573,6 +2574,8 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     Actions.PopDeclContext();
     std::string lstr = methString(Actions, Actions.getLangOpts(), LHS.get());
     std::string rstr = methString(Actions, Actions.getLangOpts(), RHS.get());
+    if (!isConnect)
+        lstr = "FORWARD;" + lstr;
 printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
     thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
         Actions.Context, lstr + ":" + rstr, 0));
