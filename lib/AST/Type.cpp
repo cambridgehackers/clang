@@ -2536,7 +2536,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Short:
     return "short";
   case Int:
-    return atomiccWidth == -1 ? "int" : "int[[" + llvm::utostr(atomiccWidth) + "]]";
+    return atomiccWidth == -1 ? "int" : ("int[[" + llvm::utostr(atomiccWidth) + "]]");
   case Long:
     return "long";
   case LongLong:
@@ -2548,7 +2548,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case UShort:
     return "unsigned short";
   case UInt:
-    return "unsigned int";
+    return atomiccWidth == -1 ? "unsigned int" : ("uint[[" + llvm::utostr(atomiccWidth) + "]]");
   case ULong:
     return "unsigned long";
   case ULongLong:

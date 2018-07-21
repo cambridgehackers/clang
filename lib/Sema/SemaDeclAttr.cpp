@@ -3531,7 +3531,7 @@ static void handleAtomiccWidthAttr(Sema &S, Decl *D,
     }
     else
       printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-    BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+    BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(T->isUnsignedIntegerType() ? BuiltinType::UInt : BuiltinType::Int);
     Ty->atomiccWidth = DestWidth;
     QualType NewTy = QualType(Ty, 0);
 
@@ -6092,7 +6092,7 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     if(auto RD = dyn_cast<CXXRecordDecl>(D)) {
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;
       auto StartLoc = D->getLocation();
-      BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+      BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
       Ty->atomiccWidth = 1;
       QualType NewTy = QualType(Ty, 0);
       auto TSI = S.Context.CreateTypeSourceInfo(NewTy);

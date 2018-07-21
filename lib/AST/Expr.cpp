@@ -747,6 +747,13 @@ IntegerLiteral::IntegerLiteral(const ASTContext &C, const llvm::APInt &V,
 IntegerLiteral *
 IntegerLiteral::Create(const ASTContext &C, const llvm::APInt &V,
                        QualType type, SourceLocation l) {
+  if (auto ty = dyn_cast<BuiltinType>(type))
+  if (ty->atomiccWidth != -1 && ty->isUnsignedIntegerType()) {
+      uint64_t val = V.getZExtValue();
+      BuiltinType *BTy = new (C, TypeAlignment) BuiltinType(BuiltinType::UInt);
+      BTy->atomiccWidth = ty->atomiccWidth + 1;
+      return new (C) IntegerLiteral(C, llvm::APInt(V.getBitWidth() + 1, val), QualType(BTy, 0), l);
+  }
   return new (C) IntegerLiteral(C, V, type, l);
 }
 

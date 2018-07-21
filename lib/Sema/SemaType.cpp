@@ -6985,7 +6985,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
         }
         else
           printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-        BuiltinType *Ty = new (state.getSema().Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+        BuiltinType *Ty = new (state.getSema().Context, TypeAlignment) BuiltinType(type->isUnsignedIntegerType() ? BuiltinType::UInt : BuiltinType::Int);
         Ty->atomiccWidth = DestWidth;
         type = QualType(Ty, 0);
       }

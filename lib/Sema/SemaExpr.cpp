@@ -3405,6 +3405,17 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
           else if (AllowUnsigned)
             Ty = Context.UnsignedIntTy;
           Width = IntSize;
+#if 1
+          BuiltinType::Kind tname = BuiltinType::UInt;
+          Width = ResultVal.getActiveBits();
+          if (ResultVal.isNegative()) {
+              tname = BuiltinType::Int;
+              Width = ResultVal.getMinSignedBits();
+          }
+          BuiltinType *BTy = new (Context, TypeAlignment) BuiltinType(tname);
+          BTy->atomiccWidth = Width;
+          Ty = QualType(BTy, 0);
+#endif
         }
       }
 
@@ -5112,7 +5123,7 @@ static FunctionDecl *getValidReady(Sema &Actions, SourceLocation OpLoc)
     static FunctionDecl *ValidReadyDecl;
     if (!ValidReadyDecl) {
         ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
-        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
         Ty->atomiccWidth = 1;
         int1type = QualType(Ty, 0);
         DeclContext *Parent = Actions.Context.getTranslationUnitDecl();

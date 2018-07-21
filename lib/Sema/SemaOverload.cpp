@@ -423,6 +423,7 @@ StandardConversionSequence::getNarrowingKind(ASTContext &Ctx,
         // Such conversions on variables are always narrowing.
         return NK_Variable_Narrowing;
       }
+//printf("[%s:%d] FROM signed %d/width %d TO %d/%d\n", __FUNCTION__, __LINE__, FromSigned, FromWidth, ToSigned, ToWidth);
       bool Narrowing = false;
       if (FromWidth < ToWidth) {
         // Negative -> unsigned is narrowing. Otherwise, more bits is never
@@ -432,13 +433,16 @@ StandardConversionSequence::getNarrowingKind(ASTContext &Ctx,
       } else {
         // Add a bit to the InitializerValue so we don't have to worry about
         // signed vs. unsigned comparisons.
-        InitializerValue = InitializerValue.extend(
-          InitializerValue.getBitWidth() + 1);
+        if (!FromSigned && ToSigned)
+            InitializerValue = InitializerValue.extend(
+              InitializerValue.getBitWidth() + 1);
         // Convert the initializer to and from the target width and signed-ness.
         llvm::APSInt ConvertedValue = InitializerValue;
-        ConvertedValue = ConvertedValue.trunc(ToWidth);
+        if (ToWidth < InitializerValue.getBitWidth())
+            ConvertedValue = ConvertedValue.trunc(ToWidth);
         ConvertedValue.setIsSigned(ToSigned);
-        ConvertedValue = ConvertedValue.extend(InitializerValue.getBitWidth());
+        if (InitializerValue.getBitWidth() > ConvertedValue.getBitWidth())
+            ConvertedValue = ConvertedValue.extend(InitializerValue.getBitWidth());
         ConvertedValue.setIsSigned(InitializerValue.isSigned());
         // If the result is different, this was a narrowing conversion.
         if (ConvertedValue != InitializerValue)

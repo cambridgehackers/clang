@@ -10831,7 +10831,7 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
                const_cast<BuiltinType *>(Ty)->atomiccWidth = rsize;
       }
       IdentifierInfo *blII = &Context.Idents.get("dummy");
-      BuiltinType *Ty = new (Context, TypeAlignment) BuiltinType(BuiltinType::Int);
+      BuiltinType *Ty = new (Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
       Ty->atomiccWidth = rsize;
       QualType NewTy = QualType(Ty, 0);
       FieldDecl *dummyField = FieldDecl::Create(Context, Record, StartLoc, StartLoc, blII, NewTy,
