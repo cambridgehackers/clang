@@ -2576,7 +2576,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     std::string rstr = methString(Actions, Actions.getLangOpts(), RHS.get());
     if (!isConnect)
         lstr = "FORWARD;" + lstr;
-printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
+    //printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
     thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
         Actions.Context, lstr + ":" + rstr, 0));
     if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
