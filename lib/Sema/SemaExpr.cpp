@@ -3408,6 +3408,8 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
 #if 1
           BuiltinType::Kind tname = BuiltinType::UInt;
           Width = ResultVal.getActiveBits();
+          if (Width == 0)
+              Width = 1;
           if (ResultVal.isNegative()) {
               tname = BuiltinType::Int;
               Width = ResultVal.getMinSignedBits();
