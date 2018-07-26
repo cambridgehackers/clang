@@ -6173,6 +6173,9 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
     CharSourceRange SpecRange = getSpecifierRange(StartSpecifier, SpecifierLen);
 
     if (IntendedTy == ExprTy && !ShouldNotPrintDirectly) {
+#if 1 // Atomicc
+printf("[%s:%d]ignore: warn_format\n", __FUNCTION__, __LINE__);
+#else
       unsigned diag = diag::warn_format_conversion_argument_type_mismatch;
       if (match == analyze_format_string::ArgType::NoMatchPedantic) {
         diag = diag::warn_format_conversion_argument_type_mismatch_pedantic;
@@ -6185,6 +6188,7 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
                            E->getLocStart(),
                            /*IsStringLocation*/ false, SpecRange,
                            FixItHint::CreateReplacement(SpecRange, os.str()));
+#endif
     } else {
       // The canonical type for formatting this value is different from the
       // actual type of the expression. (This occurs, for example, with Darwin's

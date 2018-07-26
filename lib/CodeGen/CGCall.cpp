@@ -2026,7 +2026,12 @@ void CodeGenModule::ConstructAttributeList(
       // This is different from indirect *not* byval, where the object
       // exists already, and the align attribute is purely
       // informative.
-      assert(!Align.isZero());
+      //assert(!Align.isZero());
+      if(Align.isZero()) {
+printf("[%s:%d] CALLALIGNISZERO INDIRECT argno %d\n", __FUNCTION__, __LINE__, ArgNo);
+TargetDecl->dump();
+ParamType->dump();
+      }
 
       // For now, only add this when we have a byval argument.
       // TODO: be less lazy about updating test cases.
