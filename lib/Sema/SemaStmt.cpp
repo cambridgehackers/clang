@@ -1344,7 +1344,7 @@ static FunctionDecl *getABR(Sema &Actions, SourceLocation OpLoc)
     return ABRDecl;
 }
 
-static Expr *buildTemplate(Sema &Actions, QualType RetType,
+static Expr *buildTemplate(Sema &Actions, std::string Name, QualType RetType,
     SmallVector<clang::ParmVarDecl *, 16> &Params, Stmt *Body)
 {
   static int counter;
@@ -1374,7 +1374,7 @@ static Expr *buildTemplate(Sema &Actions, QualType RetType,
        RuleLoc, RuleLoc, ParamInfo), attrs, RuleLoc);
   TypeSourceInfo *TSI = Actions.GetTypeForDeclaratorCast(ParamInfo, Actions.Context.LongTy);
   auto DC = Actions.getCurFunctionDecl()->getParent();
-  IdentifierInfo *IFn = &Actions.Context.Idents.get("ruleTemplate" + llvm::utostr(counter++));
+  IdentifierInfo *IFn = &Actions.Context.Idents.get("ruleTemplate" + Name + llvm::utostr(counter++));
   DeclarationNameInfo NameInfo(IFn, RuleLoc);
   CXXMethodDecl *Method = CXXMethodDecl::Create(Actions.Context, cast<CXXRecordDecl>(DC),
       RuleLoc, NameInfo, FType, Actions.Context.CreateTypeSourceInfo(FType), SC_None, false, false, RuleLoc);
@@ -1499,7 +1499,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
   if (ConditionExpr) {
       ExprResult transCond = transform.TransformExpr(ConditionExpr);
       stmtsCond.push_back(new (Context) ReturnStmt(RuleLoc, transCond.get(), nullptr));
-      guardF = buildTemplate(*this, Context.BoolTy, Params,
+      guardF = buildTemplate(*this, Name, Context.BoolTy, Params,
           new (Context) class CompoundStmt(Context, stmtsCond, RuleLoc, RuleLoc));
   }
   else
@@ -1518,7 +1518,7 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
       // instantiate captured values into guard function by calling fixupFunction()
       guardF,
       // instantiate captured values into method function by calling fixupFunction()
-      buildTemplate(*this, Context.VoidTy, Params, transBody.get())
+      buildTemplate(*this, Name, Context.VoidTy, Params, transBody.get())
   };
   // Call runtime to add guard/method function into list of pairs to be processed by backend
   TopStmts.push_back(new (Context) CallExpr(Context, 
