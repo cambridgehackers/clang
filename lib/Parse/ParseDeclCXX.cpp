@@ -2390,23 +2390,22 @@ static int nesting = 0;
     nesting++;
     std::string retVal;
     if (auto item = dyn_cast_or_null<MemberExpr>(expr)) {
-        std::string base =  methString(Actions, Opt, item->getBase());
+        retVal =  methString(Actions, Opt, item->getBase());
         if (trace_meth) {
-            printf("[%s:%d]nest %d BASE %s\n", __FUNCTION__, __LINE__, nesting, base.c_str());
+            printf("[%s:%d]nest %d BASE %s\n", __FUNCTION__, __LINE__, nesting, retVal.c_str());
             item->getBase()->getType()->dump();
         }
-        if (base != "")
-            retVal = base + "$";
         if (auto meth = item->getMemberDecl()) {
             std::string mname = meth->getName();
             if (trace_meth) {
                 printf("[%s:%d]nest %d method %d meth %s\n", __FUNCTION__, __LINE__, nesting, dyn_cast<FunctionDecl>(meth) != nullptr, mname.c_str());
                 meth->getType()->dump();
             }
-            if (nesting != 1 && mname == "_") // hack for now...
-                retVal = retVal.substr(0, retVal.length() - 1);
-            else
+            if (nesting == 1 || mname != "_") {
+                if (retVal != "")
+                    retVal += "$";
                 retVal += mname;
+            }
             if (auto Method = dyn_cast<FunctionDecl>(meth)) {
                 if (trace_meth)
                     printf("[%s:%d]nest %d METHOD %s, meth %s\n", __FUNCTION__, __LINE__, nesting, Method->getName().str().c_str(), mname.c_str());
