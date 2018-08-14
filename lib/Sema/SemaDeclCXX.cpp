@@ -45,6 +45,7 @@
 
 using namespace clang;
 static int trace_hoist;//=1;
+extern std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr);
 
 QualType getSimpleType(QualType ftype)
 {
@@ -10858,23 +10859,8 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
           if (Expr *cinit = field->getInClassInitializer()) {
               field->setAccess(AS_public);
               std::string lstr = field->getName();
-              std::string rstr;
               printf("[%s:%d] initializer lstr %s\n", __FUNCTION__, __LINE__, lstr.c_str());
-              //cinit->dump();
-              if (auto rr = dyn_cast<CXXConstructExpr>(cinit)) {
-                  Expr **item2 = rr->getArgs();
-                  if (auto ss = *item2++) {
-                      printf("[%s:%d]item2arg\n", __FUNCTION__, __LINE__);
-                      cinit = ss;
-                  }
-              }
-              cinit = cinit->IgnoreParenImpCasts();
-              while (auto memb = dyn_cast_or_null<MemberExpr>(cinit)) {
-                  if (rstr != "")
-                      rstr = "$" + rstr;
-                  rstr = memb->getMemberDecl()->getName().str() + rstr;
-                  cinit = memb->getBase();
-              }
+              std::string rstr = methString(*this, getLangOpts(), cinit);
               if (trace_hoist)
               printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
               Record->addAttr(::new (Context) AtomiccConnectAttr(StartLoc, Context, lstr + ":" + rstr, 0));

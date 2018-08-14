@@ -26,6 +26,7 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/SmallString.h"
+#include "clang/AST/ExprCXX.h"    // CXXConstructExpr for methString
 
 using namespace clang;
 
@@ -2389,6 +2390,14 @@ std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
 static int nesting = 0;
     nesting++;
     std::string retVal;
+    if (auto rr = dyn_cast<CXXConstructExpr>(expr)) {
+        Expr **item2 = rr->getArgs();
+        if (auto ss = *item2++) {
+            printf("[%s:%d]item2arg\n", __FUNCTION__, __LINE__);
+            expr = ss;
+        }
+    }
+    expr = expr->IgnoreParenImpCasts();
     if (auto item = dyn_cast_or_null<MemberExpr>(expr)) {
         retVal =  methString(Actions, Opt, item->getBase());
         if (trace_meth) {
@@ -2555,8 +2564,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     return ParseCXXClassMemberDeclaration(AS, AccessAttrs,
                                           TemplateInfo, TemplateDiags);
   }
-  if (Tok.is(tok::kw___connect) || Tok.is(tok::kw___forward)) {
-    bool isConnect = Tok.is(tok::kw___connect);
+  if (Tok.is(tok::kw___connect)) {
     auto ConnectLoc = ConsumeToken();
     SmallVector<QualType, 8> FArgs;
     FunctionProtoType::ExtProtoInfo EPI;
@@ -2573,8 +2581,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     Actions.PopDeclContext();
     std::string lstr = methString(Actions, Actions.getLangOpts(), LHS.get());
     std::string rstr = methString(Actions, Actions.getLangOpts(), RHS.get());
-    if (!isConnect)
-        lstr = "FORWARD;" + lstr;
+    lstr = "CONNECT;" + lstr;
     //printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
     thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
         Actions.Context, lstr + ":" + rstr, 0));
