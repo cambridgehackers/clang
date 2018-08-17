@@ -187,6 +187,13 @@ static void instantiateDependentAtomiccWidthAttr(
     T = VD->getType();
   else
     llvm_unreachable("Unknown decl type for atomicc_width");
+  if (auto AT = dyn_cast<AttributedType>(T))
+      T = AT->getModifiedType();
+  const FunctionProtoType *FT = nullptr;
+  if ((FT = dyn_cast<FunctionProtoType>(T))) {
+    printf("[%s:%d] atomicc_width functiontype numparam %d\n", __FUNCTION__, __LINE__, FT->getNumParams());
+    T = FT->getReturnType();
+  }
   if (!T->isIntegerType()) {
     printf("[%s:%d] atomicc_width not integer type\n", __FUNCTION__, __LINE__);
   }
@@ -201,6 +208,8 @@ static void instantiateDependentAtomiccWidthAttr(
     BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(T->isUnsignedIntegerType() ? BuiltinType::UInt : BuiltinType::Int);
     Ty->atomiccWidth = DestWidth;
     QualType NewTy = QualType(Ty, 0);
+    if (FT)
+      NewTy = S.Context.getFunctionType(NewTy, FT->getParamTypes(), FT->getExtProtoInfo());
     // Install the new type.
     if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
       TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);

@@ -10859,7 +10859,6 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
           if (Expr *cinit = field->getInClassInitializer()) {
               field->setAccess(AS_public);
               std::string lstr = field->getName();
-              printf("[%s:%d] initializer lstr %s\n", __FUNCTION__, __LINE__, lstr.c_str());
               std::string rstr = methString(*this, getLangOpts(), cinit);
               if (trace_hoist)
               printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
