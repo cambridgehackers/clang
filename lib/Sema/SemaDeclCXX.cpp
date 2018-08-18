@@ -40,12 +40,17 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/CommandLine.h"
 #include <map>
 #include <set>
 
 using namespace clang;
-static int trace_hoist;//=1;
 extern std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr);
+
+static llvm::cl::opt<bool>
+    traceDeclaration("dtrace", llvm::cl::Optional, llvm::cl::desc("trace declaration creation"));
+static llvm::cl::opt<bool>
+    trace_hoist("htrace", llvm::cl::Optional, llvm::cl::desc("trace hoist"));
 
 QualType getSimpleType(QualType ftype)
 {
@@ -10807,8 +10812,10 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
 if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
   auto StartLoc = Record->getLocStart();
   if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
-if (trace_hoist)
-printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+      if (traceDeclaration) {
+          printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+          Record->dump();
+      }
       Consumer.HandleTopLevelDecl(DeclGroupRef(Record));
   }
   else if(Record->hasAttr<AtomiccSerializeAttr>()) {
@@ -10870,6 +10877,10 @@ printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str()
               field->setAccess(AS_public);
       }
   if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+      if (traceDeclaration) {
+          printf("[%s:%d] E/MODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+          Record->dump();
+      }
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
               Method->setAccess(AS_public);

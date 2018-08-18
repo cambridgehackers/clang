@@ -2046,6 +2046,14 @@ TemplateDeclInstantiator::VisitCXXMethodDecl(CXXMethodDecl *D,
                                        Conversion->getLocEnd());
   } else {
     StorageClass SC = D->isStatic() ? SC_Static : SC_None;
+    if (D->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)  {
+      const FunctionProtoType *NewFunc = TInfo->getType()->castAs<FunctionProtoType>();
+      SmallVector<QualType, 16> ArgTypes;
+      for (auto item: Params)
+        ArgTypes.push_back(item->getType());
+      T = SemaRef.Context.getFunctionType(NewFunc->getReturnType(), ArgTypes, NewFunc->getExtProtoInfo());
+      TInfo = SemaRef.Context.CreateTypeSourceInfo(T);
+    }
     Method = CXXMethodDecl::Create(SemaRef.Context, Record,
                                    StartLoc, NameInfo, T, TInfo,
                                    SC, D->isInlineSpecified(),
