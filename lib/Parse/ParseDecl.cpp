@@ -2858,6 +2858,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
   // We use Sema's policy to get bool macros right.
   PrintingPolicy Policy = Actions.getPrintingPolicy();
   while (1) {
+    bool skipConsume = false;
     bool isInvalid = false;
     bool isStorageClass = false;
     const char *PrevSpec = nullptr;
@@ -3487,6 +3488,31 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       isInvalid = DS.SetTypeSpecType(DeclSpec::TST_int, Loc, PrevSpec,
                                      DiagID, Policy);
       break;
+    case tok::kw___int://JCAJCAjca
+    case tok::kw___uint: {
+      if (Tok.getKind() == tok::kw___uint)
+         isInvalid = DS.SetTypeSpecSign(DeclSpec::TSS_unsigned, Loc, PrevSpec, DiagID);
+      if (NextToken().is(tok::l_paren)) {
+        ConsumeToken(); // Consume the __int/__uint identifier.
+        BalancedDelimiterTracker T(*this, tok::l_paren);
+        if (T.consumeOpen()) {
+          assert(false && "Not a left paren?");
+          return;
+        }
+        ExprResult Result = ParseExpression();
+        T.consumeClose();
+        skipConsume = true;
+        DS.dsAtomiccWidth = Result.get();
+      }
+      else {
+        printf("[%s:%d]MISSING__uintPAREN\n", __FUNCTION__, __LINE__);
+        exit(-1);
+      }
+      if (!isInvalid)
+      isInvalid = DS.SetTypeSpecType(DeclSpec::TST_int, Loc, PrevSpec,
+                                     DiagID, Policy);
+      break;
+      }
     case tok::kw___int128:
       isInvalid = DS.SetTypeSpecType(DeclSpec::TST_int128, Loc, PrevSpec,
                                      DiagID, Policy);
@@ -3740,7 +3766,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     }
 
     DS.SetRangeEnd(Tok.getLocation());
-    if (DiagID != diag::err_bool_redeclaration)
+    if (!skipConsume && DiagID != diag::err_bool_redeclaration)
       ConsumeToken();
 
     AttrsLastTime = false;
@@ -4507,6 +4533,8 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw_char16_t:
   case tok::kw_char32_t:
   case tok::kw_int:
+  case tok::kw___int:
+  case tok::kw___uint:
   case tok::kw_half:
   case tok::kw_float:
   case tok::kw_double:
@@ -4582,6 +4610,8 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw_char16_t:
   case tok::kw_char32_t:
   case tok::kw_int:
+  case tok::kw___int:
+  case tok::kw___uint:
   case tok::kw_half:
   case tok::kw_float:
   case tok::kw_double:
@@ -4738,6 +4768,8 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_char32_t:
 
   case tok::kw_int:
+  case tok::kw___int:
+  case tok::kw___uint:
   case tok::kw_half:
   case tok::kw_float:
   case tok::kw_double:

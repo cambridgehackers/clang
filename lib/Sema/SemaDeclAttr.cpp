@@ -3502,59 +3502,6 @@ void Sema::AddAlignValueAttr(SourceRange AttrRange, Decl *D, Expr *E,
   D->addAttr(::new (Context) AlignValueAttr(TmpAttr));
 }
 
-static void handleAtomiccWidthAttr(Sema &S, Decl *D,
-                                 const AttributeList &Attr) {
-  Expr *E = Attr.getArgAsExpr(0);
-  AtomiccWidthAttr TmpAttr(Attr.getRange(), S.Context, E, Attr.getAttributeSpellingListIndex());
-  //SourceLocation AttrLoc = Attr.getRange().getBegin();
-
-  QualType T;
-  if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(D))
-    T = TD->getUnderlyingType();
-  else if (ValueDecl *VD = dyn_cast<ValueDecl>(D))
-    T = VD->getType();
-  else
-    llvm_unreachable("Unknown decl type for atomicc_width");
-
-  if (!T->isIntegerType()) {
-    printf("[%s:%d] atomicc_width not integer type\n", __FUNCTION__, __LINE__);
-    //Diag(AttrLoc, diag::warn_attribute_pointer_or_reference_only)
-      //<< &TmpAttr /*TmpAttr.getName()*/ << T << D->getSourceRange();
-    //return;
-  }
-
-  unsigned DestWidth = 9;
-  if (!E->isValueDependent()) {
-    llvm::APSInt itemWidth(32);
-    if (E->isIntegerConstantExpr(itemWidth, S.Context)) {
-      DestWidth = itemWidth.getZExtValue();
-    }
-    else
-      printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-    BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(T->isUnsignedIntegerType() ? BuiltinType::UInt : BuiltinType::Int);
-    Ty->atomiccWidth = DestWidth;
-    QualType NewTy = QualType(Ty, 0);
-
-    // Install the new type.
-    if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(D))
-      TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
-    else if (auto DD = dyn_cast<DeclaratorDecl>(D)) {
-        TypeSourceInfo *TSI = DD->getTypeSourceInfo();
-        TSI->overrideType(NewTy); // ???????????????????????????????????
-        cast<ValueDecl>(D)->setType(NewTy);
-    }
-    else {
-        assert(0 && "WASNOTADECLARATORDECL");
-    }
-    D->addAttr(::new (S.Context)
-               AtomiccWidthAttr(Attr.getRange(), S.Context, E,
-               Attr.getAttributeSpellingListIndex()));
-  }
-  else {// Save dependent expressions in the AST to be instantiated.
-    D->addAttr(::new (S.Context) AtomiccWidthAttr(TmpAttr));
-  }
-}
-
 static void handleAtomiccConnectAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // Make sure that there is a string literal as the annotation's single
   // argument.
@@ -6080,9 +6027,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_AllocSize:
     handleAllocSizeAttr(S, D, Attr);
-    break;
-  case AttributeList::AT_AtomiccWidth:
-    handleAtomiccWidthAttr(S, D, Attr);
     break;
   case AttributeList::AT_AtomiccInterface:
     if(auto RD = dyn_cast<CXXRecordDecl>(D))

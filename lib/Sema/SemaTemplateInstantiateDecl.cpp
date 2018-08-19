@@ -171,62 +171,6 @@ static void instantiateDependentAlignValueAttr(
                         Aligned->getSpellingListIndex());
 }
 
-static void instantiateDependentAtomiccWidthAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const AtomiccWidthAttr *attr, Decl *New) {
-  // The alignment expression is a constant expression.
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(attr->getWidth(), TemplateArgs);
-  if (!Result.isInvalid()) {
-  Expr *E = Result.getAs<Expr>();
-  QualType T;
-  if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
-    T = TD->getUnderlyingType();
-  else if (ValueDecl *VD = dyn_cast<ValueDecl>(New))
-    T = VD->getType();
-  else
-    llvm_unreachable("Unknown decl type for atomicc_width");
-  if (auto AT = dyn_cast<AttributedType>(T))
-      T = AT->getModifiedType();
-  const FunctionProtoType *FT = nullptr;
-  if ((FT = dyn_cast<FunctionProtoType>(T))) {
-    printf("[%s:%d] atomicc_width functiontype numparam %d\n", __FUNCTION__, __LINE__, FT->getNumParams());
-    T = FT->getReturnType();
-  }
-  if (!T->isIntegerType()) {
-    printf("[%s:%d] atomicc_width not integer type\n", __FUNCTION__, __LINE__);
-  }
-  unsigned DestWidth = 9;
-  if (!E->isValueDependent()) {
-    llvm::APSInt itemWidth(32);
-    if (E->isIntegerConstantExpr(itemWidth, S.Context)) {
-      DestWidth = itemWidth.getZExtValue();
-    }
-    else
-      printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-    BuiltinType *Ty = new (S.Context, TypeAlignment) BuiltinType(T->isUnsignedIntegerType() ? BuiltinType::UInt : BuiltinType::Int);
-    Ty->atomiccWidth = DestWidth;
-    QualType NewTy = QualType(Ty, 0);
-    if (FT)
-      NewTy = S.Context.getFunctionType(NewTy, FT->getParamTypes(), FT->getExtProtoInfo());
-    // Install the new type.
-    if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
-      TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
-    else if (auto DD = dyn_cast<DeclaratorDecl>(New)) {
-        TypeSourceInfo *TSI = DD->getTypeSourceInfo();
-        TSI->overrideType(NewTy); // ???????????????????????????????????
-        cast<ValueDecl>(New)->setType(NewTy);
-    }
-    else {
-        assert(0 && "WASNOTADECLARATORDECL");
-    }
-  }
-    New->addAttr(::new (S.Context)
-        AtomiccWidthAttr(attr->getRange(), S.Context, E, attr->getSpellingListIndex()));
-  }
-}
-
 static void instantiateDependentAllocAlignAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const AllocAlignAttr *Align, Decl *New) {
@@ -431,6 +375,60 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                             const Decl *Tmpl, Decl *New,
                             LateInstantiatedAttrVec *LateAttrs,
                             LocalInstantiationScope *OuterMostScope) {
+{
+  // The alignment expression is a constant expression.
+  QualType T;
+  const FunctionProtoType *FT = nullptr;
+  if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
+    T = TD->getUnderlyingType();
+  else if (ValueDecl *VD = dyn_cast<ValueDecl>(New))
+    T = VD->getType();
+  else
+    goto notToday;
+  if (auto AT = dyn_cast<AttributedType>(T))
+      T = AT->getModifiedType();
+  if ((FT = dyn_cast<FunctionProtoType>(T))) {
+    printf("[%s:%d] functiontype numparam %d\n", __FUNCTION__, __LINE__, FT->getNumParams());
+    T = FT->getReturnType();
+  }
+  if (auto BT = dyn_cast<BuiltinType>(T))
+  if (BT->atomiccExpr) {
+      EnterExpressionEvaluationContext Unevaluated(
+          *this, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+      ExprResult Result = SubstExpr(BT->atomiccExpr, TemplateArgs);
+      if (!Result.isInvalid()) {
+      Expr *E = Result.getAs<Expr>();
+printf("[%s:%d]EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE\n", __FUNCTION__, __LINE__);
+BT->atomiccExpr->dump();
+E->dump();
+      if (!E->isValueDependent()) {
+        unsigned DestWidth = 9;
+        llvm::APSInt itemWidth(32);
+        if (E->isIntegerConstantExpr(itemWidth, Context))
+          DestWidth = itemWidth.getZExtValue();
+        else
+          printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
+        BuiltinType *Ty = new (Context, TypeAlignment) BuiltinType(BT->getKind());
+        Ty->atomiccWidth = DestWidth;
+        Ty->atomiccExpr = nullptr;
+        QualType NewTy = QualType(Ty, 0);
+        if (FT)
+          NewTy = Context.getFunctionType(NewTy, FT->getParamTypes(), FT->getExtProtoInfo());
+        // Install the new type.
+        if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
+          TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
+        else if (auto DD = dyn_cast<DeclaratorDecl>(New)) {
+            TypeSourceInfo *TSI = DD->getTypeSourceInfo();
+            TSI->overrideType(NewTy); // ???????????????????????????????????
+            cast<ValueDecl>(New)->setType(NewTy);
+printf("[%s:%d]updated\n", __FUNCTION__, __LINE__);
+DD->dump();
+        }
+      }
+      }
+  }
+notToday:;
+}
   for (const auto *TmplAttr : Tmpl->attrs()) {
     // FIXME: This should be generalized to more than just the AlignedAttr.
     const AlignedAttr *Aligned = dyn_cast<AlignedAttr>(TmplAttr);
@@ -505,11 +503,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                         TmplAttr->getSpellingListIndex(),
                         isa<NSConsumedAttr>(TmplAttr),
                         /*template instantiation*/ true);
-      continue;
-    }
-
-    if (auto attr = dyn_cast<AtomiccWidthAttr>(TmplAttr)) {
-      instantiateDependentAtomiccWidthAttr(*this, TemplateArgs, attr, New);
       continue;
     }
 

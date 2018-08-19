@@ -2388,6 +2388,8 @@ static int trace_meth;//= 1;
 std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
 {
 static int nesting = 0;
+    if (!expr)
+        return "";
     nesting++;
     std::string retVal;
     if (auto rr = dyn_cast<CXXConstructExpr>(expr)) {

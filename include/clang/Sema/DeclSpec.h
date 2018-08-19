@@ -411,6 +411,7 @@ private:
   DeclSpec(const DeclSpec &) = delete;
   void operator=(const DeclSpec &) = delete;
 public:
+  Expr *dsAtomiccWidth;
   static bool isDeclRep(TST T) {
     return (T == TST_enum || T == TST_struct ||
             T == TST_interface || T == TST_union ||
@@ -441,7 +442,7 @@ public:
       Concept_specified(false),
       Attrs(attrFactory),
       writtenBS(),
-      ObjCQualifiers(nullptr) {
+      ObjCQualifiers(nullptr), dsAtomiccWidth(nullptr) {
   }
 
   // storage-class-specifier

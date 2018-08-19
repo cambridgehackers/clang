@@ -1032,6 +1032,8 @@ Parser::isExpressionOrTypeSpecifierSimple(tok::TokenKind Kind) {
   case tok::kw_half:
   case tok::kw_float:
   case tok::kw_int:
+  case tok::kw___int:
+  case tok::kw___uint:
   case tok::kw_long:
   case tok::kw___int64:
   case tok::kw___int128:
@@ -1529,6 +1531,8 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
     if (isStartOfObjCClassMessageMissingOpenBracket())
       return TPResult::False;
       
+  case tok::kw___int:
+  case tok::kw___uint:
     return TPResult::True;
 
   // GNU typeof support.
@@ -1593,6 +1597,8 @@ bool Parser::isCXXDeclarationSpecifierAType() {
   case tok::kw_bool:
   case tok::kw_short:
   case tok::kw_int:
+  case tok::kw___int:
+  case tok::kw___uint:
   case tok::kw_long:
   case tok::kw___int64:
   case tok::kw___int128:

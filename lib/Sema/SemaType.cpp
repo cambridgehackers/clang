@@ -1342,7 +1342,34 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
 
     // FALL THROUGH.
   case DeclSpec::TST_int: {
-    if (DS.getTypeSpecSign() != DeclSpec::TSS_unsigned) {
+    if (DS.dsAtomiccWidth) {
+      BuiltinType *Ty = new (S.Context, TypeAlignment)
+          BuiltinType(DS.getTypeSpecSign()==DeclSpec::TSS_unsigned ? BuiltinType::UInt : BuiltinType::Int);
+      if (DS.dsAtomiccWidth->isValueDependent()) {
+        Ty->atomiccDependent();
+        Ty->atomiccExpr = DS.dsAtomiccWidth;
+//ElaboratedType 0x7fe6c22dfdd0 'struct (anonymous struct at ../../cpp/fifo.h:38:3)' sugar dependent^M
+//`-RecordType 0x7fe6c22dfc50 'struct Fifo1Base::(anonymous at ../../cpp/fifo.h:38:3)' dependent^M
+  //`-CXXRecord 0x7fe6c22dfba8 ''^M
+//TemplateSpecializationType 0x7f902d245ec0 'PipeIn<T>' dependent PipeIn^M
+//`-TemplateArgument type 'T'^M
+printf("[%s:%d] AttributeList::AT_AtomiccWidth expr\n", __FUNCTION__, __LINE__);
+DS.dsAtomiccWidth->dump();
+      }
+      else {
+        unsigned DestWidth = 9;
+        llvm::APSInt itemWidth(32);
+        if (DS.dsAtomiccWidth->isIntegerConstantExpr(itemWidth, state.getSema().Context)) {
+          DestWidth = itemWidth.getZExtValue();
+        }
+        else
+          printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
+        Ty->atomiccWidth = DestWidth;
+printf("[%s:%d] AttributeList::AT_AtomiccWidth value %d\n", __FUNCTION__, __LINE__, DestWidth);
+      }
+      Result = QualType(Ty, 0);
+    }
+    else if (DS.getTypeSpecSign() != DeclSpec::TSS_unsigned) {
       switch (DS.getTypeSpecWidth()) {
       case DeclSpec::TSW_unspecified: Result = Context.IntTy; break;
       case DeclSpec::TSW_short:       Result = Context.ShortTy; break;
@@ -6968,30 +6995,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       else if (!handleFunctionTypeAttr(state, attr, type))
         distributeFunctionTypeAttr(state, attr, type);
       break;
-
-    case AttributeList::AT_AtomiccWidth: {
-      Expr *E = attr.getArgAsExpr(0);
-      if (!type->isIntegerType()) {
-        printf("[%s:%d] atomicc_width not integer type\n", __FUNCTION__, __LINE__);
-        //Diag(AttrLoc, diag::warn_attribute_pointer_or_reference_only)
-          //<< &TmpAttr /*TmpAttr.getName()*/ << T << D->getSourceRange();
-        //return;
-      }
-      if (!E->isValueDependent()) {
-        unsigned DestWidth = 9;
-        llvm::APSInt itemWidth(32);
-        if (E->isIntegerConstantExpr(itemWidth, state.getSema().Context)) {
-          DestWidth = itemWidth.getZExtValue();
-        }
-        else
-          printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-        BuiltinType *Ty = new (state.getSema().Context, TypeAlignment) BuiltinType(type->isUnsignedIntegerType() ? BuiltinType::UInt : BuiltinType::Int);
-        Ty->atomiccWidth = DestWidth;
-        type = QualType(Ty, 0);
-      }
-      attr.setUsedAsTypeAttr();
-      break;
-      }
     }
   }
 
