@@ -375,60 +375,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                             const Decl *Tmpl, Decl *New,
                             LateInstantiatedAttrVec *LateAttrs,
                             LocalInstantiationScope *OuterMostScope) {
-{
-  // The alignment expression is a constant expression.
-  QualType T;
-  const FunctionProtoType *FT = nullptr;
-  if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
-    T = TD->getUnderlyingType();
-  else if (ValueDecl *VD = dyn_cast<ValueDecl>(New))
-    T = VD->getType();
-  else
-    goto notToday;
-  if (auto AT = dyn_cast<AttributedType>(T))
-      T = AT->getModifiedType();
-  if ((FT = dyn_cast<FunctionProtoType>(T))) {
-    printf("[%s:%d] functiontype numparam %d\n", __FUNCTION__, __LINE__, FT->getNumParams());
-    T = FT->getReturnType();
-  }
-  if (auto BT = dyn_cast<BuiltinType>(T))
-  if (BT->atomiccExpr) {
-      EnterExpressionEvaluationContext Unevaluated(
-          *this, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-      ExprResult Result = SubstExpr(BT->atomiccExpr, TemplateArgs);
-      if (!Result.isInvalid()) {
-      Expr *E = Result.getAs<Expr>();
-printf("[%s:%d]EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE\n", __FUNCTION__, __LINE__);
-BT->atomiccExpr->dump();
-E->dump();
-      if (!E->isValueDependent()) {
-        unsigned DestWidth = 9;
-        llvm::APSInt itemWidth(32);
-        if (E->isIntegerConstantExpr(itemWidth, Context))
-          DestWidth = itemWidth.getZExtValue();
-        else
-          printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-        BuiltinType *Ty = new (Context, TypeAlignment) BuiltinType(BT->getKind());
-        Ty->atomiccWidth = DestWidth;
-        Ty->atomiccExpr = nullptr;
-        QualType NewTy = QualType(Ty, 0);
-        if (FT)
-          NewTy = Context.getFunctionType(NewTy, FT->getParamTypes(), FT->getExtProtoInfo());
-        // Install the new type.
-        if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(New))
-          TD->setModedTypeSourceInfo(TD->getTypeSourceInfo(), NewTy);
-        else if (auto DD = dyn_cast<DeclaratorDecl>(New)) {
-            TypeSourceInfo *TSI = DD->getTypeSourceInfo();
-            TSI->overrideType(NewTy); // ???????????????????????????????????
-            cast<ValueDecl>(New)->setType(NewTy);
-printf("[%s:%d]updated\n", __FUNCTION__, __LINE__);
-DD->dump();
-        }
-      }
-      }
-  }
-notToday:;
-}
   for (const auto *TmplAttr : Tmpl->attrs()) {
     // FIXME: This should be generalized to more than just the AlignedAttr.
     const AlignedAttr *Aligned = dyn_cast<AlignedAttr>(TmplAttr);

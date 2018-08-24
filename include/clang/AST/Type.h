@@ -2159,7 +2159,7 @@ public:
 
   long atomiccWidth; // atomicc
   Expr *atomiccExpr; // atomicc
-  void atomiccDependent(void) {setInstantiationDependent(); }
+  void atomiccDependent(bool arg = true) {setDependent(arg); }
   static bool classof(const Type *T) { return T->getTypeClass() == Builtin; }
 };
 

@@ -3140,6 +3140,15 @@ bool TemplateSpecializationType::
 anyDependentTemplateArguments(ArrayRef<TemplateArgumentLoc> Args,
                               bool &InstantiationDependent) {
   for (const TemplateArgumentLoc &ArgLoc : Args) {
+    if (ArgLoc.getArgument().getKind() == TemplateArgument::Type) {
+      const Type *Ty = ArgLoc.getArgument().getAsType().getTypePtr();
+      if (auto aa = dyn_cast<BuiltinType>(Ty))
+      if (aa->atomiccExpr) {
+        printf("[%s:%d]atomicccweee BT %p ccw %p\n", __FUNCTION__, __LINE__, aa, aa->atomiccExpr);
+        InstantiationDependent = true;
+        return true;
+      }
+    }
     if (ArgLoc.getArgument().isDependent()) {
       InstantiationDependent = true;
       return true;

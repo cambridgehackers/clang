@@ -4376,11 +4376,31 @@ QualType TransformTypeSpecType(TypeLocBuilder &TLB, TyLoc T) {
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformBuiltinType(TypeLocBuilder &TLB,
                                                       BuiltinTypeLoc T) {
-  BuiltinTypeLoc NewT = TLB.push<BuiltinTypeLoc>(T.getType());
+  QualType Ty = T.getType();
+  if (auto BT = dyn_cast<BuiltinType>(Ty))
+  if (BT->atomiccExpr) {
+     ExprResult Result = TransformExpr(BT->atomiccExpr);
+     if (!Result.isInvalid()) {
+     Expr *E = Result.getAs<Expr>();
+     if (!E->isValueDependent()) {
+        unsigned DestWidth = 9;
+        llvm::APSInt itemWidth(32);
+        if (E->isIntegerConstantExpr(itemWidth, SemaRef.Context))
+          DestWidth = itemWidth.getZExtValue();
+        else
+          printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
+        BuiltinType *newTy = new (SemaRef.Context, TypeAlignment) BuiltinType(BT->getKind());
+        newTy->atomiccWidth = DestWidth;
+        Ty = QualType(newTy, 0);
+printf("[%s:%d] newTy %p newval %d\n", __FUNCTION__, __LINE__, (void *)newTy, DestWidth);
+      }
+     }
+  }
+  BuiltinTypeLoc NewT = TLB.push<BuiltinTypeLoc>(Ty);
   NewT.setBuiltinLoc(T.getBuiltinLoc());
   if (T.needsExtraLocalData())
     NewT.getWrittenBuiltinSpecs() = T.getWrittenBuiltinSpecs();
-  return T.getType();
+  return Ty;
 }
 
 template<typename Derived>
@@ -5810,7 +5830,12 @@ QualType TreeTransform<Derived>::TransformTemplateSpecializationType(
                                                    TL.getTemplateNameLoc(),
                                                    NewTemplateArgs);
 
+//printf("[%s:%d]afterRebuildTemplateSpecializationType %d\n", __FUNCTION__, __LINE__, Result.isNull());
+//Template.dump();
+//printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+//TL.getType()->dump();
   if (!Result.isNull()) {
+//Result->dump();
     // Specializations of template template parameters are represented as
     // TemplateSpecializationTypes, and substitution of type alias templates
     // within a dependent context can transform them into

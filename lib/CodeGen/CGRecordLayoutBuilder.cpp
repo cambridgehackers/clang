@@ -825,6 +825,8 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         connectList += attr->getInterfaces().str() + ",";
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
+//printf("[%s:%d] BuildRecord for %s, map %s\n", __FUNCTION__, __LINE__, Ty->getName().str().c_str(), Ty->structFieldMap.c_str());
+//D->dump();
 }
 #endif
 

@@ -2416,6 +2416,8 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
     break;
   case BuiltinType::UInt:
     Out << 'j';
+    if (T->atomiccWidth != -1)
+      Out << "ACCS" + llvm::utostr(T->atomiccWidth) + "ACCE";
     break;
   case BuiltinType::ULong:
     Out << 'm';
@@ -2444,6 +2446,8 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
     break;
   case BuiltinType::Int:
     Out << 'i';
+    if (T->atomiccWidth != -1)
+      Out << "ACCS" + llvm::utostr(T->atomiccWidth) + "ACCE";
     break;
   case BuiltinType::Long:
     Out << 'l';

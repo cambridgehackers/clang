@@ -1348,13 +1348,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       if (DS.dsAtomiccWidth->isValueDependent()) {
         Ty->atomiccDependent();
         Ty->atomiccExpr = DS.dsAtomiccWidth;
-//ElaboratedType 0x7fe6c22dfdd0 'struct (anonymous struct at ../../cpp/fifo.h:38:3)' sugar dependent^M
-//`-RecordType 0x7fe6c22dfc50 'struct Fifo1Base::(anonymous at ../../cpp/fifo.h:38:3)' dependent^M
-  //`-CXXRecord 0x7fe6c22dfba8 ''^M
-//TemplateSpecializationType 0x7f902d245ec0 'PipeIn<T>' dependent PipeIn^M
-//`-TemplateArgument type 'T'^M
-printf("[%s:%d] AttributeList::AT_AtomiccWidth expr\n", __FUNCTION__, __LINE__);
-DS.dsAtomiccWidth->dump();
+        //printf("[%s:%d] AttributeList::AT_AtomiccWidth expr\n", __FUNCTION__, __LINE__);
+        //DS.dsAtomiccWidth->dump();
       }
       else {
         unsigned DestWidth = 9;
@@ -1365,7 +1360,6 @@ DS.dsAtomiccWidth->dump();
         else
           printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
         Ty->atomiccWidth = DestWidth;
-printf("[%s:%d] AttributeList::AT_AtomiccWidth value %d\n", __FUNCTION__, __LINE__, DestWidth);
       }
       Result = QualType(Ty, 0);
     }
