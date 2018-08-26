@@ -53,8 +53,8 @@ ASTRecordLayout::ASTRecordLayout(const ASTContext &Ctx,
                                  bool EndsWithZeroSizedObject,
                                  bool LeadsWithZeroSizedBase,
                                  const BaseOffsetsMapTy& BaseOffsets,
-                                 const VBaseOffsetsMapTy& VBaseOffsets)
-  : Size(size), DataSize(datasize), Alignment(alignment),
+                                 const VBaseOffsetsMapTy& VBaseOffsets, uint64_t Bsize)
+  : Size(size), DataSize(datasize), DataBSize(Bsize), Alignment(alignment),
     RequiredAlignment(requiredAlignment), CXXInfo(new (Ctx) CXXRecordLayoutInfo)
 {
   FieldOffsets.append(Ctx, fieldoffsets.begin(), fieldoffsets.end());

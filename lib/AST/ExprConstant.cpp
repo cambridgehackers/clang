@@ -2289,7 +2289,9 @@ static bool HandleBitSize(EvalInfo &Info, SourceLocation Loc,
     Info.FFDiag(Loc);
     return false;
   }
-  Size = CharUnits::fromQuantity(Info.Ctx.getTypeSize(Type));
+  uint64_t bitsize = Info.Ctx.getTypeBSize(Type);
+//printf("[%s:%d] 2BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB %d\n", __FUNCTION__, __LINE__, (int)bitsize);
+  Size = CharUnits::fromQuantity(bitsize);
   return true;
 }
 

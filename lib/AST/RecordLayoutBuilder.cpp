@@ -616,6 +616,7 @@ protected:
 
   /// DataSize - The data size of the record being laid out.
   uint64_t DataSize;
+  uint64_t DataBSize;
 
   CharUnits NonVirtualSize;
   CharUnits NonVirtualAlignment;
@@ -663,6 +664,7 @@ protected:
         IsUnion(false), IsMac68kAlign(false), IsMsStruct(false),
         UnfilledBitsInLastUnit(0), LastBitfieldTypeSize(0),
         MaxFieldAlignment(CharUnits::Zero()), DataSize(0),
+        DataBSize(0),
         NonVirtualSize(CharUnits::Zero()),
         NonVirtualAlignment(CharUnits::One()), PrimaryBase(nullptr),
         PrimaryBaseIsVirtual(false), HasOwnVFPtr(false),
@@ -776,6 +778,7 @@ protected:
     return Context.toCharUnitsFromBits(DataSize); 
   }
   uint64_t getDataSizeInBits() const { return DataSize; }
+  uint64_t getDataBSizeInBits() const { return DataBSize; }
 
   void setDataSize(CharUnits NewSize) { DataSize = Context.toBits(NewSize); }
   void setDataSize(uint64_t NewSize) { DataSize = NewSize; }
@@ -1719,6 +1722,8 @@ void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
     IsUnion ? CharUnits::Zero() : getDataSize();
   CharUnits FieldSize;
   CharUnits FieldAlign;
+  uint64_t BitOffset = IsUnion ? 0 : DataBSize;
+  uint64_t BitSize;
 
   if (D->getType()->isIncompleteArrayType()) {
     // This is a flexible array member; we can't directly
@@ -1726,10 +1731,12 @@ void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
     // Flexible array members don't have any size, but they
     // have to be aligned appropriately for their element type.
     FieldSize = CharUnits::Zero();
+    BitSize = 0;
     const ArrayType* ATy = Context.getAsArrayType(D->getType());
     FieldAlign = Context.getTypeAlignInChars(ATy->getElementType());
   } else if (const ReferenceType *RT = D->getType()->getAs<ReferenceType>()) {
     unsigned AS = RT->getPointeeType().getAddressSpace();
+    BitSize = Context.getTargetInfo().getPointerWidth(AS);
     FieldSize = 
       Context.toCharUnitsFromBits(Context.getTargetInfo().getPointerWidth(AS));
     FieldAlign = 
@@ -1739,6 +1746,8 @@ void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
       Context.getTypeInfoInChars(D->getType());
     FieldSize = FieldInfo.first;
     FieldAlign = FieldInfo.second;
+    BitSize = Context.getTypeInfo(D->getType()).BWidth;
+//printf("[%s:%d]VVVVVVVVVVVVVVVVVV BITSIZE %d D %p type %p\n", __FUNCTION__, __LINE__, (int)BitSize, D, D->getType());
 
     if (IsMsStruct) {
       // If MS bitfield layout is required, figure out what type is being
@@ -1820,6 +1829,7 @@ void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
     setDataSize(std::max(getDataSizeInBits(), FieldSizeInBits));
   else
     setDataSize(FieldOffset + FieldSize);
+  DataBSize = BitOffset + BitSize;
 
   // Update the size.
   setSize(std::max(getSizeInBits(), getDataSizeInBits()));
@@ -2973,6 +2983,8 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
           mustSkipTailPadding(getTargetInfo().getCXXABI(), RD);
 
       // FIXME: This should be done in FinalizeLayout.
+//printf("[%s:%d] skiptail %d getSize %d getdatasize %d bits %d DataBSize %d\n", __FUNCTION__, __LINE__, skipTailPadding, (int)Builder.getSize().getQuantity(), (int)Builder.getDataSize().getQuantity(), (int)Builder.getSizeInBits(), (int)Builder.DataBSize);
+//RD->dump();
       CharUnits DataSize =
           skipTailPadding ? Builder.getSize() : Builder.getDataSize();
       CharUnits NonVirtualSize =
@@ -2985,7 +2997,7 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
           NonVirtualSize, Builder.NonVirtualAlignment,
           EmptySubobjects.SizeOfLargestEmptySubobject, Builder.PrimaryBase,
           Builder.PrimaryBaseIsVirtual, nullptr, false, false, Builder.Bases,
-          Builder.VBases);
+          Builder.VBases, Builder.DataBSize);
     } else {
       ItaniumRecordLayoutBuilder Builder(*this, /*EmptySubobjects=*/nullptr);
       Builder.Layout(D);

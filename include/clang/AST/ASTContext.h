@@ -115,12 +115,13 @@ namespace comments {
 
 struct TypeInfo {
   uint64_t Width;
+  uint64_t BWidth;
   unsigned Align;
   bool AlignIsRequired : 1;
 
   TypeInfo() : Width(0), Align(0), AlignIsRequired(false) {}
-  TypeInfo(uint64_t Width, unsigned Align, bool AlignIsRequired)
-      : Width(Width), Align(Align), AlignIsRequired(AlignIsRequired) {}
+  TypeInfo(uint64_t Width, unsigned Align, bool AlignIsRequired, uint64_t BWidth = 0)
+      : Width(Width), BWidth(BWidth), Align(Align), AlignIsRequired(AlignIsRequired) {}
 };
 
 /// \brief Holds long-lived AST nodes (such as types and decls) that can be
@@ -1922,6 +1923,7 @@ public:
 
   /// \brief Return the size of the specified (complete) type \p T, in bits.
   uint64_t getTypeSize(QualType T) const { return getTypeInfo(T).Width; }
+  uint64_t getTypeBSize(QualType T) const { return getTypeInfo(T).BWidth; }
   uint64_t getTypeSize(const Type *T) const { return getTypeInfo(T).Width; }
 
   /// \brief Return the size of the character type, in bits.

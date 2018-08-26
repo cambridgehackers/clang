@@ -1622,8 +1622,11 @@ TypeInfo ASTContext::getTypeInfo(const Type *T) const {
 /// should take a QualType, &c.
 TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   uint64_t Width = 0;
+  uint64_t BWidth = 0;
+  bool haveBWidth = false;
   unsigned Align = 8;
   bool AlignIsRequired = false;
+//printf("[%s:%d] START T %p typeclass %d\n", __FUNCTION__, __LINE__, T, T->getTypeClass());
   switch (T->getTypeClass()) {
 #define TYPE(Class, Base)
 #define ABSTRACT_TYPE(Class, Base)
@@ -1873,13 +1876,19 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     const RecordDecl *RD = RT->getDecl();
     const ASTRecordLayout &Layout = getASTRecordLayout(RD);
     Width = toBits(Layout.getSize());
+    haveBWidth = true;
+    BWidth = Layout.getDataBSize();
+//printf("[%s:%d]EEEEEEEEEEEEEERRRRRRRRRRRRRRRRRR %d\n", __FUNCTION__, __LINE__, (int)BWidth);
+//RD->dump();
     Align = toBits(Layout.getAlignment());
     AlignIsRequired = RD->hasAttr<AlignedAttr>();
     if (const auto *rec = dyn_cast<CXXRecordDecl>(RD))
     if (rec->hasAttr<AtomiccSerializeAttr>()) {
         for (const Decl *field : rec->fields())
-          if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType()))
+          if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType())) {
             Width = Ty->atomiccWidth;
+            BWidth = Ty->atomiccWidth;
+          }
     }
     break;
   }
@@ -1916,6 +1925,8 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       AlignIsRequired = Info.AlignIsRequired;
     }
     Width = Info.Width;
+    haveBWidth = true;
+    BWidth = Info.BWidth;
     break;
   }
 
@@ -1954,7 +1965,9 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   }
 
   assert(llvm::isPowerOf2_32(Align) && "Alignment must be power of 2");
-  return TypeInfo(Width, Align, AlignIsRequired);
+//printf("[%s:%d] T %p haveb %d BWidth %d Width %d\n", __FUNCTION__, __LINE__, T, haveBWidth, (int)BWidth, (int)Width);
+//T->dump();
+  return TypeInfo(Width, Align, AlignIsRequired, haveBWidth ? BWidth : Width);
 }
 
 unsigned ASTContext::getOpenMPDefaultSimdAlign(QualType T) const {

@@ -62,6 +62,7 @@ private:
 
   /// DataSize - Size of record in characters without tail padding.
   CharUnits DataSize;
+  uint64_t DataBSize;
 
   // Alignment - Alignment of record in characters.
   CharUnits Alignment;
@@ -153,7 +154,7 @@ private:
                   bool EndsWithZeroSizedObject,
                   bool LeadsWithZeroSizedBase,
                   const BaseOffsetsMapTy& BaseOffsets,
-                  const VBaseOffsetsMapTy& VBaseOffsets);
+                  const VBaseOffsetsMapTy& VBaseOffsets, uint64_t Bsize = 0);
 
   ~ASTRecordLayout() = default;
 
@@ -162,6 +163,7 @@ private:
   ASTRecordLayout(const ASTRecordLayout &) = delete;
   void operator=(const ASTRecordLayout &) = delete;
 public:
+  CharUnits BSize;
 
   /// getAlignment - Get the record alignment in characters.
   CharUnits getAlignment() const { return Alignment; }
@@ -182,6 +184,9 @@ public:
   /// without tail padding, in characters.
   CharUnits getDataSize() const {
     return DataSize;
+  }
+  uint64_t getDataBSize() const {
+    return DataBSize;
   }
 
   /// getNonVirtualSize - Get the non-virtual size (in chars) of an object,
