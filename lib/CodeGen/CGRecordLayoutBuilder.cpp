@@ -827,6 +827,22 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         connectList += attr->getInterfaces().str() + ",";
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
+  if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
+    ClassTemplateDecl *TD = TS->getSpecializedTemplate();
+    auto formalParam = TD->getTemplateParameters()->begin();
+    CXXRecordDecl *RD = TD->getTemplatedDecl();
+    std::string appendName;
+    for (auto AA : TS->getTemplateArgs().asArray()) {
+        if (AA.getKind() == TemplateArgument::Integral) {
+           uint64_t val = AA.getAsIntegral().getZExtValue();
+           appendName += "__PARAM__" + (*formalParam)->getName().str() + "__" + llvm::utostr(val);
+        }
+        formalParam++;
+    }
+    if (auto STy = dyn_cast<llvm::StructType>(Ty))
+    if (STy->hasName())
+      STy->setName(STy->getName().str() + appendName);
+  }
 if (recordGenTrace) {
 printf("[%s:%d] BuildRecord for %s, map %s\n", __FUNCTION__, __LINE__, Ty->getName().str().c_str(), Ty->structFieldMap.c_str());
 D->dump();
