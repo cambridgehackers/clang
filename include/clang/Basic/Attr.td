@@ -544,14 +544,6 @@ def AlignValue : Attr {
   let Documentation = [AlignValueDocs];
 }
 
-def AtomiccWidth : Attr {
-  let Spellings = [ GNU<"atomicc_width"> ];
-  let Args = [ExprArgument<"Width">];
-  let Subjects = SubjectList<[Field, Var,TypedefName, CXXMethod],
-         WarnDiag, "ExpectedVariableOrTypedef">;
-  let Documentation = [Undocumented];
-}
-
 def AtomiccVerilogPort : Attr {
   let Spellings = [Keyword<"__input">, Keyword<"__output">, Keyword<"__inout">, Keyword<"__parameter">];
   let Subjects = SubjectList<[Field], ErrorDiag, "ExpectedParameterOrTypedef">;
