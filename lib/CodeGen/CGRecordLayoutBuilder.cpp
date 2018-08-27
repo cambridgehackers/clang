@@ -827,15 +827,17 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         connectList += attr->getInterfaces().str() + ",";
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
+
+  // Detect/rename classes that were created from <int> parameterized templates
   if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
     ClassTemplateDecl *TD = TS->getSpecializedTemplate();
     auto formalParam = TD->getTemplateParameters()->begin();
-    CXXRecordDecl *RD = TD->getTemplatedDecl();
+    //CXXRecordDecl *RD = TD->getTemplatedDecl();
     std::string appendName;
     for (auto AA : TS->getTemplateArgs().asArray()) {
         if (AA.getKind() == TemplateArgument::Integral) {
            uint64_t val = AA.getAsIntegral().getZExtValue();
-           appendName += "__PARAM__" + (*formalParam)->getName().str() + "__" + llvm::utostr(val);
+           appendName += "$__PARAM__$" + (*formalParam)->getName().str() + "$" + llvm::utostr(val);
         }
         formalParam++;
     }
