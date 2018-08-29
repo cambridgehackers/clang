@@ -4392,7 +4392,7 @@ QualType TreeTransform<Derived>::TransformBuiltinType(TypeLocBuilder &TLB,
         BuiltinType *newTy = new (SemaRef.Context, TypeAlignment) BuiltinType(BT->getKind());
         newTy->atomiccWidth = DestWidth;
         Ty = QualType(newTy, 0);
-printf("[%s:%d] newTy %p newval %d\n", __FUNCTION__, __LINE__, (void *)newTy, DestWidth);
+//printf("[%s:%d] newTy %p newval %d\n", __FUNCTION__, __LINE__, (void *)newTy, DestWidth);
       }
      }
   }

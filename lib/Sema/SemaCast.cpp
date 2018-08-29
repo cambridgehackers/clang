@@ -2736,17 +2736,17 @@ void CastOperation::CheckBitCast() {
   uint64_t ssize = Self.Context.getTypeSize(SrcType);
   uint64_t dsize = Self.Context.getTypeSize(aDestType);
   if (auto item = dyn_cast<BuiltinType>(SrcType)) {
-    printf("[%s:%d] source\n", __FUNCTION__, __LINE__);
+    //printf("[%s:%d] source\n", __FUNCTION__, __LINE__);
   }
   else if (auto item = dyn_cast<BuiltinType>(aDestType)) {
-    printf("[%s:%d] dest\n", __FUNCTION__, __LINE__);
+    //printf("[%s:%d] dest\n", __FUNCTION__, __LINE__);
   }
   else {
     diagnoseBadCast(Self, diag::err_bad_cxx_cast_generic, CT_Reinterpret, OpRange, SrcExpr.get(),
                       DestType, /*listInitialization=*/false);
     SrcExpr = ExprError();
   }
-printf("[%s:%d] ssize %d dsize %d\n", __FUNCTION__, __LINE__, (int)ssize, (int)dsize);
-SrcType->dump();
-aDestType->dump();
+//printf("[%s:%d] ssize %d dsize %d\n", __FUNCTION__, __LINE__, (int)ssize, (int)dsize);
+//SrcType->dump();
+//aDestType->dump();
 }

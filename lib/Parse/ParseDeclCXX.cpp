@@ -2394,10 +2394,8 @@ static int nesting = 0;
     std::string retVal;
     if (auto rr = dyn_cast<CXXConstructExpr>(expr)) {
         Expr **item2 = rr->getArgs();
-        if (auto ss = *item2++) {
-            printf("[%s:%d]item2arg\n", __FUNCTION__, __LINE__);
+        if (auto ss = *item2++)
             expr = ss;
-        }
     }
     expr = expr->IgnoreParenImpCasts();
     if (auto item = dyn_cast_or_null<MemberExpr>(expr)) {
