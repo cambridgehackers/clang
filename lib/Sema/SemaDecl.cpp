@@ -13598,6 +13598,19 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
         goto CreateNewDecl;
       }
     }
+    if (TUK == TUK_Definition)
+    if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl))
+    if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(PrevTagDecl->getDefinition()))
+    if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+      for (const AttributeList* aitem = Attr; aitem; aitem = aitem->getNext())
+        if (!aitem->isInvalid() && aitem->getKind() != AttributeList::IgnoredAttribute)
+        if (aitem->getKind() == AttributeList::AT_AtomiccModule) {
+printf("[%s:%d] specialize EModule %s\n", __FUNCTION__, __LINE__, RD->getNameAsString().c_str());
+          // Ignoring the old declaration.
+          Previous.clear();
+          goto CreateNewDecl;
+        }
+    }
 
     if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl)) {
       // If this is a use of a previous tag, or if the tag is already declared

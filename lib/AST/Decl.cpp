@@ -1621,6 +1621,16 @@ bool NamedDecl::declarationReplaces(NamedDecl *OldD, bool IsKnownNewer) const {
                ->getOriginalNamespace();
 
   if (isRedeclarable(getKind())) {
+    if (CXXRecordDecl *RDold = dyn_cast<CXXRecordDecl>(OldD))
+    if (const CXXRecordDecl *RDnew = dyn_cast<CXXRecordDecl>(this))
+    if (RDold->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule
+     && RDnew->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module) {
+printf("[%s:%d] overwriteEModule %s %d\n", __FUNCTION__, __LINE__, RDold->getNameAsString().c_str(), RDold->AtomiccAttr);
+RDold->dump();
+printf("[%s:%d]NEENENENE %d\n", __FUNCTION__, __LINE__, RDnew->AtomiccAttr);
+RDnew->dump();
+      return true;
+    }
     if (getCanonicalDecl() != OldD->getCanonicalDecl())
       return false;
 
