@@ -10849,6 +10849,69 @@ if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
       dummyField->markUsed(Context);
   }
   else {
+      // Check for module definitions that were preceeded by an emodule declaration
+      if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+          && Record->hasAttr<AtomiccInheritEModuleAttr>()) {
+          CXXRecordDecl *importedEModule = nullptr;
+          for (Attr *item: D->getAttrs())
+              if (auto attr = dyn_cast<AtomiccInheritEModuleAttr>(item))
+                  importedEModule = cast<CXXRecordDecl>(attr->getProto());
+printf("[%s:%d]CHECKINTERFACEINHERITANCE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+          typedef struct {
+              CXXRecordDecl *rec;
+              std::string    name;
+              bool           isPtr;
+              bool           found;
+          } InterfaceInfo;
+          std::map<std::string, InterfaceInfo> imap;
+          for (Decl *field: importedEModule->fields()) {
+              std::string name = cast<ValueDecl>(field)->getName();
+              bool isPtr = false;
+              if (auto PTy = dyn_cast<PointerType>(cast<ValueDecl>(field)->getType())) {
+                  isPtr = true;
+                  if (auto frec = dyn_cast<RecordType>(getSimpleType(PTy->getPointeeType())))
+                      field = frec->getDecl();
+              }
+              else if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<ValueDecl>(field)->getType())))
+                  field = frec->getDecl();
+              if (auto rec = dyn_cast<CXXRecordDecl>(field))
+              if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
+printf("[%s:%d] Ename %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_str(), isPtr, rec->getName().str().c_str());
+                  imap[name] = InterfaceInfo{rec, name, isPtr, false};
+              }
+          }
+          for (Decl *field: Record->fields()) {
+              std::string name = cast<ValueDecl>(field)->getName();
+              bool isPtr = false;
+              if (auto PTy = dyn_cast<PointerType>(cast<ValueDecl>(field)->getType())) {
+                  isPtr = true;
+                  if (auto frec = dyn_cast<RecordType>(getSimpleType(PTy->getPointeeType())))
+                      field = frec->getDecl();
+              }
+              else if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<ValueDecl>(field)->getType())))
+                  field = frec->getDecl();
+              if (auto rec = dyn_cast<CXXRecordDecl>(field))
+              if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
+printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_str(), isPtr, rec->getName().str().c_str());
+                  auto eitem = imap.find(name);
+                  if (eitem != imap.end()) {
+                      eitem->second.found = true;
+if (0)
+                      if (rec->getTypeForDecl() != eitem->second.rec->getTypeForDecl())
+                          printf("[%s:%d] interface decls differ\n", __FUNCTION__, __LINE__);
+printf("[%s:%d] rec %p erec %p type %p etype %p\n", __FUNCTION__, __LINE__, rec, eitem->second.rec, rec->getTypeForDecl(), eitem->second.rec->getTypeForDecl());
+                  }
+                  else
+                      printf("%s: ERROR: missing interface %s from inherited declaration for %s\n",
+                          __FUNCTION__, name.c_str(), Record->getName().str().c_str());
+              }
+          }
+          for (auto item: imap) {
+              if (!item.second.found)
+                  printf("%s: ERROR: missing inherited interface %s not declared %s\n",
+                      __FUNCTION__, item.second.name.c_str(), Record->getName().str().c_str());
+          }
+      }
       /* do hoisting for all class definitions */
       for (auto mitem: Record->methods()) { // before hoisting
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
@@ -10871,29 +10934,29 @@ if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
               printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
               Record->addAttr(::new (Context) AtomiccConnectAttr(StartLoc, Context, lstr + ":" + rstr, 0));
           }
-          else
-          if (hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc)
+          else if (hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc)
            || field->getType()->isPointerType())
               field->setAccess(AS_public);
       }
-  if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
-      if (traceDeclaration) {
-          printf("[%s:%d] E/MODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
-          Record->dump();
-      }
-      for (auto mitem: Record->methods()) {
-          if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
-              Method->setAccess(AS_public);
-          if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
-          if (Method->getDeclName().isIdentifier()) {
-              if (trace_hoist)
-              printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public);
-//Method->dump();
-              if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
-                  MarkFunctionReferenced(Method->getLocation(), Method, true);
+      if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+          if (traceDeclaration) {
+              printf("[%s:%d] E/MODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+              Record->dump();
+          }
+          for (auto mitem: Record->methods()) {
+              if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
+                  Method->setAccess(AS_public);
+              if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
+              if (Method->getDeclName().isIdentifier()) {
+                  if (trace_hoist)
+                      printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public);
+    //Method->dump();
+                  if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
+                      MarkFunctionReferenced(Method->getLocation(), Method, true);
           }
       }
-  }
+      }
   }
 }
 }
