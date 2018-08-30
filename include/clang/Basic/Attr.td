@@ -569,6 +569,13 @@ def AtomiccModule : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccInheritEModule : InheritableAttr {
+  let Spellings = [ GNU<"atomicc_inherit_emodule"> ];
+  let Args = [NamedArgument<"proto">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [Undocumented];
+}
+
 def AtomiccEModule : InheritableAttr {
   let Spellings = [ GNU<"atomicc_emodule"> ];
   let Subjects = SubjectList<[CXXRecord]>;

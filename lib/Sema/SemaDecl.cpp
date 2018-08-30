@@ -13259,6 +13259,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
   DeclContext *DC = CurContext;
   bool isStdBadAlloc = false;
   bool isStdAlignValT = false;
+  CXXRecordDecl *importedEModule = nullptr;
 
   RedeclarationKind Redecl = ForRedeclaration;
   if (TUK == TUK_Friend || TUK == TUK_Reference)
@@ -13605,7 +13606,8 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
       for (const AttributeList* aitem = Attr; aitem; aitem = aitem->getNext())
         if (!aitem->isInvalid() && aitem->getKind() != AttributeList::IgnoredAttribute)
         if (aitem->getKind() == AttributeList::AT_AtomiccModule) {
-printf("[%s:%d] specialize EModule %s\n", __FUNCTION__, __LINE__, RD->getNameAsString().c_str());
+          printf("[%s:%d] specialize EModule %s\n", __FUNCTION__, __LINE__, RD->getNameAsString().c_str());
+          importedEModule = RD;
           // Ignoring the old declaration.
           Previous.clear();
           goto CreateNewDecl;
@@ -13940,6 +13942,8 @@ CreateNewDecl:
 
       if (isStdBadAlloc && (!StdBadAlloc || getStdBadAlloc()->isImplicit()))
         StdBadAlloc = cast<CXXRecordDecl>(New);
+      if (importedEModule)
+        New->addAttr(::new (Context) AtomiccInheritEModuleAttr(Loc, Context, importedEModule, 0));
     } else
       New = RecordDecl::Create(Context, Kind, SearchDC, KWLoc, Loc, Name,
                                cast_or_null<RecordDecl>(PrevDecl));
