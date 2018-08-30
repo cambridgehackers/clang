@@ -10880,8 +10880,22 @@ printf("[%s:%d] Ename %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                   imap[name] = InterfaceInfo{rec, name, isPtr, false};
               }
           }
+          std::map<std::string, int> skipName;
+          if (Record->hasAttrs())
+              for (Attr *item: Record->getAttrs())
+                  if (auto attr = dyn_cast<AtomiccConnectAttr>(item)) {
+                      std::string cdata = attr->getInterfaces();
+                      if (cdata.substr(0,8) == "CONNECT;") {
+                          cdata = cdata.substr(8);
+                          int ind = cdata.find(":");
+                          skipName[cdata.substr(0,ind)] = 1;
+                          skipName[cdata.substr(ind+1)] = 1;
+                      }
+                  }
           for (Decl *field: Record->fields()) {
               std::string name = cast<ValueDecl>(field)->getName();
+              if (skipName[name])
+                  continue; // skip local interfaces (ones that are only used to interface with internal objects)
               bool isPtr = false;
               if (auto PTy = dyn_cast<PointerType>(cast<ValueDecl>(field)->getType())) {
                   isPtr = true;
@@ -10896,10 +10910,8 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                   auto eitem = imap.find(name);
                   if (eitem != imap.end()) {
                       eitem->second.found = true;
-if (0)
-                      if (rec->getTypeForDecl() != eitem->second.rec->getTypeForDecl())
-                          printf("[%s:%d] interface decls differ\n", __FUNCTION__, __LINE__);
-printf("[%s:%d] rec %p erec %p type %p etype %p\n", __FUNCTION__, __LINE__, rec, eitem->second.rec, rec->getTypeForDecl(), eitem->second.rec->getTypeForDecl());
+                      if (rec != eitem->second.rec || isPtr != eitem->second.isPtr)
+                          printf("%s: ERROR: interface declarations for %s differ %p/%d != %p/%d\n", __FUNCTION__, name.c_str(), rec, isPtr, eitem->second.rec, eitem->second.isPtr);
                   }
                   else
                       printf("%s: ERROR: missing interface %s from inherited declaration for %s\n",
