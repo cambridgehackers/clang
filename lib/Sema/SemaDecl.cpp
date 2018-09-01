@@ -13601,7 +13601,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
     }
     if (TUK == TUK_Definition)
     if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl))
-    if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(PrevTagDecl->getDefinition()))
+    if (CXXRecordDecl *RD = dyn_cast_or_null<CXXRecordDecl>(PrevTagDecl->getDefinition()))
     if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
       for (const AttributeList* aitem = Attr; aitem; aitem = aitem->getNext())
         if (!aitem->isInvalid() && aitem->getKind() != AttributeList::IgnoredAttribute)
