@@ -1335,11 +1335,21 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
           return Def;
         }
 
+        if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(Def))
+        if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+          for (const AttributeList* aitem = Attr; aitem; aitem = aitem->getNext())
+            if (!aitem->isInvalid() && aitem->getKind() != AttributeList::IgnoredAttribute)
+            if (aitem->getKind() == AttributeList::AT_AtomiccModule) {
+              printf("[%s:%d] specialize EModule template\n", __FUNCTION__, __LINE__);
+              goto skipCheck;
+            }
+        }
         Diag(NameLoc, diag::err_redefinition) << Name;
         Diag(Def->getLocation(), diag::note_previous_definition);
         // FIXME: Would it make sense to try to "forget" the previous
         // definition, as part of error recovery?
         return true;
+skipCheck:;
       }
     }
   } else if (PrevDecl) {
