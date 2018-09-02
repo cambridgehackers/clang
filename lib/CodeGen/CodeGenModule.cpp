@@ -3974,8 +3974,6 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     for (auto *I : cast<CXXRecordDecl>(D)->decls())
       if (isa<VarDecl>(I) || isa<CXXRecordDecl>(I))
         EmitTopLevelDecl(I);
-    if (cast<CXXRecordDecl>(D)->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface && cast<CXXRecordDecl>(D)->isCompleteDefinition())
-        getTypes().getCGRecordLayout(cast<CXXRecordDecl>(D));
     break;
     // No code generation needed.
   case Decl::UsingShadow:

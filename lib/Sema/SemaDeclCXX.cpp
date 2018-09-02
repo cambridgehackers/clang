@@ -45,6 +45,7 @@
 #include <set>
 
 using namespace clang;
+#define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 extern std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr);
 
 static llvm::cl::opt<bool>
@@ -76,6 +77,9 @@ static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, st
             if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
             if (Method->getDeclName().isIdentifier()) {
                 std::string mname = interfaceName + ritem->getName().str();
+                int len = mname.length() - strlen(BOGUS_FORCE_DECLARATION_METHOD);
+                if (len > 0 && mname.substr(len) == BOGUS_FORCE_DECLARATION_METHOD)
+                    continue;
                 for (auto item: parent->decls())
                     if (auto TMethod = dyn_cast<CXXMethodDecl>(item))
                     if (TMethod->getDeclName().isIdentifier()) {
@@ -10811,6 +10815,56 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
   referenceDLLExportedClassMethods();
 if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
   auto StartLoc = Record->getLocStart();
+  int aattr = Record->AtomiccAttr;
+  if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
+   || aattr == CXXRecordDecl::AtomiccAttr_EModule) {
+    static int counter;
+    std::string mname = llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_METHOD;
+    if (aattr == CXXRecordDecl::AtomiccAttr_EModule)
+        mname = "$EMODULE" + mname;
+    const char *Dummy = nullptr;
+    unsigned DiagID;
+    SourceLocation NoLoc;
+    SourceLocation loc = Record->getLocation();
+    //QualType ParamType = QualType(Record->getTypeForDecl(), 0);
+    AttributeFactory attrFactory;
+    DeclSpec DSVoid(attrFactory);
+    //FunctionProtoType::ExtProtoInfo EPI;
+    Declarator DFunc(DSVoid, Declarator::MemberContext); 
+    ParsedAttributes parsedAttrs(attrFactory);
+    (void)DSVoid.SetTypeSpecType(DeclSpec::TST_void, loc, Dummy, DiagID, Context.getPrintingPolicy());
+    DFunc.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
+         /*IsAmbiguous=*/false, /*LParenLoc=*/NoLoc, /*Params=*/nullptr,
+         /*NumParams=*/0, /*EllipsisLoc=*/NoLoc, /*RParenLoc=*/NoLoc,
+         /*TypeQuals=*/0, /*RefQualifierIsLvalueRef=*/true,
+         /*RefQualifierLoc=*/NoLoc, /*ConstQualifierLoc=*/NoLoc,
+         /*VolatileQualifierLoc=*/NoLoc, /*RestrictQualifierLoc=*/NoLoc,
+         /*MutableLoc=*/NoLoc, EST_None, /*ESpecRange=*/SourceRange(),
+         /*Exceptions=*/nullptr, /*ExceptionRanges=*/nullptr,
+         /*NumExceptions=*/0, /*NoexceptExpr=*/nullptr,
+         /*ExceptionSpecTokens=*/nullptr, /*DeclsInPrototype=*/None,
+         loc, loc, DFunc), parsedAttrs, loc);
+    DFunc.setFunctionDefinitionKind(FDK_Declaration);
+    IdentifierInfo &funcName = Context.Idents.get(mname);
+    DFunc.SetIdentifier(&funcName, loc);
+    LookupResult Previous(*this, GetNameForDeclarator(DFunc),
+        LookupOrdinaryName, ForRedeclaration);
+    bool AddToScope = true;
+    MultiTemplateParamsArg TemplateParams(nullptr, (size_t)0);
+    auto New = ActOnFunctionDeclarator(getCurScope(), DFunc,
+        Record, GetTypeForDeclarator(DFunc, getCurScope()),
+        Previous, TemplateParams, AddToScope);
+    CXXMethodDecl *FD = cast<CXXMethodDecl>(New->getAsFunction());
+    FD->addAttr(::new (Context) UsedAttr(loc, Context, 0));
+    FD->markUsed(Context);
+    FD->setIsUsed();
+    FD->setAccess(AS_public);
+    FD->setLexicalDeclContext(Record);
+    Record->addDecl(FD);
+    SmallVector<Stmt*, 32> Stmts;
+    FD->setBody(new (Context) class CompoundStmt(Context, Stmts, loc, loc));
+    ActOnFinishInlineFunctionDef(FD);
+}
   if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
       if (traceDeclaration) {
           printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
