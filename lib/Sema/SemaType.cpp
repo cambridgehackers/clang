@@ -7277,6 +7277,16 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
   NamedDecl *Def = nullptr;
   bool Incomplete = T->isIncompleteType(&Def);
 
+  if (!Incomplete)
+  if (auto PTy = dyn_cast<PointerType>(T)) {
+    QualType Ty = PTy->getPointeeType();
+    if (!Ty.isNull() && dyn_cast<TemplateSpecializationType>(Ty)) {
+        Incomplete = Ty->isIncompleteType(&Def);
+        T = Ty;
+        printf("[%s:%d]PTRincomple %d type %p\n", __FUNCTION__, __LINE__, Incomplete, Ty);
+        Ty->dump();
+    }
+  }
   // Check that any necessary explicit specializations are visible. For an
   // enum, we just need the declaration, so don't check this.
   if (Def && !isa<EnumDecl>(Def))
