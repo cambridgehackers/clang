@@ -10811,17 +10811,12 @@ void Sema::ActOnFinishCXXMemberDecls() {
   }
 }
 
-void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
-  referenceDLLExportedClassMethods();
-if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
-  auto StartLoc = Record->getLocStart();
-  int aattr = Record->AtomiccAttr;
-  if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
-   || aattr == CXXRecordDecl::AtomiccAttr_EModule) {
+static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
+{
     static int counter;
     std::string mname = llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_METHOD;
-    if (aattr == CXXRecordDecl::AtomiccAttr_EModule)
-        mname = "$EMODULE" + mname;
+    //if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)
+        //mname = "$EMODULE" + mname;
     const char *Dummy = nullptr;
     unsigned DiagID;
     SourceLocation NoLoc;
@@ -10832,7 +10827,7 @@ if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
     //FunctionProtoType::ExtProtoInfo EPI;
     Declarator DFunc(DSVoid, Declarator::MemberContext); 
     ParsedAttributes parsedAttrs(attrFactory);
-    (void)DSVoid.SetTypeSpecType(DeclSpec::TST_void, loc, Dummy, DiagID, Context.getPrintingPolicy());
+    (void)DSVoid.SetTypeSpecType(DeclSpec::TST_void, loc, Dummy, DiagID, Actions.Context.getPrintingPolicy());
     DFunc.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
          /*IsAmbiguous=*/false, /*LParenLoc=*/NoLoc, /*Params=*/nullptr,
          /*NumParams=*/0, /*EllipsisLoc=*/NoLoc, /*RParenLoc=*/NoLoc,
@@ -10845,26 +10840,35 @@ if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
          /*ExceptionSpecTokens=*/nullptr, /*DeclsInPrototype=*/None,
          loc, loc, DFunc), parsedAttrs, loc);
     DFunc.setFunctionDefinitionKind(FDK_Declaration);
-    IdentifierInfo &funcName = Context.Idents.get(mname);
+    IdentifierInfo &funcName = Actions.Context.Idents.get(mname);
     DFunc.SetIdentifier(&funcName, loc);
-    LookupResult Previous(*this, GetNameForDeclarator(DFunc),
-        LookupOrdinaryName, ForRedeclaration);
+    LookupResult Previous(Actions, Actions.GetNameForDeclarator(DFunc),
+        Sema::LookupOrdinaryName, Sema::ForRedeclaration);
     bool AddToScope = true;
     MultiTemplateParamsArg TemplateParams(nullptr, (size_t)0);
-    auto New = ActOnFunctionDeclarator(getCurScope(), DFunc,
-        Record, GetTypeForDeclarator(DFunc, getCurScope()),
+    auto New = Actions.ActOnFunctionDeclarator(Actions.getCurScope(), DFunc,
+        Record, Actions.GetTypeForDeclarator(DFunc, Actions.getCurScope()),
         Previous, TemplateParams, AddToScope);
     CXXMethodDecl *FD = cast<CXXMethodDecl>(New->getAsFunction());
-    FD->addAttr(::new (Context) UsedAttr(loc, Context, 0));
-    FD->markUsed(Context);
+    FD->addAttr(::new (Actions.Context) UsedAttr(loc, Actions.Context, 0));
+    FD->markUsed(Actions.Context);
     FD->setIsUsed();
     FD->setAccess(AS_public);
     FD->setLexicalDeclContext(Record);
     Record->addDecl(FD);
     SmallVector<Stmt*, 32> Stmts;
-    FD->setBody(new (Context) class CompoundStmt(Context, Stmts, loc, loc));
-    ActOnFinishInlineFunctionDef(FD);
+    FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
+    Actions.ActOnFinishInlineFunctionDef(FD);
 }
+
+void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
+  referenceDLLExportedClassMethods();
+if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
+  auto StartLoc = Record->getLocStart();
+  int aattr = Record->AtomiccAttr;
+  if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
+   || aattr == CXXRecordDecl::AtomiccAttr_EModule)
+    buildForceDeclaration(*this, Record);
   if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
       if (traceDeclaration) {
           printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
