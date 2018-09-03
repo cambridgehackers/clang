@@ -1759,7 +1759,8 @@ private:
   StmtResult ParseSwitchStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseWhileStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseDoStatement();
-  StmtResult ParseRuleStatement();
+  StmtResult ParseRuleStatement(bool isDecl);
+  DeclGroupPtrTy ParseRuleDeclaration();
   StmtResult ParseForStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseGotoStatement();
   StmtResult ParseContinueStatement();

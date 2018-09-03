@@ -2564,6 +2564,8 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     return ParseCXXClassMemberDeclaration(AS, AccessAttrs,
                                           TemplateInfo, TemplateDiags);
   }
+  if (Tok.is(tok::kw___rule))
+    return ParseRuleDeclaration();
   if (Tok.is(tok::kw___connect)) {
     auto ConnectLoc = ConsumeToken();
     SmallVector<QualType, 8> FArgs;

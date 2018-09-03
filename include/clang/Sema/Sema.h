@@ -3676,9 +3676,6 @@ public:
                          SourceLocation WhileLoc, SourceLocation CondLParen,
                          Expr *Cond, SourceLocation CondRParen);
 
-  void StartRuleStmt(SourceLocation RuleLoc);
-  StmtResult FinishRuleStmt(SourceLocation RuleLoc,
-                         StringRef Name, Expr *ConditionExpr, Stmt *body);
   StmtResult ActOnForStmt(SourceLocation ForLoc,
                           SourceLocation LParenLoc,
                           Stmt *First,
