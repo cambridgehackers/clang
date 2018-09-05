@@ -10860,10 +10860,120 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
     Actions.ActOnFinishInlineFunctionDef(FD);
 }
+#include "TreeTransform.h"
+namespace {
+  class TransformAtomiccLoop : public TreeTransform<TransformAtomiccLoop> {
+    typedef TreeTransform<TransformAtomiccLoop> BaseTransform;
+
+  public:
+    llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
+    TransformAtomiccLoop(Sema &SemaRef) : BaseTransform(SemaRef) { }
+
+    // Make sure we redo semantic analysis
+    bool AlwaysRebuild() { return true; }
+
+    ExprResult TransformMemberExpr(MemberExpr *E) { return E; }
+
+#if 1
+    ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
+      if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+printf("JJJJJJJJgetDeclContext %p getLexicalDeclContext %p getParentFunctionOrVD %p \n", VD->getDeclContext(), VD->getLexicalDeclContext(), VD->getParentFunctionOrMethod());
+VD->dump();
+          if (Expr *ret = paramMap[VD])
+              return ret;
+          if (const Expr *init = VD->getAnyInitializer())
+              VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
+      }
+      return BaseTransform::TransformDeclRefExpr(E);
+    }
+#endif
+    StmtResult TransformForStmt(ForStmt *S) {
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+//S->dump();
+      // Transform the initialization statement
+      StmtResult Init = getDerived().TransformStmt(S->getInit());
+      if (Init.isInvalid())
+        return StmtError();
+
+      // In OpenMP loop region loop control variable must be captured and be
+      // private. Perform analysis of first part (if any).
+      if (getSema().getLangOpts().OpenMP && Init.isUsable())
+        getSema().ActOnOpenMPLoopInitialization(S->getForLoc(), Init.get());
+
+      // Transform the condition
+      Sema::ConditionResult Cond = getDerived().TransformCondition(
+          S->getForLoc(), S->getConditionVariable(), S->getCond(),
+          Sema::ConditionKind::Boolean);
+      if (Cond.isInvalid())
+        return StmtError();
+
+      // Transform the increment
+      ExprResult Inc = getDerived().TransformExpr(S->getInc());
+      if (Inc.isInvalid())
+        return StmtError();
+
+      Sema::FullExprArg FullInc(getSema().MakeFullDiscardedValueExpr(Inc.get()));
+      if (S->getInc() && !FullInc.get())
+        return StmtError();
+
+      // Transform the body
+      StmtResult Body = getDerived().TransformStmt(S->getBody());
+      if (Body.isInvalid())
+        return StmtError();
+
+      if (!getDerived().AlwaysRebuild() &&
+          Init.get() == S->getInit() &&
+          Cond.get() == std::make_pair(S->getConditionVariable(), S->getCond()) &&
+          Inc.get() == S->getInc() &&
+          Body.get() == S->getBody())
+        return S;
+
+      return getDerived().RebuildForStmt(S->getForLoc(), S->getLParenLoc(),
+                                     Init.get(), Cond, FullInc,
+                                     S->getRParenLoc(), Body.get());
+    }
+  };
+}
+
+static Stmt *unrollLoops(Sema &Actions, CXXMethodDecl *Method)
+{
+Stmt *body = Method->getBody();
+#if 0
+printf("[%s:%d] Method %p\n", __FUNCTION__, __LINE__, Method);
+    Actions.PushDeclContext(Actions.getCurScope(), Method);
+//body->dump();
+    TransformAtomiccLoop transform(Actions);
+#if 0
+| | `-ForStmt 0x7fbbc69de070 <line:88:13, line:92:13>
+| |   |-DeclStmt 0x7fbbc69ddc70 <line:88:18, col:27>
+| |   | `-VarDecl 0x7fbbc69ddbf0 <col:18, col:26> col:22 used i 'int' cinit
+| |   |   `-IntegerLiteral 0x7fbbc69ddc50 <col:26> 'int' 0
+| |   |-<<<NULL>>>
+| |   |-BinaryOperator 0x7fbbc69ddd58 <col:29, col:33> '_Bool' '<'
+| |   | |-ImplicitCastExpr 0x7fbbc69ddd40 <col:29> 'uint[[6]]' <IntegralCast>
+| |   | | `-ImplicitCastExpr 0x7fbbc69ddd28 <col:29> 'int' <LValueToRValue>
+| |   | |   `-DeclRefExpr 0x7fbbc69ddc88 <col:29> 'int' lvalue Var 0x7fbbc69ddbf0 'i' 'int'
+| |   | `-IntegerLiteral 0x7fbbc69ddd08 <col:33> 'uint[[6]]' 16
+| |   |-UnaryOperator 0x7fbbc69ddda8 <col:37, col:38> 'int' postfix '++'
+| |   | `-DeclRefExpr 0x7fbbc69ddd80 <col:37> 'int' lvalue Var 0x7fbbc69ddbf0 'i' 'int'
+| |   `-CompoundStmt 0x7fbbc69de050 <col:42, line:92:13>
+#endif
+#if 0
+    transform.paramMap[variable] = DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc,
+        thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
+#endif
+    body = transform.TransformStmt(body).get();
+    Actions.PopDeclContext();
+#endif
+    return body;
+}
 
 void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
   referenceDLLExportedClassMethods();
-if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
+  auto Record = dyn_cast<CXXRecordDecl>(D);
+  if (!Record)
+    return;
   auto StartLoc = Record->getLocStart();
   int aattr = Record->AtomiccAttr;
   if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
@@ -11024,11 +11134,12 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
     //Method->dump();
                   if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
                       MarkFunctionReferenced(Method->getLocation(), Method, true);
+                  if (Method->hasBody())
+                      Method->setBody(unrollLoops(*this, Method));
+              }
           }
       }
-      }
   }
-}
 }
 
 void Sema::referenceDLLExportedClassMethods() {
