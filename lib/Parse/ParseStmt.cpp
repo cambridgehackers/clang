@@ -874,13 +874,13 @@ FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, Q
     return FFDecl;
 }
 
-static CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, CXXRecordDecl *DC)
+static CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC)
 {
   IdentifierInfo *IFn = &Actions.Context.Idents.get(Name);
   DeclarationNameInfo NameInfo(IFn, loc);
   SmallVector<QualType, 16> ArgTypes;
   FunctionProtoType::ExtProtoInfo EPI;
-  auto FnType = Actions.Context.getFunctionType(Actions.Context.VoidTy, ArgTypes, EPI);
+  auto FnType = Actions.Context.getFunctionType(RetType, ArgTypes, EPI);
   CXXMethodDecl *Method = CXXMethodDecl::Create(Actions.Context, DC,
       loc, NameInfo, FnType, nullptr, SC_None, false, false, loc);
   Method->setIsUsed();
@@ -890,23 +890,17 @@ static CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation 
   return Method;
 }
 
-static void buildTemplate(Sema &Actions, CXXMethodDecl *Method, QualType RetType,
-    SmallVector<clang::ParmVarDecl *, 16> &Params, SourceLocation loc, bool isDecl, CXXRecordDecl *DC)
+static void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
+    SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI)
 {
   SmallVector<QualType, 8> ArgTypes;
   for (auto item: Params)
       ArgTypes.push_back(item->getType());
-  FunctionProtoType::ExtProtoInfo EPI;
-  if (isDecl)
-      EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-  QualType FnType = Actions.Context.getFunctionType(RetType, ArgTypes, EPI);
-
-
+  QualType FnType = Actions.Context.getFunctionType(Method->getReturnType(), ArgTypes, EPI);
   Method->setType(FnType);
   Method->setTypeSourceInfo(Actions.Context.CreateTypeSourceInfo(FnType));
   Method->setParams(Params);
-  DC->addDecl(Method);   // must be a member of class so that template instantiation works correctly
-  Actions.ActOnFinishInlineFunctionDef(Method);
+  Method->getDeclContext()->addDecl(Method);   // must be a member of class so that template instantiation works correctly
 }
 
 static Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc)
@@ -952,6 +946,10 @@ namespace {
 
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
+          if (isa<BlockDecl>(VD->getDeclContext())) {
+printf("[%s:%d]MOVEFROMBLOCKSSSS\n", __FUNCTION__, __LINE__);
+             VD->setDeclContext(getSema().CurContext);
+          } 
           if (Expr *ret = paramMap[VD])
               return ret;
           if (const Expr *init = VD->getAnyInitializer())
@@ -966,36 +964,27 @@ StmtResult Parser::ParseRuleStatement(bool isDecl) {
   QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
   QualType longp = Actions.Context.getPointerType(Actions.Context.LongTy);
 printf("[%s:%d]START CurContet %p\n", __FUNCTION__, __LINE__, Actions.CurContext);
-  CXXRecordDecl *DC;
   assert(Tok.is(tok::kw___rule) && "Not a rule stmt!");
   SourceLocation RuleLoc = ConsumeToken();  // eat the 'rule'.
   assert(Tok.is(tok::identifier) && "No rule name!");
   std::string RuleName = "RULE$" + Tok.getIdentifierInfo()->getName().str();
   std::string fname = RuleName;
+  FunctionProtoType::ExtProtoInfo EPI;
   ConsumeToken();
-  if (isDecl)
-      DC = cast<CXXRecordDecl>(Actions.CurContext);
-  else {
-      static int counter;
-      fname = "ruleTemplate" + fname + llvm::utostr(counter++);
-      DC = cast<CXXRecordDecl>(Actions.getCurFunctionDecl()->getParent());
-  }
-printf("[%s:%d] curfun %p DC %p curco %p\n", __FUNCTION__, __LINE__, Actions.getCurFunctionDecl(), DC, Actions.CurContext);
-
-  Stmt *GuardBody = nullptr;
+  CXXRecordDecl *DC = cast<CXXRecordDecl>(isDecl ? Actions.CurContext : Actions.getCurFunctionDecl()->getParent());
+  Expr *GuardExpr = nullptr;
   CXXMethodDecl *guardM = nullptr;
-  CXXMethodDecl *ruleM = buildFunc(Actions, fname, RuleLoc, DC);
+  CXXMethodDecl *ruleM = buildFunc(Actions, fname, RuleLoc, Actions.Context.VoidTy, DC);
+
   if (isDecl)
       Actions.PushDeclContext(getCurScope(), ruleM);
   Scope *curScope = Actions.getCurScope();
   BlockDecl *Block = BlockDecl::Create(Actions.Context, Actions.CurContext, RuleLoc); 
   Actions.PushBlockScope(curScope, Block);
   Actions.PushDeclContext(curScope, Block);
-printf("[%s:%d] block %p curfun %p DC %p curco %p\n", __FUNCTION__, __LINE__, Block, Actions.getCurFunctionDecl(), DC, Actions.CurContext);
-
-  // Now parse the actual __rule declaration/statement
   if (Tok.is(tok::kw_if)) {
-    guardM = buildFunc(Actions, fname + "__RDY", RuleLoc, DC);
+    // Now parse the guard of the __rule declaration/statement
+    guardM = buildFunc(Actions, fname + "__RDY", RuleLoc, Actions.Context.BoolTy, DC);
     ConsumeToken();  // eat the 'if'.
     if (Tok.isNot(tok::l_paren)) {
       Diag(Tok, diag::err_expected_lparen_after) << "if";
@@ -1005,10 +994,10 @@ printf("[%s:%d] block %p curfun %p DC %p curco %p\n", __FUNCTION__, __LINE__, Bl
     Sema::ConditionResult Cond;
     if (ParseParenExprOrCondition(nullptr, Cond, RuleLoc, Sema::ConditionKind::Boolean))
       return StmtError();
-    SmallVector<Stmt*, 32> stmtsCond;
-    stmtsCond.push_back(new (Actions.Context) ReturnStmt(RuleLoc, Cond.get().second, nullptr));
-    GuardBody = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, RuleLoc, RuleLoc);
+    GuardExpr = Cond.get().second;
   }
+
+  // Now parse the body of the __rule declaration/statement
   StmtResult BodyStmt(ParseStatement(nullptr));
   if (Tok.is(tok::code_completion)) {
     Actions.CodeCompleteAfterIf(getCurScope());
@@ -1019,14 +1008,12 @@ printf("[%s:%d] block %p curfun %p DC %p curco %p\n", __FUNCTION__, __LINE__, Bl
     return StmtError();
   Stmt *RuleBody = BodyStmt.get(); 
   Actions.DiagnoseUnusedExprResult(RuleBody);
-  TransformToRule transform(Actions);
 
-  // Now gather all variables captured from containing context (only for statements!)
-printf("[%s:%d] getcurblock %p Block %p\n", __FUNCTION__, __LINE__, Actions.getCurBlock(), Block);
+  // Now gather all variables captured from containing context
+  TransformToRule transform(Actions);
   NestedNameSpecifierLoc NNSloc;
   SmallVector<ParmVarDecl *, 16> Params;
   SmallVector<const VarDecl *, 16> CapVariables;
-  // Preprocessing for captured data references
   for (auto &Cap : Actions.getCurBlock()->Captures) {
     if (Cap.isThisCapture())
         continue;
@@ -1037,13 +1024,35 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
     }
     CapVariables.push_back(variable);
     IdentifierInfo *II = &Actions.Context.Idents.get(variable->getName()); 
-    auto thisParam = ParmVarDecl::Create(Actions.Context, Actions.CurContext,
+    auto thisParam = ParmVarDecl::Create(Actions.Context, ruleM,
         RuleLoc, RuleLoc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
     thisParam->setIsUsed();
     Params.push_back(thisParam);
     transform.paramMap[variable] = DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc,
         thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
   }
+  Actions.PopDeclContext(); // pop after Captures() is processed
+  Actions.PopFunctionScopeInfo();
+  if (isDecl)
+    Actions.PopDeclContext();
+
+  // fixup/complete method declarations (we now know number/type of params)
+  bool optimizeMe = false; //!Params.size();
+  if (isDecl || optimizeMe)
+      EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+  else {
+      static int counter;
+      fname = "ruleTemplate" + fname + llvm::utostr(counter++);
+      IdentifierInfo *IFn = &Actions.Context.Idents.get(fname);
+      ruleM->setDeclName(DeclarationName(IFn));
+      if (GuardExpr) {
+          IdentifierInfo *IFn = &Actions.Context.Idents.get(fname + "__RDY");
+          guardM->setDeclName(DeclarationName(IFn));
+      }
+  }
+  if (GuardExpr)
+      buildTemplate(Actions, guardM, Params, EPI);
+  buildTemplate(Actions, ruleM, Params, EPI);
 
   // Now populate runtime data structure for concrete value replacement of
   // variables at rule instantiation time.  (and dynamic creation of extra
@@ -1080,28 +1089,32 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
             new (Actions.Context) ArraySubscriptExpr(blockPtr,
               IntegerLiteral::Create(Actions.Context, llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), pindex++),
               Actions.Context.IntTy, RuleLoc), Actions.Context.LongTy, VK_LValue, OK_Ordinary, RuleLoc), rval).get());
-  } 
-      // Remap captured variables into generated method parameters using transfrom.paramMap
-      if (GuardBody)
-          GuardBody = transform.TransformStmt(GuardBody).get();
-      RuleBody = transform.TransformStmt(RuleBody).get();
+      } 
   } // end of if (Params.size())
 
-  if (GuardBody) {
-      guardM->setBody(GuardBody);
-      buildTemplate(Actions, guardM, Actions.Context.BoolTy, Params, RuleLoc, isDecl, DC);
+  // Remap captured variables into generated method parameters using transfrom.paramMap
+  {
+  Sema::ContextRAII MethodContext(Actions, ruleM);
+  ruleM->setBody(transform.TransformStmt(RuleBody).get());
+  Actions.ActOnFinishInlineFunctionDef(ruleM);
   }
-  ruleM->setBody(RuleBody);
-  buildTemplate(Actions, ruleM, Actions.Context.VoidTy, Params, RuleLoc, isDecl, DC);
-  StmtResult stmtReturn;
+  if (GuardExpr) {
+      Sema::ContextRAII MethodContext(Actions, guardM);
+      SmallVector<Stmt*, 32> stmtsCond;
+      stmtsCond.push_back(new (Actions.Context) ReturnStmt(RuleLoc,
+          transform.TransformExpr(GuardExpr).get(), nullptr));
+      guardM->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, RuleLoc, RuleLoc));
+      Actions.ActOnFinishInlineFunctionDef(guardM);
+  }
 
+  StmtResult stmtReturn;
   if (isDecl) {
       if (Params.size()) {
-          printf("%s: ERROR: captured context not allowed in __rule declatation\n", __FUNCTION__);
+          printf("%s: ERROR: captured context not allowed in __rule declaration\n", __FUNCTION__);
           exit(-1);
       }
   }
-  else {
+  else if (!optimizeMe) {
       Expr *Args[] = {
           // rule name
           Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, RuleName,
@@ -1131,10 +1144,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           Args, Actions.Context.VoidTy, VK_RValue, RuleLoc));
       stmtReturn = new (Actions.Context) class CompoundStmt(Actions.Context, TopStmts, RuleLoc, RuleLoc);
   }
-  Actions.PopDeclContext();
-  Actions.PopFunctionScopeInfo();
-  if (isDecl)
-    Actions.PopDeclContext();
   return stmtReturn;
 }
 

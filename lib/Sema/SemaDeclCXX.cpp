@@ -10858,7 +10858,7 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     Record->addDecl(FD);
     SmallVector<Stmt*, 32> Stmts;
     FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
-    Actions.ActOnFinishInlineFunctionDef(FD);
+    //Actions.ActOnFinishInlineFunctionDef(FD);
 }
 #include "TreeTransform.h"
 namespace {
@@ -10980,11 +10980,13 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
    || aattr == CXXRecordDecl::AtomiccAttr_EModule)
     buildForceDeclaration(*this, Record);
   if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
+#if 0
       if (traceDeclaration) {
           printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
           Record->dump();
       }
       Consumer.HandleTopLevelDecl(DeclGroupRef(Record));
+#endif
   }
   else if(Record->hasAttr<AtomiccSerializeAttr>()) {
       uint64_t rsize = 0;
@@ -11134,8 +11136,10 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
     //Method->dump();
                   if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
                       MarkFunctionReferenced(Method->getLocation(), Method, true);
-                  if (Method->hasBody())
+                  if (Method->hasBody()) {
                       Method->setBody(unrollLoops(*this, Method));
+                      ActOnFinishInlineFunctionDef(Method);
+                  }
               }
           }
       }
