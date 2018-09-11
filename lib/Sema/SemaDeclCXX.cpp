@@ -10861,25 +10861,50 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     //Actions.ActOnFinishInlineFunctionDef(FD);
 }
 #include "TreeTransform.h"
+
+static Expr *getExprValue(Sema &Actions, Expr *expr)
+{
+    if (!expr)
+        return expr;
+    if (auto BOP = dyn_cast<CompoundAssignOperator>(expr)) {
+        BinaryOperator::Opcode opc;
+        switch (BOP->getOpcode()) {
+        case BO_MulAssign: opc = BO_Mul; break;
+        case BO_DivAssign: opc = BO_Div; break;
+        case BO_RemAssign: opc = BO_Rem; break;
+        case BO_AddAssign: opc = BO_Add; break;
+        case BO_SubAssign: opc = BO_Sub; break;
+        case BO_ShlAssign: opc = BO_Shl; break;
+        case BO_ShrAssign: opc = BO_Shr; break;
+        case BO_AndAssign: opc = BO_And; break;
+        case BO_OrAssign:  opc = BO_Or;  break;
+        case BO_XorAssign: opc = BO_Xor; break;
+        default:
+            return nullptr;
+        }
+        return new (Actions.Context) BinaryOperator(BOP->getLHS(), BOP->getRHS(), opc,
+              BOP->getComputationResultType(),
+              VK_RValue, OK_Ordinary, BOP->getExprLoc(), FPOptions());
+    }
+    if (auto BOP = dyn_cast<BinaryOperator>(expr)) {
+        if (BOP->getOpcode() == BO_Assign)
+            return BOP->getRHS();
+    }
+    return expr;
+}
 namespace {
   class TransformAtomiccLoop : public TreeTransform<TransformAtomiccLoop> {
     typedef TreeTransform<TransformAtomiccLoop> BaseTransform;
 
   public:
-    llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
+    llvm::DenseMap<const Decl *, Expr *> paramMap;
     TransformAtomiccLoop(Sema &SemaRef) : BaseTransform(SemaRef) { }
 
     // Make sure we redo semantic analysis
     bool AlwaysRebuild() { return true; }
 
-    ExprResult TransformMemberExpr(MemberExpr *E) { return E; }
-
-#if 1
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-printf("JJJJJJJJgetDeclContext %p getLexicalDeclContext %p getParentFunctionOrVD %p \n", VD->getDeclContext(), VD->getLexicalDeclContext(), VD->getParentFunctionOrMethod());
-VD->dump();
           if (Expr *ret = paramMap[VD])
               return ret;
           if (const Expr *init = VD->getAnyInitializer())
@@ -10887,10 +10912,55 @@ VD->dump();
       }
       return BaseTransform::TransformDeclRefExpr(E);
     }
-#endif
     StmtResult TransformForStmt(ForStmt *S) {
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-//S->dump();
+      int indValue = -999999;
+      SourceLocation loc = S->getForLoc();
+      VarDecl *variable = nullptr;
+      SmallVector<Stmt*, 32> stmtsCond;
+      paramMap.clear();
+      if (auto decl = dyn_cast<DeclStmt>(S->getInit())) {
+          variable = dyn_cast<VarDecl>(decl->getSingleDecl());
+          if (const Expr *init = variable->getAnyInitializer())
+          if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(init))
+              indValue = IL->getValue().getZExtValue();
+      }
+      else if (auto init = dyn_cast<BinaryOperator>(S->getInit())) {
+          if (init->getOpcode() == BO_Assign)
+          if (auto DRE = dyn_cast<DeclRefExpr>(init->getLHS()))
+              variable = dyn_cast<VarDecl>(DRE->getDecl());
+          if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(init->getRHS()))
+              indValue = IL->getValue().getZExtValue();
+      }
+printf("[%s:%d] FORSTMTinit %d\n", __FUNCTION__, __LINE__, indValue);
+S->getInit()->dump();
+printf("[%s:%d] cond\n", __FUNCTION__, __LINE__);
+S->getCond()->dump();
+      Expr *incExpr = getExprValue(getSema(), S->getInc());
+printf("[%s:%d] incr var %p indVal %d\n", __FUNCTION__, __LINE__, variable, indValue);
+incExpr->dump();
+      if (variable && indValue != -999999) { // optimize for constant bounds
+          while (1) {
+              paramMap[variable] = IntegerLiteral::Create(getSema().Context,
+                        llvm::APInt(getSema().Context.getTypeSize(getSema().Context.IntTy), indValue),
+                        getSema().Context.IntTy, loc);
+              Expr *cval = getDerived().TransformExpr(S->getCond()).get();
+              bool bresult;
+              if (!cval->EvaluateAsBooleanCondition(bresult, getSema().Context))
+                  goto nooptimize;
+              if (!bresult)
+                  break;
+              stmtsCond.push_back(getDerived().TransformStmt(S->getBody()).get());
+              Expr *ival = getDerived().TransformExpr(incExpr).get();
+              llvm::APSInt iresult;
+              if (!ival->EvaluateAsInt(iresult, getSema().Context))
+                  goto nooptimize;
+              indValue = iresult.getZExtValue();
+          }
+          return new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
+      }
+nooptimize:
+printf("[%s:%d] dont optimize FORSTMT\n", __FUNCTION__, __LINE__);
+S->dump();
       // Transform the initialization statement
       StmtResult Init = getDerived().TransformStmt(S->getInit());
       if (Init.isInvalid())
@@ -10934,38 +11004,6 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
                                      S->getRParenLoc(), Body.get());
     }
   };
-}
-
-static Stmt *unrollLoops(Sema &Actions, CXXMethodDecl *Method)
-{
-    Sema::ContextRAII MethodContext(Actions, Method);
-    Stmt *body = Method->getBody();
-#if 1
-printf("[%s:%d] Method %p\n", __FUNCTION__, __LINE__, Method);
-//body->dump();
-    TransformAtomiccLoop transform(Actions);
-#if 0
-| | `-ForStmt 0x7fbbc69de070 <line:88:13, line:92:13>
-| |   |-DeclStmt 0x7fbbc69ddc70 <line:88:18, col:27>
-| |   | `-VarDecl 0x7fbbc69ddbf0 <col:18, col:26> col:22 used i 'int' cinit
-| |   |   `-IntegerLiteral 0x7fbbc69ddc50 <col:26> 'int' 0
-| |   |-<<<NULL>>>
-| |   |-BinaryOperator 0x7fbbc69ddd58 <col:29, col:33> '_Bool' '<'
-| |   | |-ImplicitCastExpr 0x7fbbc69ddd40 <col:29> 'uint[[6]]' <IntegralCast>
-| |   | | `-ImplicitCastExpr 0x7fbbc69ddd28 <col:29> 'int' <LValueToRValue>
-| |   | |   `-DeclRefExpr 0x7fbbc69ddc88 <col:29> 'int' lvalue Var 0x7fbbc69ddbf0 'i' 'int'
-| |   | `-IntegerLiteral 0x7fbbc69ddd08 <col:33> 'uint[[6]]' 16
-| |   |-UnaryOperator 0x7fbbc69ddda8 <col:37, col:38> 'int' postfix '++'
-| |   | `-DeclRefExpr 0x7fbbc69ddd80 <col:37> 'int' lvalue Var 0x7fbbc69ddbf0 'i' 'int'
-| |   `-CompoundStmt 0x7fbbc69de050 <col:42, line:92:13>
-#endif
-#if 0
-    transform.paramMap[variable] = DeclRefExpr::Create(Actions.Context, NNSloc, RuleLoc,
-        thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
-#endif
-    body = transform.TransformStmt(body).get();
-#endif
-    return body;
 }
 
 void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
@@ -11129,7 +11167,10 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                   if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
                       MarkFunctionReferenced(Method->getLocation(), Method, true);
                   if (Method->hasBody()) {
-                      Method->setBody(unrollLoops(*this, Method));
+                      // unroll loops if possible
+                      Sema::ContextRAII MethodContext(*this, Method);
+                      TransformAtomiccLoop transform(*this);
+                      Method->setBody(transform.TransformStmt(Method->getBody()).get());
                       ActOnFinishInlineFunctionDef(Method);
                   }
               }
