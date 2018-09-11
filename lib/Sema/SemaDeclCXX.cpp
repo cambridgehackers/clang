@@ -10938,10 +10938,10 @@ printf("[%s:%d]\n", __FUNCTION__, __LINE__);
 
 static Stmt *unrollLoops(Sema &Actions, CXXMethodDecl *Method)
 {
-Stmt *body = Method->getBody();
-#if 0
+    Sema::ContextRAII MethodContext(Actions, Method);
+    Stmt *body = Method->getBody();
+#if 1
 printf("[%s:%d] Method %p\n", __FUNCTION__, __LINE__, Method);
-    Actions.PushDeclContext(Actions.getCurScope(), Method);
 //body->dump();
     TransformAtomiccLoop transform(Actions);
 #if 0
@@ -10964,7 +10964,6 @@ printf("[%s:%d] Method %p\n", __FUNCTION__, __LINE__, Method);
         thisParam, false, RuleLoc, thisParam->getType(), VK_LValue, nullptr);
 #endif
     body = transform.TransformStmt(body).get();
-    Actions.PopDeclContext();
 #endif
     return body;
 }
@@ -10979,16 +10978,7 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
   if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
    || aattr == CXXRecordDecl::AtomiccAttr_EModule)
     buildForceDeclaration(*this, Record);
-  if(Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
-#if 0
-      if (traceDeclaration) {
-          printf("[%s:%d] INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
-          Record->dump();
-      }
-      Consumer.HandleTopLevelDecl(DeclGroupRef(Record));
-#endif
-  }
-  else if(Record->hasAttr<AtomiccSerializeAttr>()) {
+  if(Record->hasAttr<AtomiccSerializeAttr>()) {
       uint64_t rsize = 0;
       for (const Decl *field : Record->fields()) {
           if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
@@ -11094,6 +11084,7 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                       __FUNCTION__, item.second.name.c_str(), Record->getName().str().c_str());
           }
       }
+      if(Record->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Interface) {
       /* do hoisting for all class definitions */
       for (auto mitem: Record->methods()) { // before hoisting
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
@@ -11119,6 +11110,7 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
           else if (hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc)
            || field->getType()->isPointerType())
               field->setAccess(AS_public);
+      }
       }
       if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
        || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
