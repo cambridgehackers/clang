@@ -10913,51 +10913,54 @@ namespace {
       return BaseTransform::TransformDeclRefExpr(E);
     }
     StmtResult TransformForStmt(ForStmt *S) {
-      int indValue = -999999;
+      int indValue = -9999999;
       SourceLocation loc = S->getForLoc();
       VarDecl *variable = nullptr;
       SmallVector<Stmt*, 32> stmtsCond;
       paramMap.clear();
+      const Expr *init = nullptr;
       if (auto decl = dyn_cast<DeclStmt>(S->getInit())) {
           variable = dyn_cast<VarDecl>(decl->getSingleDecl());
-          if (const Expr *init = variable->getAnyInitializer())
-          if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(init))
-              indValue = IL->getValue().getZExtValue();
+          init = variable->getAnyInitializer();
       }
-      else if (auto init = dyn_cast<BinaryOperator>(S->getInit())) {
-          if (init->getOpcode() == BO_Assign)
-          if (auto DRE = dyn_cast<DeclRefExpr>(init->getLHS()))
-              variable = dyn_cast<VarDecl>(DRE->getDecl());
-          if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(init->getRHS()))
-              indValue = IL->getValue().getZExtValue();
+      else if (auto expr = dyn_cast<BinaryOperator>(S->getInit())) {
+          if (expr->getOpcode() == BO_Assign) {
+              if (auto DRE = dyn_cast<DeclRefExpr>(expr->getLHS()))
+                  variable = dyn_cast<VarDecl>(DRE->getDecl());
+              init = expr->getRHS();
+          }
       }
 printf("[%s:%d] FORSTMTinit %d\n", __FUNCTION__, __LINE__, indValue);
 S->getInit()->dump();
 printf("[%s:%d] cond\n", __FUNCTION__, __LINE__);
 S->getCond()->dump();
       Expr *incExpr = getExprValue(getSema(), S->getInc());
+      if (const IntegerLiteral *IL = dyn_cast_or_null<IntegerLiteral>(init))
+          indValue = IL->getValue().getZExtValue();
+      else
+          goto nooptimize;
 printf("[%s:%d] incr var %p indVal %d\n", __FUNCTION__, __LINE__, variable, indValue);
 incExpr->dump();
-      if (variable && indValue != -999999) { // optimize for constant bounds
-          while (1) {
-              paramMap[variable] = IntegerLiteral::Create(getSema().Context,
-                        llvm::APInt(getSema().Context.getTypeSize(getSema().Context.IntTy), indValue),
-                        getSema().Context.IntTy, loc);
-              Expr *cval = getDerived().TransformExpr(S->getCond()).get();
-              bool bresult;
-              if (!cval->EvaluateAsBooleanCondition(bresult, getSema().Context))
-                  goto nooptimize;
-              if (!bresult)
-                  break;
-              stmtsCond.push_back(getDerived().TransformStmt(S->getBody()).get());
-              Expr *ival = getDerived().TransformExpr(incExpr).get();
-              llvm::APSInt iresult;
-              if (!ival->EvaluateAsInt(iresult, getSema().Context))
-                  goto nooptimize;
-              indValue = iresult.getZExtValue();
-          }
-          return new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
+      if (!variable)
+          goto nooptimize;
+      while (1) { // optimize for constant bounds
+          paramMap[variable] = IntegerLiteral::Create(getSema().Context,
+                 llvm::APInt(getSema().Context.getTypeSize(getSema().Context.IntTy), indValue),
+                   getSema().Context.IntTy, loc);
+          Expr *cval = getDerived().TransformExpr(S->getCond()).get();
+          bool bresult;
+          if (!cval->EvaluateAsBooleanCondition(bresult, getSema().Context))
+              goto nooptimize;
+          if (!bresult)
+              break;
+          stmtsCond.push_back(getDerived().TransformStmt(S->getBody()).get());
+          Expr *ival = getDerived().TransformExpr(incExpr).get();
+          llvm::APSInt iresult;
+          if (!ival->EvaluateAsInt(iresult, getSema().Context))
+              goto nooptimize;
+          indValue = iresult.getZExtValue();
       }
+      return new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
 nooptimize:
 printf("[%s:%d] dont optimize FORSTMT\n", __FUNCTION__, __LINE__);
 S->dump();
