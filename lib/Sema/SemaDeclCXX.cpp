@@ -41,12 +41,20 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
+#include "TreeTransform.h"
 #include <map>
 #include <set>
 
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 extern std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr);
+extern Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
+extern FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
+    ArrayRef<ParmVarDecl *> Params);
+extern CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC);
+extern void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
+    SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI);
+extern Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc);
 
 static llvm::cl::opt<bool>
     traceDeclaration("dtrace", llvm::cl::Optional, llvm::cl::desc("trace declaration creation"));
@@ -10860,7 +10868,28 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
     //Actions.ActOnFinishInlineFunctionDef(FD);
 }
-#include "TreeTransform.h"
+
+static FunctionDecl *getGenerateFor(Sema &Actions, SourceLocation loc)
+{
+    static FunctionDecl *GenerateForDecl;
+    if (!GenerateForDecl) {
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        GenerateForDecl = getACCFunction(Actions, CLinkageDecl, "__generateFor", Actions.Context.VoidTy, Params);
+    }
+    return GenerateForDecl;
+}
 
 static Expr *getExprValue(Sema &Actions, Expr *expr)
 {
@@ -10893,11 +10922,32 @@ static Expr *getExprValue(Sema &Actions, Expr *expr)
     return expr;
 }
 namespace {
+  class TransformVardef : public TreeTransform<TransformVardef> {
+    typedef TreeTransform<TransformVardef> BaseTransform;
+
+  public:
+    llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
+    TransformVardef(Sema &SemaRef) : BaseTransform(SemaRef) { }
+
+    // Make sure we redo semantic analysis
+    bool AlwaysRebuild() { return true; }
+
+    ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
+      if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
+          if (Expr *ret = paramMap[VD])
+              return ret;
+          if (const Expr *init = VD->getAnyInitializer())
+              VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
+      }
+      return BaseTransform::TransformDeclRefExpr(E);
+    }
+  };
   class TransformAtomiccLoop : public TreeTransform<TransformAtomiccLoop> {
     typedef TreeTransform<TransformAtomiccLoop> BaseTransform;
 
   public:
     llvm::DenseMap<const Decl *, Expr *> paramMap;
+    CXXRecordDecl *Record;
     TransformAtomiccLoop(Sema &SemaRef) : BaseTransform(SemaRef) { }
 
     // Make sure we redo semantic analysis
@@ -10913,7 +10963,6 @@ namespace {
       return BaseTransform::TransformDeclRefExpr(E);
     }
     StmtResult TransformForStmt(ForStmt *S) {
-      int indValue = -9999999;
       SourceLocation loc = S->getForLoc();
       VarDecl *variable = nullptr;
       SmallVector<Stmt*, 32> stmtsCond;
@@ -10930,18 +10979,15 @@ namespace {
               init = expr->getRHS();
           }
       }
-printf("[%s:%d] FORSTMTinit %d\n", __FUNCTION__, __LINE__, indValue);
-S->getInit()->dump();
-printf("[%s:%d] cond\n", __FUNCTION__, __LINE__);
-S->getCond()->dump();
+printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
       Expr *incExpr = getExprValue(getSema(), S->getInc());
+      if (!variable)
+          goto nooptimize;
+#if 0
+      int indValue = -9999999;
       if (const IntegerLiteral *IL = dyn_cast_or_null<IntegerLiteral>(init))
           indValue = IL->getValue().getZExtValue();
       else
-          goto nooptimize;
-printf("[%s:%d] incr var %p indVal %d\n", __FUNCTION__, __LINE__, variable, indValue);
-incExpr->dump();
-      if (!variable)
           goto nooptimize;
       while (1) { // optimize for constant bounds
           paramMap[variable] = IntegerLiteral::Create(getSema().Context,
@@ -10960,6 +11006,63 @@ incExpr->dump();
               goto nooptimize;
           indValue = iresult.getZExtValue();
       }
+#else
+{
+printf("[%s:%d]FFFFFFFFFFFFFFFFFFFFFFFF variable %p\n", __FUNCTION__, __LINE__, variable);
+variable->dump();
+      static int counter;
+      std::string fname =  "FOR$" + llvm::utostr(counter++);
+      CXXRecordDecl *DC = Record;
+      CXXMethodDecl *forInit = buildFunc(getSema(), fname + "Init", loc, getSema().Context.LongTy, DC);
+      CXXMethodDecl *forCond = buildFunc(getSema(), fname + "Cond", loc, getSema().Context.BoolTy, DC);
+      CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.LongTy, DC);
+      CXXMethodDecl *forBody = buildFunc(getSema(), fname + "Body", loc, getSema().Context.VoidTy, DC);
+
+      NestedNameSpecifierLoc NNSloc;
+      QualType VT = variable->getType();
+      IdentifierInfo *II = &getSema().Context.Idents.get(variable->getName()); 
+      TransformVardef transVar(getSema());
+      auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
+          SmallVector<ParmVarDecl *, 16> Params;
+          auto thisParam = ParmVarDecl::Create(getSema().Context, Fn,
+              loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
+          thisParam->setIsUsed();
+          Params.push_back(thisParam);
+          transVar.paramMap[variable] = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
+              thisParam, false, loc, thisParam->getType(), VK_LValue, nullptr);
+          FunctionProtoType::ExtProtoInfo EPI;
+          if (stmt)
+              EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+          buildTemplate(getSema(), Fn, Params, EPI);
+          Sema::ContextRAII MethodContext(getSema(), Fn);
+          if (expr) {
+              SmallVector<Stmt*, 32> stmtsCond;
+              stmtsCond.push_back(new (getSema().Context) ReturnStmt(loc,
+                  transVar.TransformExpr(expr).get(), nullptr));
+              stmt = new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
+          }
+          else
+              stmt = transVar.TransformStmt(stmt).get();
+          Fn->setBody(stmt);
+          getSema().ActOnFinishInlineFunctionDef(Fn);
+      };
+      setParam(forInit, nullptr, const_cast<Expr *>(init));
+      setParam(forCond, nullptr, S->getCond());
+      setParam(forIncr, nullptr, incExpr);
+      setParam(forBody, S->getBody(), nullptr);
+
+      Expr *Args[] = {
+          castMethod(getSema(), forInit, loc),
+          castMethod(getSema(), forCond, loc),
+          castMethod(getSema(), forIncr, loc),
+          castMethod(getSema(), forBody, loc)
+      };
+      // Call runtime to add guard/method function into list of pairs to be processed by backend
+      stmtsCond.push_back(new (getSema().Context) CallExpr(getSema().Context, 
+          getACCCallRef(getSema(), getGenerateFor(getSema(), loc)),
+          Args, getSema().Context.VoidTy, VK_RValue, loc));
+}
+#endif
       return new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
 nooptimize:
 printf("[%s:%d] dont optimize FORSTMT\n", __FUNCTION__, __LINE__);
@@ -11173,6 +11276,7 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                       // unroll loops if possible
                       Sema::ContextRAII MethodContext(*this, Method);
                       TransformAtomiccLoop transform(*this);
+                      transform.Record = Record;
                       Method->setBody(transform.TransformStmt(Method->getBody()).get());
                       ActOnFinishInlineFunctionDef(Method);
                   }

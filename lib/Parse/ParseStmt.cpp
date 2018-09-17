@@ -874,7 +874,7 @@ FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, Q
     return FFDecl;
 }
 
-static CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC)
+CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC)
 {
   IdentifierInfo *IFn = &Actions.Context.Idents.get(Name);
   DeclarationNameInfo NameInfo(IFn, loc);
@@ -890,7 +890,7 @@ static CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation 
   return Method;
 }
 
-static void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
+void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
     SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI)
 {
   SmallVector<QualType, 8> ArgTypes;
@@ -903,7 +903,7 @@ static void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
   Method->getDeclContext()->addDecl(Method);   // must be a member of class so that template instantiation works correctly
 }
 
-static Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc)
+Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc)
 {
   return CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
       getACCCallRef(Actions, Method), nullptr, Method->getTypeSourceInfo(), loc, loc);
