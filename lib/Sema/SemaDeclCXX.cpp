@@ -10981,48 +10981,24 @@ namespace {
       }
 printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
       Expr *incExpr = getExprValue(getSema(), S->getInc());
-      if (!variable)
-          goto nooptimize;
-#if 0
-      int indValue = -9999999;
-      if (const IntegerLiteral *IL = dyn_cast_or_null<IntegerLiteral>(init))
-          indValue = IL->getValue().getZExtValue();
-      else
-          goto nooptimize;
-      while (1) { // optimize for constant bounds
-          paramMap[variable] = IntegerLiteral::Create(getSema().Context,
-                 llvm::APInt(getSema().Context.getTypeSize(getSema().Context.IntTy), indValue),
-                   getSema().Context.IntTy, loc);
-          Expr *cval = getDerived().TransformExpr(S->getCond()).get();
-          bool bresult;
-          if (!cval->EvaluateAsBooleanCondition(bresult, getSema().Context))
-              goto nooptimize;
-          if (!bresult)
-              break;
-          stmtsCond.push_back(getDerived().TransformStmt(S->getBody()).get());
-          Expr *ival = getDerived().TransformExpr(incExpr).get();
-          llvm::APSInt iresult;
-          if (!ival->EvaluateAsInt(iresult, getSema().Context))
-              goto nooptimize;
-          indValue = iresult.getZExtValue();
-      }
-#else
-{
+      if (variable) {
 printf("[%s:%d]FFFFFFFFFFFFFFFFFFFFFFFF variable %p\n", __FUNCTION__, __LINE__, variable);
 variable->dump();
       static int counter;
+      static int depth;
+      depth++;
       std::string fname =  "FOR$" + llvm::utostr(counter++);
-      CXXRecordDecl *DC = Record;
-      CXXMethodDecl *forInit = buildFunc(getSema(), fname + "Init", loc, getSema().Context.LongTy, DC);
-      CXXMethodDecl *forCond = buildFunc(getSema(), fname + "Cond", loc, getSema().Context.BoolTy, DC);
-      CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.LongTy, DC);
-      CXXMethodDecl *forBody = buildFunc(getSema(), fname + "Body", loc, getSema().Context.VoidTy, DC);
-
-      NestedNameSpecifierLoc NNSloc;
       QualType VT = variable->getType();
-      IdentifierInfo *II = &getSema().Context.Idents.get(variable->getName()); 
+#define GENVAR_NAME "__inst$Genvar"
+      IdentifierInfo *II = &getSema().Context.Idents.get(GENVAR_NAME + llvm::utostr(depth));
       TransformVardef transVar(getSema());
+
+      CXXMethodDecl *forBody = buildFunc(getSema(), fname + "Body", loc, getSema().Context.VoidTy, Record);
+      CXXMethodDecl *forInit = buildFunc(getSema(), fname + "Init", loc, getSema().Context.LongTy, Record);
+      CXXMethodDecl *forCond = buildFunc(getSema(), fname + "Cond", loc, getSema().Context.BoolTy, Record);
+      CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.LongTy, Record);
       auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
+          NestedNameSpecifierLoc NNSloc;
           SmallVector<ParmVarDecl *, 16> Params;
           auto thisParam = ParmVarDecl::Create(getSema().Context, Fn,
               loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
@@ -11061,10 +11037,9 @@ variable->dump();
       stmtsCond.push_back(new (getSema().Context) CallExpr(getSema().Context, 
           getACCCallRef(getSema(), getGenerateFor(getSema(), loc)),
           Args, getSema().Context.VoidTy, VK_RValue, loc));
-}
-#endif
+      depth--;
       return new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
-nooptimize:
+      }
 printf("[%s:%d] dont optimize FORSTMT\n", __FUNCTION__, __LINE__);
 S->dump();
       // Transform the initialization statement
