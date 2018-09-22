@@ -41,20 +41,12 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
-#include "TreeTransform.h"
 #include <map>
 #include <set>
 
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 extern std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr);
-extern Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
-extern FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
-    ArrayRef<ParmVarDecl *> Params);
-extern CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC);
-extern void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
-    SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI);
-extern Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc);
 
 static llvm::cl::opt<bool>
     traceDeclaration("dtrace", llvm::cl::Optional, llvm::cl::desc("trace declaration creation"));
@@ -10823,8 +10815,6 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
 {
     static int counter;
     std::string mname = llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_METHOD;
-    //if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)
-        //mname = "$EMODULE" + mname;
     const char *Dummy = nullptr;
     unsigned DiagID;
     SourceLocation NoLoc;
@@ -10866,225 +10856,6 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     Record->addDecl(FD);
     SmallVector<Stmt*, 32> Stmts;
     FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
-    //Actions.ActOnFinishInlineFunctionDef(FD);
-}
-
-static FunctionDecl *getGenerateFor(Sema &Actions, SourceLocation loc)
-{
-    static FunctionDecl *GenerateForDecl;
-    if (!GenerateForDecl) {
-        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
-        CLinkageDecl->setImplicit();
-        Parent->addDecl(CLinkageDecl);
-        SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        GenerateForDecl = getACCFunction(Actions, CLinkageDecl, "__generateFor", Actions.Context.VoidTy, Params);
-    }
-    return GenerateForDecl;
-}
-
-static Expr *getExprValue(Sema &Actions, Expr *expr)
-{
-    if (!expr)
-        return expr;
-    if (auto BOP = dyn_cast<CompoundAssignOperator>(expr)) {
-        BinaryOperator::Opcode opc;
-        switch (BOP->getOpcode()) {
-        case BO_MulAssign: opc = BO_Mul; break;
-        case BO_DivAssign: opc = BO_Div; break;
-        case BO_RemAssign: opc = BO_Rem; break;
-        case BO_AddAssign: opc = BO_Add; break;
-        case BO_SubAssign: opc = BO_Sub; break;
-        case BO_ShlAssign: opc = BO_Shl; break;
-        case BO_ShrAssign: opc = BO_Shr; break;
-        case BO_AndAssign: opc = BO_And; break;
-        case BO_OrAssign:  opc = BO_Or;  break;
-        case BO_XorAssign: opc = BO_Xor; break;
-        default:
-            return nullptr;
-        }
-        return new (Actions.Context) BinaryOperator(BOP->getLHS(), BOP->getRHS(), opc,
-              BOP->getComputationResultType(),
-              VK_RValue, OK_Ordinary, BOP->getExprLoc(), FPOptions());
-    }
-    if (auto BOP = dyn_cast<BinaryOperator>(expr)) {
-        if (BOP->getOpcode() == BO_Assign)
-            return BOP->getRHS();
-    }
-    return expr;
-}
-namespace {
-  class TransformVardef : public TreeTransform<TransformVardef> {
-    typedef TreeTransform<TransformVardef> BaseTransform;
-
-  public:
-    llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
-    TransformVardef(Sema &SemaRef) : BaseTransform(SemaRef) { }
-
-    // Make sure we redo semantic analysis
-    bool AlwaysRebuild() { return true; }
-
-    ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-      if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
-          if (Expr *ret = paramMap[VD])
-              return ret;
-          if (const Expr *init = VD->getAnyInitializer())
-              VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
-      }
-      return BaseTransform::TransformDeclRefExpr(E);
-    }
-  };
-  class TransformAtomiccLoop : public TreeTransform<TransformAtomiccLoop> {
-    typedef TreeTransform<TransformAtomiccLoop> BaseTransform;
-
-  public:
-    llvm::DenseMap<const Decl *, Expr *> paramMap;
-    CXXRecordDecl *Record;
-    TransformAtomiccLoop(Sema &SemaRef) : BaseTransform(SemaRef) { }
-
-    // Make sure we redo semantic analysis
-    bool AlwaysRebuild() { return true; }
-
-    ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-      if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
-          if (Expr *ret = paramMap[VD])
-              return ret;
-          if (const Expr *init = VD->getAnyInitializer())
-              VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
-      }
-      return BaseTransform::TransformDeclRefExpr(E);
-    }
-    StmtResult TransformForStmt(ForStmt *S) {
-      SourceLocation loc = S->getForLoc();
-      VarDecl *variable = nullptr;
-      SmallVector<Stmt*, 32> stmtsCond;
-      paramMap.clear();
-      const Expr *init = nullptr;
-      if (auto decl = dyn_cast<DeclStmt>(S->getInit())) {
-          variable = dyn_cast<VarDecl>(decl->getSingleDecl());
-          init = variable->getAnyInitializer();
-      }
-      else if (auto expr = dyn_cast<BinaryOperator>(S->getInit())) {
-          if (expr->getOpcode() == BO_Assign) {
-              if (auto DRE = dyn_cast<DeclRefExpr>(expr->getLHS()))
-                  variable = dyn_cast<VarDecl>(DRE->getDecl());
-              init = expr->getRHS();
-          }
-      }
-printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
-      Expr *incExpr = getExprValue(getSema(), S->getInc());
-      if (variable) {
-printf("[%s:%d]FFFFFFFFFFFFFFFFFFFFFFFF variable %p\n", __FUNCTION__, __LINE__, variable);
-variable->dump();
-      static int counter;
-      static int depth;
-      depth++;
-      std::string fname =  "FOR$" + llvm::utostr(counter++);
-      QualType VT = variable->getType();
-#define GENVAR_NAME "__inst$Genvar"
-      IdentifierInfo *II = &getSema().Context.Idents.get(GENVAR_NAME + llvm::utostr(depth));
-      TransformVardef transVar(getSema());
-
-      CXXMethodDecl *forBody = buildFunc(getSema(), fname + "Body", loc, getSema().Context.VoidTy, Record);
-      CXXMethodDecl *forInit = buildFunc(getSema(), fname + "Init", loc, getSema().Context.LongTy, Record);
-      CXXMethodDecl *forCond = buildFunc(getSema(), fname + "Cond", loc, getSema().Context.BoolTy, Record);
-      CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.LongTy, Record);
-      auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
-          NestedNameSpecifierLoc NNSloc;
-          SmallVector<ParmVarDecl *, 16> Params;
-          auto thisParam = ParmVarDecl::Create(getSema().Context, Fn,
-              loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
-          thisParam->setIsUsed();
-          Params.push_back(thisParam);
-          transVar.paramMap[variable] = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
-              thisParam, false, loc, thisParam->getType(), VK_LValue, nullptr);
-          FunctionProtoType::ExtProtoInfo EPI;
-          if (stmt)
-              EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-          buildTemplate(getSema(), Fn, Params, EPI);
-          Sema::ContextRAII MethodContext(getSema(), Fn);
-          if (expr) {
-              SmallVector<Stmt*, 32> stmtsCond;
-              stmtsCond.push_back(new (getSema().Context) ReturnStmt(loc,
-                  transVar.TransformExpr(expr).get(), nullptr));
-              stmt = new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
-          }
-          else
-              stmt = transVar.TransformStmt(stmt).get();
-          Fn->setBody(stmt);
-          getSema().ActOnFinishInlineFunctionDef(Fn);
-      };
-      setParam(forInit, nullptr, const_cast<Expr *>(init));
-      setParam(forCond, nullptr, S->getCond());
-      setParam(forIncr, nullptr, incExpr);
-      setParam(forBody, S->getBody(), nullptr);
-
-      Expr *Args[] = {
-          castMethod(getSema(), forInit, loc),
-          castMethod(getSema(), forCond, loc),
-          castMethod(getSema(), forIncr, loc),
-          castMethod(getSema(), forBody, loc)
-      };
-      // Call runtime to add guard/method function into list of pairs to be processed by backend
-      stmtsCond.push_back(new (getSema().Context) CallExpr(getSema().Context, 
-          getACCCallRef(getSema(), getGenerateFor(getSema(), loc)),
-          Args, getSema().Context.VoidTy, VK_RValue, loc));
-      depth--;
-      return new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
-      }
-printf("[%s:%d] dont optimize FORSTMT\n", __FUNCTION__, __LINE__);
-S->dump();
-      // Transform the initialization statement
-      StmtResult Init = getDerived().TransformStmt(S->getInit());
-      if (Init.isInvalid())
-        return StmtError();
-
-      // In OpenMP loop region loop control variable must be captured and be
-      // private. Perform analysis of first part (if any).
-      if (getSema().getLangOpts().OpenMP && Init.isUsable())
-        getSema().ActOnOpenMPLoopInitialization(S->getForLoc(), Init.get());
-
-      // Transform the condition
-      Sema::ConditionResult Cond = getDerived().TransformCondition(
-          S->getForLoc(), S->getConditionVariable(), S->getCond(),
-          Sema::ConditionKind::Boolean);
-      if (Cond.isInvalid())
-        return StmtError();
-
-      // Transform the increment
-      ExprResult Inc = getDerived().TransformExpr(S->getInc());
-      if (Inc.isInvalid())
-        return StmtError();
-
-      Sema::FullExprArg FullInc(getSema().MakeFullDiscardedValueExpr(Inc.get()));
-      if (S->getInc() && !FullInc.get())
-        return StmtError();
-
-      // Transform the body
-      StmtResult Body = getDerived().TransformStmt(S->getBody());
-      if (Body.isInvalid())
-        return StmtError();
-
-      if (!getDerived().AlwaysRebuild() &&
-          Init.get() == S->getInit() &&
-          Cond.get() == std::make_pair(S->getConditionVariable(), S->getCond()) &&
-          Inc.get() == S->getInc() &&
-          Body.get() == S->getBody())
-        return S;
-
-      return getDerived().RebuildForStmt(S->getForLoc(), S->getLParenLoc(),
-                                     Init.get(), Cond, FullInc,
-                                     S->getRParenLoc(), Body.get());
-    }
-  };
 }
 
 void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
@@ -11242,19 +11013,14 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                   Method->setAccess(AS_public);
               if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
               if (Method->getDeclName().isIdentifier()) {
-                  if (trace_hoist)
-                      printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public);
-    //Method->dump();
+                  if (traceDeclaration) {
+                      printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public, Method->hasBody());
+                      //Method->dump();
+                  }
                   if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
                       MarkFunctionReferenced(Method->getLocation(), Method, true);
-                  if (Method->hasBody()) {
-                      // unroll loops if possible
-                      Sema::ContextRAII MethodContext(*this, Method);
-                      TransformAtomiccLoop transform(*this);
-                      transform.Record = Record;
-                      Method->setBody(transform.TransformStmt(Method->getBody()).get());
+                  if (Method->hasBody())
                       ActOnFinishInlineFunctionDef(Method);
-                  }
               }
           }
       }
