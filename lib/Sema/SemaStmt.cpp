@@ -1739,6 +1739,17 @@ static Expr *getExprValue(Sema &Actions, Expr *expr)
               BOP->getComputationResultType(),
               VK_RValue, OK_Ordinary, BOP->getExprLoc(), FPOptions());
     }
+    if (auto UOP = dyn_cast<UnaryOperator>(expr)) {
+        UnaryOperator::Opcode opc = UOP->getOpcode();
+        int val = 1;
+        if (opc == UO_PostDec || opc == UO_PreDec)
+            val = -1;
+        else if (opc != UO_PostInc && opc != UO_PreInc)
+            return expr;
+        return IntegerLiteral::Create(Actions.Context,
+            llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), val),
+            Actions.Context.IntTy, UOP->getExprLoc());
+    }
     if (auto BOP = dyn_cast<BinaryOperator>(expr)) {
         if (BOP->getOpcode() == BO_Assign)
             return BOP->getRHS();
@@ -1808,6 +1819,8 @@ printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
       if (variable) {
 printf("[%s:%d]FFFFFFFFFFFFFFFFFFFFFFFF variable %p\n", __FUNCTION__, __LINE__, variable);
 variable->dump();
+printf("[%s:%d]inc\n", __FUNCTION__, __LINE__);
+incExpr->dump();
       static int counter;
       static int depth;
       depth++;
@@ -1818,9 +1831,9 @@ variable->dump();
       TransformVardef transVar(getSema());
 
       CXXMethodDecl *forBody = buildFunc(getSema(), fname + "Body", loc, getSema().Context.VoidTy, Record);
-      CXXMethodDecl *forInit = buildFunc(getSema(), fname + "Init", loc, getSema().Context.LongTy, Record);
+      CXXMethodDecl *forInit = buildFunc(getSema(), fname + "Init", loc, getSema().Context.IntTy, Record);
       CXXMethodDecl *forCond = buildFunc(getSema(), fname + "Cond", loc, getSema().Context.BoolTy, Record);
-      CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.LongTy, Record);
+      CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.IntTy, Record);
       auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
           NestedNameSpecifierLoc NNSloc;
           SmallVector<ParmVarDecl *, 16> Params;
