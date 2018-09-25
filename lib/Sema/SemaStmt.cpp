@@ -1972,13 +1972,16 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   Stmt *forStmt = new (Context)
       ForStmt(Context, First, Second.get().second, Second.get().first, Third,
               Body, ForLoc, LParenLoc, RParenLoc);
-  if (auto Method = dyn_cast<CXXMethodDecl>(CurContext))
-  if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
-  if (auto Record = dyn_cast<CXXRecordDecl>(Method->getDeclContext()))
-  if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
-   || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+  CXXRecordDecl *Record = nullptr;
+  if (dyn_cast<BlockDecl>(CurContext))
+  if (auto meth = dyn_cast<CXXMethodDecl>(CurContext->getParent()))
+      Record = dyn_cast<CXXRecordDecl>(meth->getDeclContext());
+  if (auto meth = dyn_cast<CXXMethodDecl>(CurContext))
+  if (meth->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
+      Record = dyn_cast<CXXRecordDecl>(meth->getDeclContext());
+  if (Record && (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+   || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)) {
     // unroll loops if possible
-    Sema::ContextRAII MethodContext(*this, Method);
     TransformAtomiccLoop transform(*this);
     transform.Record = Record;
     forStmt = transform.TransformStmt(forStmt).get();
