@@ -765,7 +765,9 @@ else {  // !isUnion()
       std::string fname;
       if (const NamedDecl *ND = dyn_cast<NamedDecl>(FD)) {
         fname = ND->getDeclName().getAsString();
-        if (const AtomiccVerilogPortAttr *A = FD->getAttr<AtomiccVerilogPortAttr>())
+        if (FD->hasAttr<AtomiccSharedAttr>())
+          fname += ":SHARED";
+        else if (const AtomiccVerilogPortAttr *A = FD->getAttr<AtomiccVerilogPortAttr>())
           fname += ":" + std::string(A->getSpelling()).substr(2); // remove leading '__'
       }
       if (Idx > FieldNo) {

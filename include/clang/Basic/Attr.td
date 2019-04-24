@@ -557,6 +557,12 @@ def AtomiccVerilogParam : Attr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccShared : Attr {
+  let Spellings = [ GNU<"atomicc_shared"> ];
+  let Subjects = SubjectList<[Field], ErrorDiag, "ExpectedParameterOrTypedef">;
+  let Documentation = [Undocumented];
+}
+
 def AtomiccInterface : InheritableAttr {
   let Spellings = [ GNU<"atomicc_interface"> ];
   let Subjects = SubjectList<[CXXRecord]>;
