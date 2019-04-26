@@ -5155,9 +5155,26 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     if (name == "__valid" || name == "__ready") {
       FunctionDecl *ValidReadyDecl = getValidReady(*this, LParenLoc);
       for (size_t i = 0, e = ArgExprs.size(); i != e; i++) {
-        if (ArgExprs[i]->getType() == Context.BoundMemberTy) {
-          std::string rstr;
-          Expr *val = ArgExprs[i];
+        std::string rstr;
+        Expr *val = ArgExprs[i];
+        if (ArgExprs[i]->getType() == Context.DependentTy) {
+          while (auto memb = dyn_cast_or_null<CXXDependentScopeMemberExpr>(val)) { // ref method
+            if (rstr != "")
+              rstr = "$" + rstr;
+            rstr = memb->getMember().getAsString() + rstr;
+            val = memb->getBase();
+            //if (auto citem = dyn_cast_or_null<CastExpr>(val))
+              //val = citem->getSubExpr();
+          }
+          rstr += (name == "__valid" ? "__ENA" : "__RDY");
+          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
+              StringLiteral::Ascii, /*Pascal*/ false,
+              Context.getConstantArrayType(Context.CharTy.withConst(),
+              llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
+              ccharp, CK_ArrayToPointerDecay).get();
+          Fn = getACCCallRef(*this, ValidReadyDecl);
+        }
+        else if (ArgExprs[i]->getType() == Context.BoundMemberTy) { // ref verilog port
           while (auto memb = dyn_cast_or_null<MemberExpr>(val)) {
             if (rstr != "")
               rstr = "$" + rstr;
