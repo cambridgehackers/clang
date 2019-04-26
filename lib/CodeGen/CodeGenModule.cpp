@@ -60,6 +60,8 @@
 using namespace clang;
 using namespace CodeGen;
 
+static llvm::cl::opt<bool>
+    moduleGenTrace("mgentrace", llvm::cl::Optional, llvm::cl::desc("trace clang method generation"));
 static const char AnnotationSection[] = "llvm.metadata";
 std::map<CXXMethodDecl *, int> InterfaceDecls;
 
@@ -1751,10 +1753,10 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
 
   // Ignore declarations, they will be emitted on their first use.
   if (const auto *FD = dyn_cast<FunctionDecl>(Global)) {
-if (0 && FD->getDeclName().isIdentifier()) {
-printf("[%s:%d] %s haveABODY %d\n", __FUNCTION__, __LINE__, FD->getName().str().c_str(), FD->doesThisDeclarationHaveABody());
-FD->dump();
-}
+    if (moduleGenTrace && FD->getDeclName().isIdentifier()) {
+      printf("[%s:%d] %s haveABODY %d\n", __FUNCTION__, __LINE__, FD->getName().str().c_str(), FD->doesThisDeclarationHaveABody());
+      FD->dump();
+    }
     // Forward declarations are emitted lazily on first use.
     if (!FD->doesThisDeclarationHaveABody()) {
       if (!FD->doesDeclarationForceExternallyVisibleDefinition())

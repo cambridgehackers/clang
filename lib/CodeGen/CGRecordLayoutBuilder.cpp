@@ -847,11 +847,11 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
     if (STy->hasName())
       STy->setName(STy->getName().str() + appendName);
   }
-if (recordGenTrace) {
-printf("[%s:%d] BuildRecord for %s, map %s\n", __FUNCTION__, __LINE__, Ty->getName().str().c_str(), Ty->structFieldMap.c_str());
-D->dump();
-Ty->dump();
-}
+  if (recordGenTrace) {
+    printf("[%s:%d] BuildRecord for %s, map %s\n", __FUNCTION__, __LINE__, Ty->getName().str().c_str(), Ty->structFieldMap.c_str());
+    D->dump();
+    Ty->dump();
+  }
 }
 #endif
 
