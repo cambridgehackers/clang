@@ -1225,12 +1225,15 @@ static QualType handleComplexIntConversion(Sema &S, ExprResult &LHS,
 /// responsible for emitting appropriate error diagnostics.
 QualType Sema::UsualArithmeticConversions(ExprResult &LHS, ExprResult &RHS,
                                           bool IsCompAssign) {
+  bool isBool = LHS.get()->getType()->isBooleanType() && RHS.get()->getType()->isBooleanType();
+  if (!isBool)
   if (!IsCompAssign) {
     LHS = UsualUnaryConversions(LHS.get());
     if (LHS.isInvalid())
       return QualType();
   }
 
+  if (!isBool)
   RHS = UsualUnaryConversions(RHS.get());
   if (RHS.isInvalid())
     return QualType();
@@ -5157,7 +5160,23 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
       for (size_t i = 0, e = ArgExprs.size(); i != e; i++) {
         std::string rstr;
         Expr *val = ArgExprs[i];
-        if (ArgExprs[i]->getType() == Context.DependentTy) {
+printf("[%s:%d]VALLLLLLLLLLLLIIIIIIIIIDDDDDDDDDDDDDDD\n", __FUNCTION__, __LINE__);
+ArgExprs[i]->dump();
+        if (auto TE = dyn_cast<TypoExpr>(ArgExprs[i])) {
+          auto &State = getTypoExprState(TE);
+          auto BestTC = State.Consumer->getCurrentCorrection();
+          if (auto *II = State.Consumer->getLookupResult().getLookupName().getAsIdentifierInfo())
+            rstr = II->getName();
+printf("[%s:%d] name %s\n", __FUNCTION__, __LINE__, rstr.c_str());
+          rstr += (name == "__valid" ? "__ENA" : "__RDY");
+          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
+              StringLiteral::Ascii, /*Pascal*/ false,
+              Context.getConstantArrayType(Context.CharTy.withConst(),
+              llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
+              ccharp, CK_ArrayToPointerDecay).get();
+          Fn = getACCCallRef(*this, ValidReadyDecl);
+        }
+        else if (ArgExprs[i]->getType() == Context.DependentTy) {
           while (auto memb = dyn_cast_or_null<CXXDependentScopeMemberExpr>(val)) { // ref method
             if (rstr != "")
               rstr = "$" + rstr;
