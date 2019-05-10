@@ -813,6 +813,7 @@ void Linux::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
 bool Linux::isPIEDefault() const { return getSanitizerArgs().requiresPIE(); }
 
 SanitizerMask Linux::getSupportedSanitizers() const {
+  const bool IsAtomicc = getTriple().getArch() == llvm::Triple::atomicc;
   const bool IsX86 = getTriple().getArch() == llvm::Triple::x86;
   const bool IsX86_64 = getTriple().getArch() == llvm::Triple::x86_64;
   const bool IsMIPS64 = getTriple().getArch() == llvm::Triple::mips64 ||
@@ -831,17 +832,17 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   Res |= SanitizerKind::KernelAddress;
   Res |= SanitizerKind::Vptr;
   Res |= SanitizerKind::SafeStack;
-  if (IsX86_64 || IsMIPS64 || IsAArch64)
+  if (IsX86_64 || IsMIPS64 || IsAArch64 || IsAtomicc)
     Res |= SanitizerKind::DataFlow;
-  if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsArmArch)
+  if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsArmArch || IsAtomicc)
     Res |= SanitizerKind::Leak;
-  if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64)
+  if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64 || IsAtomicc)
     Res |= SanitizerKind::Thread;
-  if (IsX86_64 || IsMIPS64 || IsPowerPC64 || IsAArch64)
+  if (IsX86_64 || IsMIPS64 || IsPowerPC64 || IsAArch64 || IsAtomicc)
     Res |= SanitizerKind::Memory;
-  if (IsX86_64 || IsMIPS64)
+  if (IsX86_64 || IsMIPS64 || IsAtomicc)
     Res |= SanitizerKind::Efficiency;
-  if (IsX86 || IsX86_64) {
+  if (IsX86 || IsX86_64 || IsAtomicc) {
     Res |= SanitizerKind::Function;
   }
   return Res;
