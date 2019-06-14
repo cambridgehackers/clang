@@ -835,14 +835,17 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
     ClassTemplateDecl *TD = TS->getSpecializedTemplate();
     auto formalParam = TD->getTemplateParameters()->begin();
     //CXXRecordDecl *RD = TD->getTemplatedDecl();
-    std::string appendName;
+    std::string appendName, sep = "(", end = "";
     for (auto AA : TS->getTemplateArgs().asArray()) {
         if (AA.getKind() == TemplateArgument::Integral) {
            uint64_t val = AA.getAsIntegral().getZExtValue();
-           appendName += "$__PARAM__$" + (*formalParam)->getName().str() + "$" + llvm::utostr(val);
+           appendName += sep + (*formalParam)->getName().str() + "=" + llvm::utostr(val);
+           sep = ",";
+           end = ")";
         }
         formalParam++;
     }
+    appendName += end;
     if (auto STy = dyn_cast<llvm::StructType>(Ty))
     if (STy->hasName())
       STy->setName(STy->getName().str() + appendName);
