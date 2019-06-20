@@ -686,6 +686,69 @@ CGBitFieldInfo CGBitFieldInfo::MakeInfo(CodeGenTypes &Types,
   return CGBitFieldInfo(Offset, Size, IsSigned, StorageSize, StorageOffset);
 }
 
+static std::string CBEMangle(const std::string &S)
+{
+    std::string Result;
+    for (unsigned i = 0, e = S.size(); i != e; ++i)
+        if (isalnum(S[i]) || S[i] == '_' || S[i] == '$')
+            Result += S[i];
+        else {
+            Result += '_';
+            Result += 'A'+(S[i]&15);
+            Result += 'A'+((S[i]>>4)&15);
+            Result += '_';
+        }
+    return Result;
+}
+static bool inline startswith(std::string str, std::string suffix)
+{
+    return str.substr(0, suffix.length()) == suffix;
+}
+static std::string tName(QualType Ty)
+{
+    std::string tname = "NONNN";
+    if (auto BTy = dyn_cast<BuiltinType>(Ty)) {
+        tname = "Bit(" + llvm::utostr(BTy->atomiccWidth) + ")";
+    }
+    else if (auto ATy = dyn_cast<ConstantArrayType>(Ty)) {
+        tname = "ARRAY_" + llvm::utostr(ATy->getSize().getZExtValue()) + "_" + tName(ATy->getElementType());
+    }
+    else {
+printf("[%s:%d]FFD\n", __FUNCTION__, __LINE__);
+Ty->dump();
+    }
+    return tname;
+}
+static std::string typeName(CodeGenTypes *CGT, const Decl *decl)
+{
+    std::string tname;
+    if (auto RFD = dyn_cast<CXXRecordDecl>(decl)) {
+        llvm::StructType *STy = CGT->ConvertRecordDeclType(RFD);
+        tname = STy->getName().str();
+        static const char *prefix[] = {"emodule.", "module.", "struct.",
+            "ainterface.", "serialize.", "class.", "union.", nullptr};
+        const char **p = prefix;
+        while (*p) {
+            if (startswith(tname, *p)) {
+                tname = tname.substr(strlen(*p));
+                if (tname.find(" ") != std::string::npos)
+                    tname = CBEMangle(tname);
+                break;
+            }
+            p++;
+        }
+    }
+    else {
+        tname = "NOTSTRUCT";
+        if (auto FFD = dyn_cast<FieldDecl>(decl))
+            tname = tName(FFD->getType());
+        else {
+printf("[%s:%d]NONSTRUCT\n", __FUNCTION__, __LINE__);
+decl->dump();
+        }
+    }
+    return tname;
+}
 CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
                                                   llvm::StructType *Ty) {
   CGRecordLowering Builder(*this, D, /*Packed=*/false);
@@ -741,12 +804,7 @@ printf("[%s:%d] UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n", __FUNCTION__, __LINE__);
         fname = ND->getDeclName().getAsString();
       if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
         decl = frec->getDecl();
-      if (auto RFD = dyn_cast<CXXRecordDecl>(decl)) {
-          llvm::StructType *STy = ConvertRecordDeclType(RFD);
-          tname = "l_" + STy->getName().str();
-      }
-      else
-          tname = "NOTSTRUCT";
+      tname = typeName(this, decl);
       Ty->structFieldMap += fname + ":" + tname;
     }
   }
