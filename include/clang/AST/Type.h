@@ -2102,6 +2102,7 @@ public:
     BuiltinTypeBits.Kind = K;
     atomiccWidth = -1;
     atomiccExpr = nullptr;
+    atomiccWidthStr = "";
   }
 
   Kind getKind() const { return static_cast<Kind>(BuiltinTypeBits.Kind); }
@@ -2159,6 +2160,7 @@ public:
 
   long atomiccWidth; // atomicc
   Expr *atomiccExpr; // atomicc
+  std::string atomiccWidthStr;
   void atomiccDependent(bool arg = true) {setDependent(arg); }
   static bool classof(const Type *T) { return T->getTypeClass() == Builtin; }
 };

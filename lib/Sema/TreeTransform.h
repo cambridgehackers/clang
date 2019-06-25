@@ -4373,6 +4373,7 @@ QualType TransformTypeSpecType(TypeLocBuilder &TLB, TyLoc T) {
   return T.getType();
 }
 
+extern "C" std::string expr2str(Sema &Sema, const Expr *E);
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformBuiltinType(TypeLocBuilder &TLB,
                                                       BuiltinTypeLoc T) {
@@ -4382,14 +4383,22 @@ QualType TreeTransform<Derived>::TransformBuiltinType(TypeLocBuilder &TLB,
      ExprResult Result = TransformExpr(BT->atomiccExpr);
      if (!Result.isInvalid()) {
      Expr *E = Result.getAs<Expr>();
+        std::string val = expr2str(SemaRef, E);
+//printf("[%s:%d]TREEACCWWWWW '%s'\n", __FUNCTION__, __LINE__, val.c_str());
      if (!E->isValueDependent()) {
         unsigned DestWidth = 9;
         llvm::APSInt itemWidth(32);
+        BuiltinType *newTy = new (SemaRef.Context, TypeAlignment) BuiltinType(BT->getKind());
+        if (val.find(" ") != std::string::npos) {
+            newTy->atomiccWidthStr = val;
+//printf("[%s:%d]NOTINTL val %s\n", __FUNCTION__, __LINE__, val.c_str());
+        }
         if (E->isIntegerConstantExpr(itemWidth, SemaRef.Context))
           DestWidth = itemWidth.getZExtValue();
-        else
-          printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-        BuiltinType *newTy = new (SemaRef.Context, TypeAlignment) BuiltinType(BT->getKind());
+        else {
+          printf("[%s:%d] NOTINTEGERLITERAL2\n", __FUNCTION__, __LINE__);
+          newTy->atomiccExpr = E;
+        }
         newTy->atomiccWidth = DestWidth;
         Ty = QualType(newTy, 0);
 //printf("[%s:%d] newTy %p newval %d\n", __FUNCTION__, __LINE__, (void *)newTy, DestWidth);

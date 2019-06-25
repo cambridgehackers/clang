@@ -35,6 +35,8 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/ADT/StringExtras.h"
+#include "clang/AST/ExprCXX.h" // SubstNonTypeTemplateParmExpr
 
 using namespace clang;
 
@@ -1229,6 +1231,54 @@ static OpenCLAccessAttr::Spelling getImageAccess(const AttributeList *Attrs) {
 /// to be converted, along with other associated processing state.
 /// \returns The type described by the declaration specifiers.  This function
 /// never returns null.
+extern "C" std::string expr2str(Sema &Sema, const Expr *E)
+{
+//printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+//E->dump();
+    //llvm::APSInt itemWidth(32);
+    if (auto item = dyn_cast<UnaryExprOrTypeTraitExpr>(E)) {
+        if (item->isArgumentType())
+            return "";
+        return expr2str(Sema, item->getArgumentExpr());
+    }
+    if (auto item = dyn_cast<DeclRefExpr>(E)) {
+        if (auto VD = dyn_cast<VarDecl>(item->getDecl()))
+            return VD->getName();
+        if (auto VD = dyn_cast<NonTypeTemplateParmDecl>(item->getDecl()))
+            return VD->getName();
+    }
+    if (auto item = dyn_cast<CastExpr>(E)) {
+        return expr2str(Sema, item->getSubExpr());
+    }
+    if (auto item = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
+        return expr2str(Sema, item->getReplacement());
+        //NonTypeTemplateParmDecl *getParameter() const { return Param; }
+    }
+    if (auto item = dyn_cast<IntegerLiteral>(E))
+    //if (E->isIntegerConstantExpr(itemWidth, Sema.Context))
+        return llvm::utostr(item->getValue().getZExtValue());
+    if (auto item = dyn_cast<ParenExpr>(E)) {
+        return expr2str(Sema, item->getSubExpr());
+    }
+    if (auto item = dyn_cast<BinaryOperator>(E)) {
+        return "(" + expr2str(Sema, item->getLHS())
+            + ") " + BinaryOperator::getOpcodeStr(item->getOpcode()).str()
+            + " (" + expr2str(Sema, item->getRHS()) + ")";
+    }
+    if (auto item = dyn_cast<CallExpr>(E))
+    if (auto callee = item->getDirectCallee()) {
+        std::string sep, ret = callee->getName().str() + "(";
+        for (auto arg: item->arguments()) {
+            ret += sep +  expr2str(Sema, arg);
+            sep = ", ";
+        }
+        return ret + ")";
+    }
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+E->dump();
+exit(-1);
+    return "";
+}
 static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   // FIXME: Should move the logic from DeclSpec::Finish to here for validity
   // checking.
@@ -1345,6 +1395,12 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     if (DS.dsAtomiccWidth) {
       BuiltinType *Ty = new (S.Context, TypeAlignment)
           BuiltinType(DS.getTypeSpecSign()==DeclSpec::TSS_unsigned ? BuiltinType::UInt : BuiltinType::Int);
+      std::string val = expr2str(state.getSema(), DS.dsAtomiccWidth);
+//printf("[%s:%d]ACCWWWWW '%s'\n", __FUNCTION__, __LINE__, val.c_str());
+      if (val.find(" ") != std::string::npos) {
+          Ty->atomiccWidthStr = val;
+//printf("[%s:%d]NOTINTLI1\n", __FUNCTION__, __LINE__);
+      }
       if (DS.dsAtomiccWidth->isValueDependent()) {
         Ty->atomiccDependent();
         Ty->atomiccExpr = DS.dsAtomiccWidth;
@@ -1356,10 +1412,14 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
         llvm::APSInt itemWidth(32);
         if (DS.dsAtomiccWidth->isIntegerConstantExpr(itemWidth, state.getSema().Context)) {
           DestWidth = itemWidth.getZExtValue();
+          Ty->atomiccWidth = DestWidth;
         }
-        else
+        else {
           printf("[%s:%d] NOTINTEGERLITERAL\n", __FUNCTION__, __LINE__);
-        Ty->atomiccWidth = DestWidth;
+          Ty->atomiccWidth = DestWidth;
+        Ty->atomiccDependent();
+        Ty->atomiccExpr = DS.dsAtomiccWidth;
+        }
       }
       Result = QualType(Ty, 0);
     }
