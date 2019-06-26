@@ -6058,6 +6058,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     if(auto RD = dyn_cast<CXXRecordDecl>(D))
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_EModule;
     break;
+  case AttributeList::AT_AtomiccAction:
+    handleSimpleAttribute<AtomiccActionAttr>(S, D, Attr);
+    break;
   case AttributeList::AT_AtomiccShared:
     handleSimpleAttribute<AtomiccSharedAttr>(S, D, Attr);
     break;

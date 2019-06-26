@@ -557,6 +557,12 @@ def AtomiccVerilogParam : Attr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccAction : Attr {
+  let Spellings = [ GNU<"atomicc_action"> ];
+  let Subjects = SubjectList<[CXXMethod]>;
+  let Documentation = [Undocumented];
+}
+
 def AtomiccShared : Attr {
   let Spellings = [ GNU<"atomicc_shared"> ];
   let Subjects = SubjectList<[Field], ErrorDiag, "ExpectedParameterOrTypedef">;

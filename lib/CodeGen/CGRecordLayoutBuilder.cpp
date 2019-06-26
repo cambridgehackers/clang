@@ -874,7 +874,10 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
 //printf("[%s:%d] interface %s method %s:%s\n", __FUNCTION__, __LINE__, RD->getName().str().c_str(), Out.str().str().c_str(), mname.c_str());
             InterfaceDecls[MD] = 1;
         }
-        Ty->structFieldMap += Out.str().str() + ":" + mname + ",";
+        Ty->structFieldMap += Out.str().str() + ":" + mname;
+        if (MD->hasAttr<AtomiccActionAttr>())
+          Ty->structFieldMap += ":action";
+        Ty->structFieldMap += ",";
       }
       }
     }
