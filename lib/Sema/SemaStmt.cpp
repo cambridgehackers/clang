@@ -49,6 +49,7 @@ extern CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation 
 extern void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
     SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI);
 extern Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc);
+extern std::string GlobalRuleName;
 
 StmtResult Sema::ActOnExprStmt(ExprResult FE) {
   if (FE.isInvalid())
@@ -1762,6 +1763,10 @@ namespace {
 
   public:
     llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
+    SmallVector<ParmVarDecl *, 16> Params;
+    CXXMethodDecl *forBody;
+    CXXRecordDecl *Record;
+    std::string    namePrefix;
     TransformVardef(Sema &SemaRef) : BaseTransform(SemaRef) { }
 
     // Make sure we redo semantic analysis
@@ -1771,6 +1776,33 @@ namespace {
       if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
           if (Expr *ret = paramMap[VD])
               return ret;
+          else {
+              auto DC = VD->getDeclContext();
+//printf("[%s:%d]iiiiiTransformAtomiccLoopTransformAtomiccLoop DC %p Record %p forb %p\n", __FUNCTION__, __LINE__, DC, Record, forBody);
+//VD->dump();
+              if (Record != DC && DC != forBody) {
+              NestedNameSpecifierLoc NNSloc;
+              SourceLocation loc = VD->getLocation();
+              IdentifierInfo *II = &getSema().Context.Idents.get(namePrefix + VD->getName().str());
+              QualType VT = VD->getType();
+              if (auto BT = dyn_cast<BuiltinType>(VT))
+              if (BT->atomiccExpr) {
+                   BuiltinType *newTy = new (getSema().Context, TypeAlignment) BuiltinType(BT->getKind());
+                   newTy->atomiccWidth = 666; // hack
+                   VT = QualType(newTy, 0);
+              }
+              auto newVT = getSema().Context.getLValueReferenceType(VT, false);
+              auto thisParam = ParmVarDecl::Create(getSema().Context, forBody,
+                  loc, loc, II, newVT, /*TInfo=*/nullptr, SC_None, nullptr);
+              thisParam->setIsUsed();
+              Params.push_back(thisParam);
+              auto newRet = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
+                  thisParam, false, loc, VT, VK_LValue, nullptr);
+              paramMap[VD] = newRet;
+newRet->dump();
+              return newRet;
+              }
+          }
           if (const Expr *init = VD->getAnyInitializer())
               VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
       }
@@ -1792,6 +1824,10 @@ namespace {
       if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
           if (Expr *ret = paramMap[VD])
               return ret;
+          else {
+printf("[%s:%d]TransfzzzormAtomiccLoopTransformAtomiccLoop DC %p Record %p \n", __FUNCTION__, __LINE__, VD->getDeclContext(), Record);
+VD->dump();
+          }
           if (const Expr *init = VD->getAnyInitializer())
               VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
       }
@@ -1817,14 +1853,13 @@ namespace {
 printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
       Expr *incExpr = getExprValue(getSema(), S->getInc());
       if (variable) {
-printf("[%s:%d]FFFFFFFFFFFFFFFFFFFFFFFF variable %p\n", __FUNCTION__, __LINE__, variable);
-variable->dump();
-printf("[%s:%d]inc\n", __FUNCTION__, __LINE__);
-incExpr->dump();
-      static int counter;
-      static int depth;
+      static int counter, depth;
       depth++;
       std::string fname =  "FOR$" + llvm::utostr(counter++);
+//printf("[%s:%d]FFFFFFFFFFFFFFFFFFFFFFFF variable %p start %s depth %d\n", __FUNCTION__, __LINE__, variable, fname.c_str(), depth);
+//variable->dump();
+//printf("[%s:%d]inc\n", __FUNCTION__, __LINE__);
+//incExpr->dump();
       QualType VT = variable->getType();
 #define GENVAR_NAME "__inst$Genvar"
       IdentifierInfo *II = &getSema().Context.Idents.get(GENVAR_NAME + llvm::utostr(depth));
@@ -1834,20 +1869,23 @@ incExpr->dump();
       CXXMethodDecl *forInit = buildFunc(getSema(), fname + "Init", loc, getSema().Context.IntTy, Record);
       CXXMethodDecl *forCond = buildFunc(getSema(), fname + "Cond", loc, getSema().Context.BoolTy, Record);
       CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.IntTy, Record);
+      transVar.Record = Record;
+      transVar.forBody = forBody;
+      transVar.namePrefix = GlobalRuleName;
+      if (auto containingMethod = dyn_cast<NamedDecl>(getSema().getCurLexicalContext()))
+          transVar.namePrefix = containingMethod->getName().str() + "$";
       auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
           NestedNameSpecifierLoc NNSloc;
-          SmallVector<ParmVarDecl *, 16> Params;
           auto thisParam = ParmVarDecl::Create(getSema().Context, Fn,
               loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
           thisParam->setIsUsed();
-          Params.push_back(thisParam);
+          transVar.Params.clear();
+          transVar.Params.push_back(thisParam);
           transVar.paramMap[variable] = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
               thisParam, false, loc, thisParam->getType(), VK_LValue, nullptr);
           FunctionProtoType::ExtProtoInfo EPI;
           if (stmt)
               EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-          buildTemplate(getSema(), Fn, Params, EPI);
-          Sema::ContextRAII MethodContext(getSema(), Fn);
           if (expr) {
               SmallVector<Stmt*, 32> stmtsCond;
               stmtsCond.push_back(new (getSema().Context) ReturnStmt(loc,
@@ -1856,6 +1894,8 @@ incExpr->dump();
           }
           else
               stmt = transVar.TransformStmt(stmt).get();
+          buildTemplate(getSema(), Fn, transVar.Params, EPI);
+          Sema::ContextRAII MethodContext(getSema(), Fn);
           Fn->setBody(stmt);
           getSema().ActOnFinishInlineFunctionDef(Fn);
       };
@@ -1982,6 +2022,9 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   if (Record && (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
    || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)) {
     // unroll loops if possible
+printf("[%s:%d] beforetransformfor record %p\n", __FUNCTION__, __LINE__, Record);
+//Record->dump();
+//forStmt->dump();
     TransformAtomiccLoop transform(*this);
     transform.Record = Record;
     forStmt = transform.TransformStmt(forStmt).get();
