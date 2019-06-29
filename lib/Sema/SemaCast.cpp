@@ -2732,7 +2732,12 @@ void CastOperation::CheckBitCast() {
   assert (SrcExpr.get()->getType() != Self.Context.OverloadTy && !DestType->getAs<ReferenceType>());
   QualType SrcType = Self.Context.getCanonicalType(SrcExpr.get()->getType());
   QualType aDestType = Self.Context.getCanonicalType(DestType);
-  assert (!invalidType(aDestType) && !invalidType(SrcType) && SrcType != aDestType);
+  if (invalidType(aDestType) || invalidType(SrcType) || SrcType == aDestType) {
+printf("[%s:%d] invaliddest %d invalidsrc %d\n", __FUNCTION__, __LINE__, invalidType(aDestType), invalidType(SrcType));
+aDestType->dump();
+SrcType->dump();
+  }
+  //assert (!invalidType(aDestType) && !invalidType(SrcType) && SrcType != aDestType);
   uint64_t ssize = Self.Context.getTypeSize(SrcType);
   uint64_t dsize = Self.Context.getTypeSize(aDestType);
   if (auto item = dyn_cast<BuiltinType>(SrcType)) {
