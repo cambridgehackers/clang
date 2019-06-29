@@ -1784,14 +1784,23 @@ namespace {
               NestedNameSpecifierLoc NNSloc;
               SourceLocation loc = VD->getLocation();
               IdentifierInfo *II = &getSema().Context.Idents.get(namePrefix + VD->getName().str());
-              QualType VT = VD->getType();
-              if (auto BT = dyn_cast<BuiltinType>(VT))
-              if (BT->atomiccExpr) {
-                   BuiltinType *newTy = new (getSema().Context, TypeAlignment) BuiltinType(BT->getKind());
-                   newTy->atomiccWidth = 666; // hack
-                   VT = QualType(newTy, 0);
+              QualType VT = VD->getType(), newVT = VT;
+              if (auto BT = dyn_cast<BuiltinType>(VT)) {
+                  if (BT->atomiccExpr) {
+                       BuiltinType *newTy = new (getSema().Context, TypeAlignment) BuiltinType(BT->getKind());
+                       newTy->atomiccWidth = 666; // hack
+                       VT = QualType(newTy, 0);
+                  }
+                  newVT = getSema().Context.getLValueReferenceType(VT, false);
               }
-              auto newVT = getSema().Context.getLValueReferenceType(VT, false);
+              else if (auto AT = dyn_cast<ArrayType>(VT)) {
+                  VT = getSema().Context.getPointerType(AT->getElementType());
+                  newVT = VT;
+              }
+              else {
+printf("[%s:%d] PARAMTYPE\n", __FUNCTION__, __LINE__);
+VT->dump();
+              }
               auto thisParam = ParmVarDecl::Create(getSema().Context, forBody,
                   loc, loc, II, newVT, /*TInfo=*/nullptr, SC_None, nullptr);
               thisParam->setIsUsed();
