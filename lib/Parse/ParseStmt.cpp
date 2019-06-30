@@ -960,7 +960,6 @@ printf("[%s:%d]MOVEFROMBLOCKSSSS\n", __FUNCTION__, __LINE__);
   };
 }
 
-std::string GlobalRuleName;
 StmtResult Parser::ParseRuleStatement(bool isDecl) {
   QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
   QualType longp = Actions.Context.getPointerType(Actions.Context.LongTy);
@@ -970,7 +969,6 @@ printf("[%s:%d]START CurContet %p\n", __FUNCTION__, __LINE__, Actions.CurContext
   assert(Tok.is(tok::identifier) && "No rule name!");
   std::string RuleName = "RULE$" + Tok.getIdentifierInfo()->getName().str();
   std::string fname = RuleName;
-GlobalRuleName = RuleName + "__ENA$";
   FunctionProtoType::ExtProtoInfo EPI;
   ConsumeToken();
   CXXRecordDecl *DC = cast<CXXRecordDecl>(isDecl ? Actions.CurContext : Actions.getCurFunctionDecl()->getParent());
@@ -991,13 +989,11 @@ GlobalRuleName = RuleName + "__ENA$";
     if (Tok.isNot(tok::l_paren)) {
       Diag(Tok, diag::err_expected_lparen_after) << "if";
       SkipUntil(tok::semi);
-GlobalRuleName = "";
       return StmtError();
     }
     Sema::ConditionResult Cond;
 printf("[%s:%d]RULEPARSEIF\n", __FUNCTION__, __LINE__);
     if (ParseParenExprOrCondition(nullptr, Cond, RuleLoc, Sema::ConditionKind::Boolean)) {
-GlobalRuleName = "";
       return StmtError();
     }
 printf("[%s:%d]RULEPARSEIF end\n", __FUNCTION__, __LINE__);
@@ -1011,11 +1007,9 @@ printf("[%s:%d]RULEPARSEBODY end\n", __FUNCTION__, __LINE__);
   if (Tok.is(tok::code_completion)) {
     Actions.CodeCompleteAfterIf(getCurScope());
     cutOffParsing();
-GlobalRuleName = "";
     return StmtError();
   }
   if (BodyStmt.isInvalid()) {
-GlobalRuleName = "";
     return StmtError();
   }
   Stmt *RuleBody = BodyStmt.get(); 
@@ -1156,7 +1150,6 @@ printf("[%s:%d]ZZZZZ\n", __FUNCTION__, __LINE__); exit(-1);
           Args, Actions.Context.VoidTy, VK_RValue, RuleLoc));
       stmtReturn = new (Actions.Context) class CompoundStmt(Actions.Context, TopStmts, RuleLoc, RuleLoc);
   }
-GlobalRuleName = "";
   return stmtReturn;
 }
 

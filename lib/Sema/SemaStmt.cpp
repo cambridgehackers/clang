@@ -1880,7 +1880,10 @@ printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
       CXXMethodDecl *forIncr = buildFunc(getSema(), fname + "Incr", loc, getSema().Context.IntTy, Record);
       transVar.Record = Record;
       transVar.forBody = forBody;
-      transVar.namePrefix = GlobalRuleName;
+      transVar.namePrefix = "";
+      if (dyn_cast<BlockDecl>(getSema().CurContext))
+      if (auto meth = dyn_cast<CXXMethodDecl>(getSema().CurContext->getParent()))
+          transVar.namePrefix = meth->getName().str() + "__ENA$";
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().getCurLexicalContext()))
           transVar.namePrefix = containingMethod->getName().str() + "$";
       auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {

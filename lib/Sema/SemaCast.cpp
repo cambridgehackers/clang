@@ -2726,7 +2726,8 @@ static bool invalidType(QualType Ty)
 }
 void CastOperation::CheckBitCast() {
   assert (ValueKind == VK_RValue && !isPlaceholder(BuiltinType::Overload));
-  SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
+  // this converts arrays -> pointers --- not what we want here!
+  //SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
   if (SrcExpr.isInvalid()) // if conversion failed, don't report another error
     return;
   assert (SrcExpr.get()->getType() != Self.Context.OverloadTy && !DestType->getAs<ReferenceType>());
@@ -2736,8 +2737,9 @@ void CastOperation::CheckBitCast() {
 printf("[%s:%d] invaliddest %d invalidsrc %d\n", __FUNCTION__, __LINE__, invalidType(aDestType), invalidType(SrcType));
 aDestType->dump();
 SrcType->dump();
+//exit(-1);
   }
-  //assert (!invalidType(aDestType) && !invalidType(SrcType) && SrcType != aDestType);
+  assert (!invalidType(aDestType) && !invalidType(SrcType) && SrcType != aDestType);
   uint64_t ssize = Self.Context.getTypeSize(SrcType);
   uint64_t dsize = Self.Context.getTypeSize(aDestType);
   if (auto item = dyn_cast<BuiltinType>(SrcType)) {
