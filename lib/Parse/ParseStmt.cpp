@@ -980,6 +980,8 @@ printf("[%s:%d]START CurContet %p\n", __FUNCTION__, __LINE__, Actions.CurContext
       Actions.PushDeclContext(getCurScope(), ruleM);
   Scope *curScope = Actions.getCurScope();
   BlockDecl *Block = BlockDecl::Create(Actions.Context, Actions.CurContext, RuleLoc); 
+  // Make the name available for "FOR$" processing
+  Block->addAttr(::new (Actions.Context) AtomiccVerilogParamAttr(RuleLoc, Actions.Context, RuleName, 0));
   Actions.PushBlockScope(curScope, Block);
   Actions.PushDeclContext(curScope, Block);
   if (Tok.is(tok::kw_if)) {

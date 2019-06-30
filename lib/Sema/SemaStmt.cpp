@@ -1881,9 +1881,12 @@ printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
       transVar.Record = Record;
       transVar.forBody = forBody;
       transVar.namePrefix = "";
-      if (dyn_cast<BlockDecl>(getSema().CurContext))
-      if (auto meth = dyn_cast<CXXMethodDecl>(getSema().CurContext->getParent()))
-          transVar.namePrefix = meth->getName().str() + "__ENA$";
+      if (auto block = dyn_cast<BlockDecl>(getSema().CurContext))
+      if (block->hasAttrs()) {
+          for (auto item: block->getAttrs())
+              if (auto param = dyn_cast<AtomiccVerilogParamAttr>(item))
+                  transVar.namePrefix = param->getParam().str() + "__ENA$";
+      }
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().getCurLexicalContext()))
           transVar.namePrefix = containingMethod->getName().str() + "$";
       auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
