@@ -5184,6 +5184,18 @@ printf("[%s:%d] name %s\n", __FUNCTION__, __LINE__, rstr.c_str());
             val = memb->getBase();
             //if (auto citem = dyn_cast_or_null<CastExpr>(val))
               //val = citem->getSubExpr();
+#if 1
+          while (auto memb = dyn_cast_or_null<MemberExpr>(val)) {
+            if (rstr != "")
+              rstr = "$" + rstr;
+            rstr = memb->getMemberDecl()->getName().str() + rstr;
+            val = memb->getBase();
+            if (auto citem = dyn_cast_or_null<CastExpr>(val))
+              val = citem->getSubExpr();
+          }
+#endif
+printf("[%s:%d]iteratettttt rstr %s\n", __FUNCTION__, __LINE__, rstr.c_str());
+val->dump();
           }
           rstr += (name == "__valid" ? "__ENA" : "__RDY");
           ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
