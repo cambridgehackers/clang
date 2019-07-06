@@ -1885,7 +1885,7 @@ printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
       if (block->hasAttrs()) {
           for (auto item: block->getAttrs())
               if (auto param = dyn_cast<AtomiccVerilogParamAttr>(item))
-                  transVar.namePrefix = param->getParam().str() + "__ENA$";
+                  transVar.namePrefix = param->getParam().str() + "$";
       }
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().getCurLexicalContext()))
           transVar.namePrefix = containingMethod->getName().str() + "$";
