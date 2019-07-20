@@ -29,6 +29,7 @@
 #include "clang/AST/ExprCXX.h"    // CXXConstructExpr for methString
 
 using namespace clang;
+bool inDeclForLoop;
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
 /// may either be a top level namespace or a block-level namespace alias. If
@@ -2566,6 +2567,68 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
   }
   if (Tok.is(tok::kw___rule))
     return ParseRuleDeclaration();
+  if (Tok.is(tok::kw_for))
+{
+  printf("[%s:%d] NEWFOROROROROOORORO\n", __FUNCTION__, __LINE__);
+  assert(Tok.is(tok::kw_for) && "Not a for stmt!");
+  StmtResult FirstPart;
+  Sema::ConditionResult SecondPart;
+  ExprResult ThirdPart;
+  SourceLocation ForLoc = ConsumeToken(), DeclEnd;  // eat the 'for'.
+  if (Tok.isNot(tok::l_paren)) {
+    Diag(Tok, diag::err_expected_lparen_after) << "for";
+    SkipUntil(tok::semi);
+  }
+  else {
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+    T.consumeOpen();
+    ParsedAttributesWithRange attrs(AttrFactory);
+    //MaybeParseCXX11Attributes(attrs);
+    if (!isForInitDeclaration()) {  // for (int X = 4;
+      printf("[%s:%d]NOTINIT\n", __FUNCTION__, __LINE__);
+    }
+    // Parse the first part of the for specifier.
+inDeclForLoop = true;
+    DeclGroupPtrTy DG = ParseSimpleDeclaration(Declarator::MemberContext, DeclEnd, attrs, false);
+    FirstPart = Actions.ActOnDeclStmt(DG, ForLoc, Tok.getLocation());
+inDeclForLoop = false;
+#if 0
+    if (Tok.is(tok::semi)) // for (int x = 4;
+      ConsumeToken();
+    else {
+      Diag(Tok, diag::err_expected_semi_for);
+    }
+#endif
+    // Parse the second part of the for specifier.
+    if (!(Tok.is(tok::semi) || Tok.is(tok::r_paren)))
+        SecondPart = ParseCXXCondition(nullptr, ForLoc, Sema::ConditionKind::Boolean);
+    if (Tok.isNot(tok::semi)) {
+      if (!SecondPart.isInvalid())
+        Diag(Tok, diag::err_expected_semi_for);
+      else // Skip until semicolon or rparen, don't consume it.
+        SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    }
+    if (Tok.is(tok::semi))
+      ConsumeToken();
+    if (Tok.isNot(tok::r_paren))
+      ThirdPart = ParseExpression();
+    T.consumeClose();       // Match the ')'.
+printf("[%s:%d]FORFFFF\n", __FUNCTION__, __LINE__);
+FirstPart.get()->dump();
+SecondPart.get().second->dump();
+ThirdPart.get()->dump();
+    BalancedDelimiterTracker declItem(*this, tok::l_brace);
+    declItem.consumeOpen();
+    while (Tok.isNot(tok::r_brace))
+      ParseCXXClassMemberDeclaration(AS_public/*AS*/, AccessAttrs, TemplateInfo, TemplateDiags);
+    declItem.consumeClose();       // Match the '}'.
+printf("[%s:%d]FORAFT\n", __FUNCTION__, __LINE__);
+    if (CXXRecordDecl *thisRecord = dyn_cast<CXXRecordDecl>(Actions.CurContext)) {
+thisRecord->dump();
+    }
+  }
+    return nullptr;
+  }
   if (Tok.is(tok::kw___connect)) {
     auto ConnectLoc = ConsumeToken();
     SmallVector<QualType, 8> FArgs;

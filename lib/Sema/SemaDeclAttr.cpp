@@ -3514,6 +3514,16 @@ static void handleAtomiccConnectAttr(Sema &S, Decl *D, const AttributeList &Attr
                           Attr.getAttributeSpellingListIndex()));
 }
 
+static void handleAtomiccArrayMemberAttr(Sema &S, Decl *D, const AttributeList &Attr) {
+  // Make sure that there is an expression as the annotation's single
+  // argument.
+  Expr *E = Attr.getArgAsExpr(0);
+
+  D->addAttr(::new (S.Context)
+             AtomiccArrayMemberAttr(Attr.getRange(), S.Context, E,
+                          Attr.getAttributeSpellingListIndex()));
+}
+
 static void handleAtomiccVerilogParamAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // Make sure that there is a string literal as the annotation's single
   // argument.
@@ -6060,6 +6070,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_AtomiccAction:
     handleSimpleAttribute<AtomiccActionAttr>(S, D, Attr);
+    break;
+  case AttributeList::AT_AtomiccArrayMember:
+    handleAtomiccArrayMemberAttr(S, D, Attr);
     break;
   case AttributeList::AT_AtomiccShared:
     handleSimpleAttribute<AtomiccSharedAttr>(S, D, Attr);

@@ -49,6 +49,7 @@
 #include <functional>
 
 using namespace clang;
+extern bool inDeclForLoop;
 using namespace sema;
 
 Sema::DeclGroupPtrTy Sema::ConvertDeclToDeclGroup(Decl *Ptr, Decl *OwnedType) {
@@ -10553,10 +10554,16 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     } else if (VDecl->isConstexpr()) {
 
     // Require constness.
+    } else if (inDeclForLoop) { // AtomicC
+      VDecl->setAccess(AS_public);
     } else if (!DclT.isConstQualified()) {
+      VDecl->setAccess(AS_public);
+printf("[%s:%d]HACKHACKHACKHACKAHHAHAHAHAHAHAHAHAHAHAHAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n", __FUNCTION__, __LINE__);
+#if 0
       Diag(VDecl->getLocation(), diag::err_in_class_initializer_non_const)
         << Init->getSourceRange();
       VDecl->setInvalidDecl();
+#endif
 
     // We allow integer constant expressions in all cases.
     } else if (DclT->isIntegralOrEnumerationType()) {

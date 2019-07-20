@@ -5722,6 +5722,23 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
   // Don't parse attributes unless we have parsed an unparenthesized name.
   if (D.hasName() && !D.getNumTypeObjects())
     MaybeParseCXX11Attributes(D);
+  if (isAtomicc && Tok.is(tok::l_square)) {
+    SourceLocation SubLoc = Tok.getLocation();
+printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
+    BalancedDelimiterTracker declItem(*this, tok::l_square);
+    declItem.consumeOpen();
+    ExprResult sub = ParseExpression();
+sub.get()->dump();
+    declItem.consumeClose();       // Match the ']'.
+    ParsedAttributes Attributes(AttrFactory);
+    ArgsVector ArgExprs;
+    ArgExprs.push_back(sub.get());
+    IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember");
+    Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
+        ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
+    D.takeAttributes(Attributes, SubLoc);
+//jcajca
+  }
 
   while (1) {
     if (Tok.is(tok::l_paren)) {

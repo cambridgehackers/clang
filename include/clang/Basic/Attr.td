@@ -563,6 +563,13 @@ def AtomiccAction : Attr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccArrayMember : Attr {
+  let Spellings = [ GNU<"atomicc_amember"> ];
+  let Subjects = SubjectList<[CXXMethod]>;
+  let Args = [ExprArgument<"Subscript">];
+  let Documentation = [Undocumented];
+}
+
 def AtomiccShared : Attr {
   let Spellings = [ GNU<"atomicc_shared"> ];
   let Subjects = SubjectList<[Field], ErrorDiag, "ExpectedParameterOrTypedef">;
