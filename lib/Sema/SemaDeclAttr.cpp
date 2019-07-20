@@ -3517,10 +3517,11 @@ static void handleAtomiccConnectAttr(Sema &S, Decl *D, const AttributeList &Attr
 static void handleAtomiccArrayMemberAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // Make sure that there is an expression as the annotation's single
   // argument.
-  Expr *E = Attr.getArgAsExpr(0);
+  Expr *Context = Attr.getArgAsExpr(0);
+  Expr *E = Attr.getArgAsExpr(1);
 
   D->addAttr(::new (S.Context)
-             AtomiccArrayMemberAttr(Attr.getRange(), S.Context, E,
+             AtomiccArrayMemberAttr(Attr.getRange(), S.Context, Context, E,
                           Attr.getAttributeSpellingListIndex()));
 }
 

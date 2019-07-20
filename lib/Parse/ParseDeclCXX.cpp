@@ -30,6 +30,8 @@
 
 using namespace clang;
 bool inDeclForLoop;
+Expr *forContext;
+CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record);
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
 /// may either be a top level namespace or a block-level namespace alias. If
@@ -2583,25 +2585,14 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     BalancedDelimiterTracker T(*this, tok::l_paren);
     T.consumeOpen();
     ParsedAttributesWithRange attrs(AttrFactory);
-    //MaybeParseCXX11Attributes(attrs);
-    if (!isForInitDeclaration()) {  // for (int X = 4;
-      printf("[%s:%d]NOTINIT\n", __FUNCTION__, __LINE__);
-    }
     // Parse the first part of the for specifier.
 inDeclForLoop = true;
     DeclGroupPtrTy DG = ParseSimpleDeclaration(Declarator::MemberContext, DeclEnd, attrs, false);
-    FirstPart = Actions.ActOnDeclStmt(DG, ForLoc, Tok.getLocation());
 inDeclForLoop = false;
-#if 0
-    if (Tok.is(tok::semi)) // for (int x = 4;
-      ConsumeToken();
-    else {
-      Diag(Tok, diag::err_expected_semi_for);
-    }
-#endif
+    FirstPart = Actions.ActOnDeclStmt(DG, ForLoc, Tok.getLocation());
     // Parse the second part of the for specifier.
     if (!(Tok.is(tok::semi) || Tok.is(tok::r_paren)))
-        SecondPart = ParseCXXCondition(nullptr, ForLoc, Sema::ConditionKind::Boolean);
+      SecondPart = ParseCXXCondition(nullptr, ForLoc, Sema::ConditionKind::Boolean);
     if (Tok.isNot(tok::semi)) {
       if (!SecondPart.isInvalid())
         Diag(Tok, diag::err_expected_semi_for);
@@ -2613,15 +2604,16 @@ inDeclForLoop = false;
     if (Tok.isNot(tok::r_paren))
       ThirdPart = ParseExpression();
     T.consumeClose();       // Match the ')'.
-printf("[%s:%d]FORFFFF\n", __FUNCTION__, __LINE__);
-FirstPart.get()->dump();
-SecondPart.get().second->dump();
-ThirdPart.get()->dump();
+    if (CXXRecordDecl *thisRecord = dyn_cast<CXXRecordDecl>(Actions.CurContext)) {
+      CallExpr *call = ProcessFor(Actions, ForLoc, "", FirstPart.get(), SecondPart.get().second, ThirdPart.get(), nullptr, thisRecord);
+      forContext = call;
+    }
     BalancedDelimiterTracker declItem(*this, tok::l_brace);
     declItem.consumeOpen();
     while (Tok.isNot(tok::r_brace))
       ParseCXXClassMemberDeclaration(AS_public/*AS*/, AccessAttrs, TemplateInfo, TemplateDiags);
     declItem.consumeClose();       // Match the '}'.
+    forContext = nullptr;
 printf("[%s:%d]FORAFT\n", __FUNCTION__, __LINE__);
     if (CXXRecordDecl *thisRecord = dyn_cast<CXXRecordDecl>(Actions.CurContext)) {
 thisRecord->dump();

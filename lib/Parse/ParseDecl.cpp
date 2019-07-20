@@ -32,6 +32,7 @@
 #include "llvm/Support/ScopedPrinter.h"
 
 using namespace clang;
+extern Expr *forContext;
 
 //===----------------------------------------------------------------------===//
 // C99 6.7: Declarations.
@@ -5732,6 +5733,7 @@ sub.get()->dump();
     declItem.consumeClose();       // Match the ']'.
     ParsedAttributes Attributes(AttrFactory);
     ArgsVector ArgExprs;
+    ArgExprs.push_back(forContext);
     ArgExprs.push_back(sub.get());
     IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember");
     Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
