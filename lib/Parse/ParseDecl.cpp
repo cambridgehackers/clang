@@ -33,6 +33,8 @@
 
 using namespace clang;
 extern Expr *forContext;
+extern VarDecl *topForVariable;
+Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, CXXMethodDecl *Fn, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, SmallVector<ParmVarDecl *, 16> &Params);
 
 //===----------------------------------------------------------------------===//
 // C99 6.7: Declarations.
@@ -5729,17 +5731,26 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
     BalancedDelimiterTracker declItem(*this, tok::l_square);
     declItem.consumeOpen();
     ExprResult sub = ParseExpression();
-sub.get()->dump();
     declItem.consumeClose();       // Match the ']'.
     ParsedAttributes Attributes(AttrFactory);
     ArgsVector ArgExprs;
     ArgExprs.push_back(forContext);
+    if (auto call = dyn_cast<CallExpr>(forContext)) {
+        SmallVector<ParmVarDecl *, 16> Params;
+        Expr *arg = call->getArg(call->getNumArgs() - 1);
+        if (auto CS1 = dyn_cast<CStyleCastExpr>(arg))
+        if (auto CS2 = dyn_cast<ImplicitCastExpr>(CS1->getSubExpr()))
+        if (auto DRE = dyn_cast<DeclRefExpr>(CS2->getSubExpr()))
+        if (auto func = dyn_cast<CXXMethodDecl>(DRE->getDecl())) {
+            Stmt *stmt = setForContents(Actions, "", nullptr, func, topForVariable, nullptr, sub.get(), 0, Params);
+            func->setBody(stmt);        // replace placeholder with actual index
+        }
+    }
     ArgExprs.push_back(sub.get());
     IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember");
     Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
         ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
     D.takeAttributes(Attributes, SubLoc);
-//jcajca
   }
 
   while (1) {

@@ -1693,10 +1693,10 @@ void Sema::CheckBreakContinueBinding(Expr *E) {
   }
 }
 
-static FunctionDecl *getGenerateFor(Sema &Actions, SourceLocation loc)
+static FunctionDecl *getGenerateFor(Sema &Actions, SourceLocation loc, std::string name)
 {
-    static FunctionDecl *GenerateForDecl;
-    if (!GenerateForDecl) {
+    static std::map<std::string, FunctionDecl *>GenerateForDecl;
+    if (!GenerateForDecl[name]) {
         DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
         LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
         CLinkageDecl->setImplicit();
@@ -1710,9 +1710,10 @@ static FunctionDecl *getGenerateFor(Sema &Actions, SourceLocation loc)
             loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
         Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
             loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        GenerateForDecl = getACCFunction(Actions, CLinkageDecl, "__generateFor", Actions.Context.VoidTy, Params);
+        FunctionDecl *thisFunc = getACCFunction(Actions, CLinkageDecl, name, Actions.Context.VoidTy, Params);
+        GenerateForDecl[name] = thisFunc;
     }
-    return GenerateForDecl;
+    return GenerateForDecl[name];
 }
 
 static Expr *getExprValue(Sema &Actions, Expr *expr)
@@ -1756,21 +1757,60 @@ static Expr *getExprValue(Sema &Actions, Expr *expr)
     }
     return expr;
 }
-CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record);
+CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName, VarDecl **usedVar);
 namespace {
   class TransformVardef : public TreeTransform<TransformVardef> {
     typedef TreeTransform<TransformVardef> BaseTransform;
 
   public:
     llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
-    SmallVector<ParmVarDecl *, 16> Params;
+    SmallVector<ParmVarDecl *, 16> &Params;
     CXXMethodDecl *forBody;
     CXXRecordDecl *Record;
     std::string    namePrefix;
-    TransformVardef(Sema &SemaRef) : BaseTransform(SemaRef) { }
+    TransformVardef(Sema &SemaRef, std::string prefix, CXXRecordDecl *rec, CXXMethodDecl *meth, SmallVector<ParmVarDecl *, 16> &params) : BaseTransform(SemaRef), Params(params), forBody(meth), Record(rec), namePrefix(prefix) { }
 
     // Make sure we redo semantic analysis
     bool AlwaysRebuild() { return true; }
+
+    DeclRefExpr *addMap(VarDecl *VD, ParmVarDecl *param) {
+      QualType VT = VD->getType();
+      NestedNameSpecifierLoc NNSloc;
+      SourceLocation loc = VD->getLocation();
+      auto newRet = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
+          param, false, loc, VT, VK_LValue, nullptr);
+      paramMap[VD] = newRet;
+      return newRet;
+    }
+    Expr *addEntry(VarDecl *VD, std::string name) {
+      NestedNameSpecifierLoc NNSloc;
+      SourceLocation loc = VD->getLocation();
+      IdentifierInfo *II = &getSema().Context.Idents.get(name);
+      QualType VT = VD->getType(), newVT = VT;
+      if (auto BT = dyn_cast<BuiltinType>(VT)) {
+          if (BT->atomiccExpr) {
+               BuiltinType *newTy = new (getSema().Context, TypeAlignment) BuiltinType(BT->getKind());
+               newTy->atomiccWidth = 666; // hack
+               VT = QualType(newTy, 0);
+          }
+          newVT = getSema().Context.getLValueReferenceType(VT, false);
+      }
+      else if (auto AT = dyn_cast<ArrayType>(VT)) {
+          VT = getSema().Context.getPointerType(AT->getElementType());
+          newVT = VT;
+      }
+      else {
+printf("[%s:%d] PARAMTYPE\n", __FUNCTION__, __LINE__);
+VT->dump();
+      }
+      auto thisParam = ParmVarDecl::Create(getSema().Context, forBody,
+          loc, loc, II, newVT, /*TInfo=*/nullptr, SC_None, nullptr);
+      thisParam->setIsUsed();
+      Params.push_back(thisParam);
+      auto newRet = addMap(VD, thisParam);
+newRet->dump();
+      return newRet;
+    }
 
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
@@ -1780,37 +1820,8 @@ namespace {
               auto DC = VD->getDeclContext();
 //printf("[%s:%d]iiiiiTransformAtomiccLoopTransformAtomiccLoop DC %p Record %p forb %p\n", __FUNCTION__, __LINE__, DC, Record, forBody);
 //VD->dump();
-              if (Record != DC && DC != forBody) {
-              NestedNameSpecifierLoc NNSloc;
-              SourceLocation loc = VD->getLocation();
-              IdentifierInfo *II = &getSema().Context.Idents.get(namePrefix + VD->getName().str());
-              QualType VT = VD->getType(), newVT = VT;
-              if (auto BT = dyn_cast<BuiltinType>(VT)) {
-                  if (BT->atomiccExpr) {
-                       BuiltinType *newTy = new (getSema().Context, TypeAlignment) BuiltinType(BT->getKind());
-                       newTy->atomiccWidth = 666; // hack
-                       VT = QualType(newTy, 0);
-                  }
-                  newVT = getSema().Context.getLValueReferenceType(VT, false);
-              }
-              else if (auto AT = dyn_cast<ArrayType>(VT)) {
-                  VT = getSema().Context.getPointerType(AT->getElementType());
-                  newVT = VT;
-              }
-              else {
-printf("[%s:%d] PARAMTYPE\n", __FUNCTION__, __LINE__);
-VT->dump();
-              }
-              auto thisParam = ParmVarDecl::Create(getSema().Context, forBody,
-                  loc, loc, II, newVT, /*TInfo=*/nullptr, SC_None, nullptr);
-              thisParam->setIsUsed();
-              Params.push_back(thisParam);
-              auto newRet = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
-                  thisParam, false, loc, VT, VK_LValue, nullptr);
-              paramMap[VD] = newRet;
-newRet->dump();
-              return newRet;
-              }
+              if (Record != DC && DC != forBody)
+                  return addEntry(VD, namePrefix + VD->getName().str());
           }
           if (const Expr *init = VD->getAnyInitializer())
               VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
@@ -1852,7 +1863,8 @@ VD->dump();
       }
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().CurContext))
         namePrefix = containingMethod->getName().str() + "$";
-      if (CallExpr *callMe = ProcessFor(getSema(), S->getForLoc(), namePrefix, S->getInit(), S->getCond(), S->getInc(), S->getBody(), Record)) {
+      VarDecl *unused;
+      if (CallExpr *callMe = ProcessFor(getSema(), S->getForLoc(), namePrefix, S->getInit(), S->getCond(), S->getInc(), S->getBody(), Record, "__generateFor", &unused)) {
           SourceLocation loc = S->getForLoc();
           SmallVector<Stmt*, 32> stmtsCond;
           stmtsCond.push_back(callMe);
@@ -1905,10 +1917,33 @@ S->dump();
   };
 }
 
-CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record)
+#define GENVAR_NAME "__inst$Genvar"
+Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, CXXMethodDecl *Fn, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, SmallVector<ParmVarDecl *, 16> &Params)
+{
+    SourceLocation loc = variable->getLocation();
+    TransformVardef transVar(Actions, prefix, Record, Fn, Params);
+    if (Record)
+        transVar.addEntry(variable, GENVAR_NAME + llvm::utostr(depth));
+    else
+        transVar.addMap(variable, Fn->getParamDecl(0));
+    if (stmt)
+        stmt = transVar.TransformStmt(stmt).get();
+    else {
+        SmallVector<Stmt*, 32> stmtsCond;
+        if (!expr)
+            expr = IntegerLiteral::Create(Actions.Context,
+                llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), 0),
+                Actions.Context.IntTy, loc);
+        stmtsCond.push_back(new (Actions.Context) ReturnStmt(loc,
+            transVar.TransformExpr(expr).get(), nullptr));
+        stmt = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
+    }
+    return stmt;
+}
+
+CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName, VarDecl **usedVar)
 {
     VarDecl *variable = nullptr;
-    SmallVector<Stmt*, 32> stmtsCond;
     const Expr *init = nullptr;
     if (auto decl = dyn_cast<DeclStmt>(initExpr)) {
         variable = dyn_cast<VarDecl>(decl->getSingleDecl());
@@ -1922,51 +1957,34 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
             init = expr->getRHS();
         }
     }
+    *usedVar = variable;
     if (!variable)
         return nullptr;
 printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
     static int counter, depth;
     depth++;
     std::string fname =  "FOR$" + llvm::utostr(counter++);
+    auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
+        SmallVector<ParmVarDecl *, 16> Params;
+        FunctionProtoType::ExtProtoInfo EPI;
+        if (stmt)
+            EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+        Stmt *rstmt = setForContents(Actions, prefix, Record, Fn, variable, stmt, expr, depth, Params);
+        buildTemplate(Actions, Fn, Params, EPI);
+        {
+        Sema::ContextRAII MethodContext(Actions, Fn);
+        Fn->setBody(rstmt);
+        if (rstmt)
+            Actions.ActOnFinishInlineFunctionDef(Fn);
+        }
+    };
 
-    CXXMethodDecl *forBody = buildFunc(Actions, fname + "Body", loc, Actions.Context.VoidTy, Record);
+    CXXMethodDecl *forBody = buildFunc(Actions, fname + "Body", loc,
+        (functionName == "__generateFor") ? Actions.Context.VoidTy : Actions.Context.IntTy, Record);
+        // __instantiateFor does not have a body, but needs a slot for 'subscript'
     CXXMethodDecl *forInit = buildFunc(Actions, fname + "Init", loc, Actions.Context.IntTy, Record);
     CXXMethodDecl *forCond = buildFunc(Actions, fname + "Cond", loc, Actions.Context.BoolTy, Record);
     CXXMethodDecl *forIncr = buildFunc(Actions, fname + "Incr", loc, Actions.Context.IntTy, Record);
-
-    TransformVardef transVar(Actions);
-    transVar.Record = Record;
-    transVar.forBody = forBody;
-    transVar.namePrefix = prefix;
-    QualType VT = variable->getType();
-#define GENVAR_NAME "__inst$Genvar"
-    IdentifierInfo *II = &Actions.Context.Idents.get(GENVAR_NAME + llvm::utostr(depth));
-    auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
-        NestedNameSpecifierLoc NNSloc;
-        auto thisParam = ParmVarDecl::Create(Actions.Context, Fn,
-            loc, loc, II, VT, /*TInfo=*/nullptr, SC_None, nullptr);
-        thisParam->setIsUsed();
-        transVar.Params.clear();
-        transVar.Params.push_back(thisParam);
-        transVar.paramMap[variable] = DeclRefExpr::Create(Actions.Context, NNSloc, loc,
-            thisParam, false, loc, thisParam->getType(), VK_LValue, nullptr);
-        FunctionProtoType::ExtProtoInfo EPI;
-        if (expr) {
-            SmallVector<Stmt*, 32> stmtsCond;
-            stmtsCond.push_back(new (Actions.Context) ReturnStmt(loc,
-                transVar.TransformExpr(expr).get(), nullptr));
-            stmt = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
-        }
-        else if (stmt) {
-            EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-            stmt = transVar.TransformStmt(stmt).get();
-        }
-        buildTemplate(Actions, Fn, transVar.Params, EPI);
-        Sema::ContextRAII MethodContext(Actions, Fn);
-        Fn->setBody(stmt);
-        if (stmt)
-            Actions.ActOnFinishInlineFunctionDef(Fn);
-    };
     setParam(forInit, nullptr, const_cast<Expr *>(init));
     setParam(forCond, nullptr, cond);
     setParam(forIncr, nullptr, getExprValue(Actions, incExpr));
@@ -1981,7 +1999,7 @@ printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
     depth--;
     // Call runtime to add guard/method function into list of pairs to be processed by backend
     return new (Actions.Context) CallExpr(Actions.Context, 
-        getACCCallRef(Actions, getGenerateFor(Actions, loc)),
+        getACCCallRef(Actions, getGenerateFor(Actions, loc, functionName)),
         Args, Actions.Context.VoidTy, VK_RValue, loc);
 }
 

@@ -31,7 +31,8 @@
 using namespace clang;
 bool inDeclForLoop;
 Expr *forContext;
-CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record);
+VarDecl *topForVariable;
+CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName, VarDecl **usedVar);
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
 /// may either be a top level namespace or a block-level namespace alias. If
@@ -2605,19 +2606,19 @@ inDeclForLoop = false;
       ThirdPart = ParseExpression();
     T.consumeClose();       // Match the ')'.
     if (CXXRecordDecl *thisRecord = dyn_cast<CXXRecordDecl>(Actions.CurContext)) {
-      CallExpr *call = ProcessFor(Actions, ForLoc, "", FirstPart.get(), SecondPart.get().second, ThirdPart.get(), nullptr, thisRecord);
+      CallExpr *call = ProcessFor(Actions, ForLoc, "", FirstPart.get(), SecondPart.get().second, ThirdPart.get(), nullptr, thisRecord, "__instantiateFor", &topForVariable);
       forContext = call;
     }
     BalancedDelimiterTracker declItem(*this, tok::l_brace);
     declItem.consumeOpen();
-    while (Tok.isNot(tok::r_brace))
-      ParseCXXClassMemberDeclaration(AS_public/*AS*/, AccessAttrs, TemplateInfo, TemplateDiags);
+    while (Tok.isNot(tok::r_brace)) {
+      DeclGroupPtrTy DGmember = ParseCXXClassMemberDeclaration(AS_public/*AS*/, AccessAttrs, TemplateInfo, TemplateDiags);
+      // since actual processing of inline method defs is done at end of record
+      // copying the call to __instantiateFor is done in ParseFunctionStatementBody()
+    }
     declItem.consumeClose();       // Match the '}'.
     forContext = nullptr;
-printf("[%s:%d]FORAFT\n", __FUNCTION__, __LINE__);
-    if (CXXRecordDecl *thisRecord = dyn_cast<CXXRecordDecl>(Actions.CurContext)) {
-thisRecord->dump();
-    }
+    topForVariable = nullptr;
   }
     return nullptr;
   }

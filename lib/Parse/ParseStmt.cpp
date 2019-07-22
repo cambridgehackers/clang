@@ -2303,6 +2303,14 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // (the function body) as the body itself.  Instead, just read the statement
   // list and put it into a CompoundStmt for safe keeping.
   StmtResult FnBody(ParseCompoundStatementBody());
+  if (CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(Decl))
+  if (const AtomiccArrayMemberAttr *A = method->getAttr<AtomiccArrayMemberAttr>()) {
+      SourceLocation loc;
+      SmallVector<Stmt*, 32> stmtsCond;
+      stmtsCond.push_back(A->getContext());
+      stmtsCond.push_back(FnBody.get());
+      FnBody = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
+  }
 
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
