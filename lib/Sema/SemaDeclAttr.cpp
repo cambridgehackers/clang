@@ -3518,11 +3518,10 @@ static void handleAtomiccArrayMemberAttr(Sema &S, Decl *D, const AttributeList &
   // Make sure that there is an expression as the annotation's single
   // argument.
   Expr *Context = Attr.getArgAsExpr(0);
-  Expr *E = Attr.getArgAsExpr(1);
 
   D->addAttr(::new (S.Context)
-             AtomiccArrayMemberAttr(Attr.getRange(), S.Context, Context, E,
-                          Attr.getAttributeSpellingListIndex()));
+             AtomiccArrayMemberAttr(Attr.getRange(), S.Context, Context,
+                 Attr.getAttributeSpellingListIndex()));
 }
 
 static void handleAtomiccVerilogParamAttr(Sema &S, Decl *D, const AttributeList &Attr) {

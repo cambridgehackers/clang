@@ -29,12 +29,17 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/StringExtras.h" // utostr()
 #include "llvm/Support/ScopedPrinter.h"
 
 using namespace clang;
 extern Expr *forContext;
 extern VarDecl *topForVariable;
-Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, CXXMethodDecl *Fn, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, SmallVector<ParmVarDecl *, 16> &Params);
+Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, CXXMethodDecl *Fn, VarDecl *variable, Stmt *stmt, Expr *expr, int depth);
+Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc);
+CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC);
+void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
+    SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI);
 
 //===----------------------------------------------------------------------===//
 // C99 6.7: Declarations.
@@ -5719,7 +5724,8 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     ConsumeToken(); // tok::identifier
     isAtomicc = true;
   }
-  if (auto Record = dyn_cast<CXXRecordDecl>(Actions.CurContext))
+  auto Record = dyn_cast<CXXRecordDecl>(Actions.CurContext);
+  if (Record)
   if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
     isAtomicc = true;
   // Don't parse attributes unless we have parsed an unparenthesized name.
@@ -5732,21 +5738,28 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
     declItem.consumeOpen();
     ExprResult sub = ParseExpression();
     declItem.consumeClose();       // Match the ']'.
-    ParsedAttributes Attributes(AttrFactory);
-    ArgsVector ArgExprs;
-    ArgExprs.push_back(forContext);
+    CallExpr *newCall = nullptr;
+    static int subcount;
     if (auto call = dyn_cast<CallExpr>(forContext)) {
-        SmallVector<ParmVarDecl *, 16> Params;
+        SourceLocation loc = call->getLocStart();
+        SmallVector<Expr *, 16> Args;
+        for (unsigned int i = 0; i < call->getNumArgs()-1; i++)
+            Args.push_back(call->getArg(i));
+        CXXMethodDecl *newsub = buildFunc(Actions, "__DYNFORINST__" + llvm::utostr(subcount++), loc, Actions.Context.IntTy, Record);
         Expr *arg = call->getArg(call->getNumArgs() - 1);
         if (auto CS1 = dyn_cast<CStyleCastExpr>(arg))
         if (auto CS2 = dyn_cast<ImplicitCastExpr>(CS1->getSubExpr()))
         if (auto DRE = dyn_cast<DeclRefExpr>(CS2->getSubExpr()))
         if (auto func = dyn_cast<CXXMethodDecl>(DRE->getDecl())) {
-            Stmt *stmt = setForContents(Actions, "", nullptr, func, topForVariable, nullptr, sub.get(), 0, Params);
-            func->setBody(stmt);        // replace placeholder with actual index
+            setForContents(Actions, "", Record, newsub, topForVariable, nullptr, sub.get(), 1);
+            Args.push_back(castMethod(Actions, newsub, loc));
+            newCall = new (Actions.Context) CallExpr(Actions.Context,
+                call->getCallee(), Args, Actions.Context.IntTy, VK_RValue, loc);
         }
     }
-    ArgExprs.push_back(sub.get());
+    ParsedAttributes Attributes(AttrFactory);
+    ArgsVector ArgExprs;
+    ArgExprs.push_back(newCall);
     IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember");
     Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
         ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);

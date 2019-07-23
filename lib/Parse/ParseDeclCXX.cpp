@@ -2570,28 +2570,24 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
   }
   if (Tok.is(tok::kw___rule))
     return ParseRuleDeclaration();
-  if (Tok.is(tok::kw_for))
-{
-  printf("[%s:%d] NEWFOROROROROOORORO\n", __FUNCTION__, __LINE__);
-  assert(Tok.is(tok::kw_for) && "Not a for stmt!");
-  StmtResult FirstPart;
-  Sema::ConditionResult SecondPart;
-  ExprResult ThirdPart;
-  SourceLocation ForLoc = ConsumeToken(), DeclEnd;  // eat the 'for'.
-  if (Tok.isNot(tok::l_paren)) {
-    Diag(Tok, diag::err_expected_lparen_after) << "for";
-    SkipUntil(tok::semi);
-  }
-  else {
+  if (Tok.is(tok::kw_for)) {
+    printf("[%s:%d] NEWFOROROROROOORORO\n", __FUNCTION__, __LINE__);
+    assert(Tok.is(tok::kw_for) && "Not a for stmt!");
+    SourceLocation ForLoc = ConsumeToken(), DeclEnd;  // eat the 'for'.
+    if (Tok.isNot(tok::l_paren)) {
+      Diag(Tok, diag::err_expected_lparen_after) << "for";
+      SkipUntil(tok::semi);
+      return nullptr;
+    }
     BalancedDelimiterTracker T(*this, tok::l_paren);
     T.consumeOpen();
     ParsedAttributesWithRange attrs(AttrFactory);
     // Parse the first part of the for specifier.
 inDeclForLoop = true;
-    DeclGroupPtrTy DG = ParseSimpleDeclaration(Declarator::MemberContext, DeclEnd, attrs, false);
+    DeclGroupPtrTy First = ParseSimpleDeclaration(Declarator::MemberContext, DeclEnd, attrs, false);
 inDeclForLoop = false;
-    FirstPart = Actions.ActOnDeclStmt(DG, ForLoc, Tok.getLocation());
     // Parse the second part of the for specifier.
+    Sema::ConditionResult SecondPart;
     if (!(Tok.is(tok::semi) || Tok.is(tok::r_paren)))
       SecondPart = ParseCXXCondition(nullptr, ForLoc, Sema::ConditionKind::Boolean);
     if (Tok.isNot(tok::semi)) {
@@ -2602,24 +2598,25 @@ inDeclForLoop = false;
     }
     if (Tok.is(tok::semi))
       ConsumeToken();
+    ExprResult ThirdPart;
     if (Tok.isNot(tok::r_paren))
       ThirdPart = ParseExpression();
     T.consumeClose();       // Match the ')'.
-    if (CXXRecordDecl *thisRecord = dyn_cast<CXXRecordDecl>(Actions.CurContext)) {
-      CallExpr *call = ProcessFor(Actions, ForLoc, "", FirstPart.get(), SecondPart.get().second, ThirdPart.get(), nullptr, thisRecord, "__instantiateFor", &topForVariable);
-      forContext = call;
-    }
+    forContext = ProcessFor(Actions, ForLoc, "",
+        Actions.ActOnDeclStmt(First, ForLoc, Tok.getLocation()).get(),
+        SecondPart.get().second, ThirdPart.get(), nullptr,
+        dyn_cast<CXXRecordDecl>(Actions.CurContext),
+        "__instantiateFor", &topForVariable);
     BalancedDelimiterTracker declItem(*this, tok::l_brace);
     declItem.consumeOpen();
     while (Tok.isNot(tok::r_brace)) {
-      DeclGroupPtrTy DGmember = ParseCXXClassMemberDeclaration(AS_public/*AS*/, AccessAttrs, TemplateInfo, TemplateDiags);
+      ParseCXXClassMemberDeclaration(AS_public/*AS*/, AccessAttrs, TemplateInfo, TemplateDiags);
       // since actual processing of inline method defs is done at end of record
       // copying the call to __instantiateFor is done in ParseFunctionStatementBody()
     }
     declItem.consumeClose();       // Match the '}'.
     forContext = nullptr;
     topForVariable = nullptr;
-  }
     return nullptr;
   }
   if (Tok.is(tok::kw___connect)) {

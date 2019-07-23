@@ -1764,11 +1764,11 @@ namespace {
 
   public:
     llvm::DenseMap<const VarDecl *, DeclRefExpr *> paramMap;
-    SmallVector<ParmVarDecl *, 16> &Params;
+    SmallVector<ParmVarDecl *, 16> Params;
     CXXMethodDecl *forBody;
     CXXRecordDecl *Record;
     std::string    namePrefix;
-    TransformVardef(Sema &SemaRef, std::string prefix, CXXRecordDecl *rec, CXXMethodDecl *meth, SmallVector<ParmVarDecl *, 16> &params) : BaseTransform(SemaRef), Params(params), forBody(meth), Record(rec), namePrefix(prefix) { }
+    TransformVardef(Sema &SemaRef, std::string prefix, CXXRecordDecl *rec, CXXMethodDecl *meth) : BaseTransform(SemaRef), forBody(meth), Record(rec), namePrefix(prefix) { }
 
     // Make sure we redo semantic analysis
     bool AlwaysRebuild() { return true; }
@@ -1918,16 +1918,16 @@ S->dump();
 }
 
 #define GENVAR_NAME "__inst$Genvar"
-Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, CXXMethodDecl *Fn, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, SmallVector<ParmVarDecl *, 16> &Params)
+Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, CXXMethodDecl *Fn, VarDecl *variable, Stmt *stmt, Expr *expr, int depth)
 {
     SourceLocation loc = variable->getLocation();
-    TransformVardef transVar(Actions, prefix, Record, Fn, Params);
-    if (Record)
-        transVar.addEntry(variable, GENVAR_NAME + llvm::utostr(depth));
-    else
-        transVar.addMap(variable, Fn->getParamDecl(0));
-    if (stmt)
+    TransformVardef transVar(Actions, prefix, Record, Fn);
+    transVar.addEntry(variable, GENVAR_NAME + llvm::utostr(depth));
+    FunctionProtoType::ExtProtoInfo EPI;
+    if (stmt) {
+        EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
         stmt = transVar.TransformStmt(stmt).get();
+    }
     else {
         SmallVector<Stmt*, 32> stmtsCond;
         if (!expr)
@@ -1937,6 +1937,12 @@ Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, C
         stmtsCond.push_back(new (Actions.Context) ReturnStmt(loc,
             transVar.TransformExpr(expr).get(), nullptr));
         stmt = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
+    }
+    buildTemplate(Actions, Fn, transVar.Params, EPI);
+    {
+    Sema::ContextRAII MethodContext(Actions, Fn);
+    Fn->setBody(stmt);
+    Actions.ActOnFinishInlineFunctionDef(Fn);
     }
     return stmt;
 }
@@ -1965,18 +1971,7 @@ printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
     depth++;
     std::string fname =  "FOR$" + llvm::utostr(counter++);
     auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
-        SmallVector<ParmVarDecl *, 16> Params;
-        FunctionProtoType::ExtProtoInfo EPI;
-        if (stmt)
-            EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-        Stmt *rstmt = setForContents(Actions, prefix, Record, Fn, variable, stmt, expr, depth, Params);
-        buildTemplate(Actions, Fn, Params, EPI);
-        {
-        Sema::ContextRAII MethodContext(Actions, Fn);
-        Fn->setBody(rstmt);
-        if (rstmt)
-            Actions.ActOnFinishInlineFunctionDef(Fn);
-        }
+        setForContents(Actions, prefix, Record, Fn, variable, stmt, expr, depth);
     };
 
     CXXMethodDecl *forBody = buildFunc(Actions, fname + "Body", loc,
