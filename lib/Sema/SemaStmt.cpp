@@ -42,13 +42,13 @@
 
 using namespace clang;
 using namespace sema;
-extern Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
-extern FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
+Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
+FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
     ArrayRef<ParmVarDecl *> Params);
-extern CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC);
-extern void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
+CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC);
+void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
     SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI);
-extern Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc);
+Expr *castMethod(Sema &Actions, CXXMethodDecl *Method);
 
 StmtResult Sema::ActOnExprStmt(ExprResult FE) {
   if (FE.isInvalid())
@@ -1693,29 +1693,6 @@ void Sema::CheckBreakContinueBinding(Expr *E) {
   }
 }
 
-static FunctionDecl *getGenerateFor(Sema &Actions, SourceLocation loc, std::string name)
-{
-    static std::map<std::string, FunctionDecl *>GenerateForDecl;
-    if (!GenerateForDecl[name]) {
-        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
-        CLinkageDecl->setImplicit();
-        Parent->addDecl(CLinkageDecl);
-        SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
-        FunctionDecl *thisFunc = getACCFunction(Actions, CLinkageDecl, name, Actions.Context.VoidTy, Params);
-        GenerateForDecl[name] = thisFunc;
-    }
-    return GenerateForDecl[name];
-}
-
 static Expr *getExprValue(Sema &Actions, Expr *expr)
 {
     if (!expr)
@@ -1757,7 +1734,6 @@ static Expr *getExprValue(Sema &Actions, Expr *expr)
     }
     return expr;
 }
-CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName, VarDecl **usedVar);
 namespace {
   class TransformVardef : public TreeTransform<TransformVardef> {
     typedef TreeTransform<TransformVardef> BaseTransform;
@@ -1773,15 +1749,6 @@ namespace {
     // Make sure we redo semantic analysis
     bool AlwaysRebuild() { return true; }
 
-    DeclRefExpr *addMap(VarDecl *VD, ParmVarDecl *param) {
-      QualType VT = VD->getType();
-      NestedNameSpecifierLoc NNSloc;
-      SourceLocation loc = VD->getLocation();
-      auto newRet = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
-          param, false, loc, VT, VK_LValue, nullptr);
-      paramMap[VD] = newRet;
-      return newRet;
-    }
     Expr *addEntry(VarDecl *VD, std::string name) {
       NestedNameSpecifierLoc NNSloc;
       SourceLocation loc = VD->getLocation();
@@ -1807,8 +1774,9 @@ VT->dump();
           loc, loc, II, newVT, /*TInfo=*/nullptr, SC_None, nullptr);
       thisParam->setIsUsed();
       Params.push_back(thisParam);
-      auto newRet = addMap(VD, thisParam);
-newRet->dump();
+      auto newRet = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
+          thisParam, false, loc, VT, VK_LValue, nullptr);
+      paramMap[VD] = newRet;
       return newRet;
     }
 
@@ -1829,6 +1797,95 @@ newRet->dump();
       return BaseTransform::TransformDeclRefExpr(E);
     }
   };
+}
+
+#define GENVAR_NAME "__inst$Genvar"
+Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth)
+{
+    SourceLocation loc = variable->getLocation();
+    CXXMethodDecl *Fn = buildFunc(Actions, funcname, loc, retType, Record);
+    TransformVardef transVar(Actions, prefix, Record, Fn);
+    transVar.addEntry(variable, GENVAR_NAME + llvm::utostr(depth));
+    FunctionProtoType::ExtProtoInfo EPI;
+    if (stmt) {
+        EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+        stmt = transVar.TransformStmt(stmt).get();
+    }
+    else {
+        SmallVector<Stmt*, 32> stmtsCond;
+        if (!expr)
+            expr = IntegerLiteral::Create(Actions.Context,
+                llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), 0),
+                Actions.Context.IntTy, loc);
+        stmtsCond.push_back(new (Actions.Context) ReturnStmt(loc,
+            transVar.TransformExpr(expr).get(), nullptr));
+        stmt = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
+    }
+    buildTemplate(Actions, Fn, transVar.Params, EPI);
+    {
+    Sema::ContextRAII MethodContext(Actions, Fn);
+    Fn->setBody(stmt);
+    Actions.ActOnFinishInlineFunctionDef(Fn);
+    }
+    return castMethod(Actions, Fn);
+}
+
+CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName)
+{
+    static std::map<std::string, FunctionDecl *>GenerateForDecl;
+    static int counter, depth;
+    VarDecl *variable = nullptr;
+    const Expr *init = nullptr;
+    if (auto decl = dyn_cast<DeclStmt>(initExpr)) {
+        variable = dyn_cast<VarDecl>(decl->getSingleDecl());
+        init = variable->getAnyInitializer();
+        variable->setInit(nullptr);
+    }
+    else if (auto expr = dyn_cast<BinaryOperator>(initExpr)) {
+        if (expr->getOpcode() == BO_Assign) {
+            if (auto DRE = dyn_cast<DeclRefExpr>(expr->getLHS()))
+                variable = dyn_cast<VarDecl>(DRE->getDecl());
+            init = expr->getRHS();
+        }
+    }
+    if (!variable)
+        return nullptr;
+    depth++;
+    std::string fname =  "FOR$" + llvm::utostr(counter++);
+    SmallVector<Expr *, 16> Args;
+    auto setParam = [&] (std::string name, QualType retType, Stmt *stmt, Expr *expr) -> void {
+        Args.push_back(setForContents(Actions, fname + name, retType,
+            prefix, Record, variable, stmt, expr, depth));
+    };
+
+    setParam("Init", Actions.Context.IntTy, nullptr, const_cast<Expr *>(init));
+    setParam("Cond", Actions.Context.BoolTy, nullptr, cond);
+    setParam("Incr", Actions.Context.IntTy, nullptr, getExprValue(Actions, incExpr));
+    if (functionName == "__instantiateFor")
+        setParam("Subscr", Actions.Context.IntTy, nullptr, nullptr);
+    setParam("Body", Actions.Context.VoidTy, body, nullptr);
+    depth--;
+
+    // Call runtime to add guard/method function into list of pairs to be processed by backend
+    if (!GenerateForDecl[functionName]) {
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context,
+            Parent, loc, loc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        for (int i = 0; i < 4 + (functionName == "__instantiateFor"); i++)
+            Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+                loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        GenerateForDecl[functionName] =
+            getACCFunction(Actions, CLinkageDecl, functionName, Actions.Context.VoidTy, Params);
+    }
+    return new (Actions.Context) CallExpr(Actions.Context, 
+        getACCCallRef(Actions, GenerateForDecl[functionName]),
+        Args, Actions.Context.VoidTy, VK_RValue, loc);
+}
+
+namespace {
   class TransformAtomiccLoop : public TreeTransform<TransformAtomiccLoop> {
     typedef TreeTransform<TransformAtomiccLoop> BaseTransform;
 
@@ -1863,8 +1920,7 @@ VD->dump();
       }
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().CurContext))
         namePrefix = containingMethod->getName().str() + "$";
-      VarDecl *unused;
-      if (CallExpr *callMe = ProcessFor(getSema(), S->getForLoc(), namePrefix, S->getInit(), S->getCond(), S->getInc(), S->getBody(), Record, "__generateFor", &unused)) {
+      if (CallExpr *callMe = ProcessFor(getSema(), S->getForLoc(), namePrefix, S->getInit(), S->getCond(), S->getInc(), S->getBody(), Record, "__generateFor")) {
           SourceLocation loc = S->getForLoc();
           SmallVector<Stmt*, 32> stmtsCond;
           stmtsCond.push_back(callMe);
@@ -1915,87 +1971,6 @@ S->dump();
                                      S->getRParenLoc(), Body.get());
     }
   };
-}
-
-#define GENVAR_NAME "__inst$Genvar"
-Stmt *setForContents(Sema &Actions, std::string prefix, CXXRecordDecl *Record, CXXMethodDecl *Fn, VarDecl *variable, Stmt *stmt, Expr *expr, int depth)
-{
-    SourceLocation loc = variable->getLocation();
-    TransformVardef transVar(Actions, prefix, Record, Fn);
-    transVar.addEntry(variable, GENVAR_NAME + llvm::utostr(depth));
-    FunctionProtoType::ExtProtoInfo EPI;
-    if (stmt) {
-        EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-        stmt = transVar.TransformStmt(stmt).get();
-    }
-    else {
-        SmallVector<Stmt*, 32> stmtsCond;
-        if (!expr)
-            expr = IntegerLiteral::Create(Actions.Context,
-                llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), 0),
-                Actions.Context.IntTy, loc);
-        stmtsCond.push_back(new (Actions.Context) ReturnStmt(loc,
-            transVar.TransformExpr(expr).get(), nullptr));
-        stmt = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
-    }
-    buildTemplate(Actions, Fn, transVar.Params, EPI);
-    {
-    Sema::ContextRAII MethodContext(Actions, Fn);
-    Fn->setBody(stmt);
-    Actions.ActOnFinishInlineFunctionDef(Fn);
-    }
-    return stmt;
-}
-
-CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName, VarDecl **usedVar)
-{
-    VarDecl *variable = nullptr;
-    const Expr *init = nullptr;
-    if (auto decl = dyn_cast<DeclStmt>(initExpr)) {
-        variable = dyn_cast<VarDecl>(decl->getSingleDecl());
-        init = variable->getAnyInitializer();
-        variable->setInit(nullptr);
-    }
-    else if (auto expr = dyn_cast<BinaryOperator>(initExpr)) {
-        if (expr->getOpcode() == BO_Assign) {
-            if (auto DRE = dyn_cast<DeclRefExpr>(expr->getLHS()))
-                variable = dyn_cast<VarDecl>(DRE->getDecl());
-            init = expr->getRHS();
-        }
-    }
-    *usedVar = variable;
-    if (!variable)
-        return nullptr;
-printf("[%s:%d] FORSTMTinit\n", __FUNCTION__, __LINE__);
-    static int counter, depth;
-    depth++;
-    std::string fname =  "FOR$" + llvm::utostr(counter++);
-    auto setParam = [&] (CXXMethodDecl *Fn, Stmt *stmt, Expr *expr) -> void {
-        setForContents(Actions, prefix, Record, Fn, variable, stmt, expr, depth);
-    };
-
-    CXXMethodDecl *forBody = buildFunc(Actions, fname + "Body", loc,
-        (functionName == "__generateFor") ? Actions.Context.VoidTy : Actions.Context.IntTy, Record);
-        // __instantiateFor does not have a body, but needs a slot for 'subscript'
-    CXXMethodDecl *forInit = buildFunc(Actions, fname + "Init", loc, Actions.Context.IntTy, Record);
-    CXXMethodDecl *forCond = buildFunc(Actions, fname + "Cond", loc, Actions.Context.BoolTy, Record);
-    CXXMethodDecl *forIncr = buildFunc(Actions, fname + "Incr", loc, Actions.Context.IntTy, Record);
-    setParam(forInit, nullptr, const_cast<Expr *>(init));
-    setParam(forCond, nullptr, cond);
-    setParam(forIncr, nullptr, getExprValue(Actions, incExpr));
-    setParam(forBody, body, nullptr);
-
-    Expr *Args[] = {
-        castMethod(Actions, forInit, loc),
-        castMethod(Actions, forCond, loc),
-        castMethod(Actions, forIncr, loc),
-        castMethod(Actions, forBody, loc)
-    };
-    depth--;
-    // Call runtime to add guard/method function into list of pairs to be processed by backend
-    return new (Actions.Context) CallExpr(Actions.Context, 
-        getACCCallRef(Actions, getGenerateFor(Actions, loc, functionName)),
-        Args, Actions.Context.VoidTy, VK_RValue, loc);
 }
 
 StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,

@@ -565,8 +565,8 @@ def AtomiccAction : Attr {
 
 def AtomiccArrayMember : Attr {
   let Spellings = [ GNU<"atomicc_amember"> ];
-  let Subjects = SubjectList<[CXXMethod]>;
-  let Args = [ExprArgument<"Context">];
+  let Subjects = SubjectList<[CXXMethod, CXXRecord], ErrorDiag, "ExpectedFunctionOrGlobalVar">;
+  let Args = [ExprArgument<"Context">, ExprArgument<"Variable">];
   let Documentation = [Undocumented];
 }
 

@@ -30,9 +30,7 @@
 
 using namespace clang;
 bool inDeclForLoop;
-Expr *forContext;
-VarDecl *topForVariable;
-CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName, VarDecl **usedVar);
+CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
 /// may either be a top level namespace or a block-level namespace alias. If
@@ -2583,9 +2581,14 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     T.consumeOpen();
     ParsedAttributesWithRange attrs(AttrFactory);
     // Parse the first part of the for specifier.
+    auto Record = dyn_cast<CXXRecordDecl>(Actions.CurContext);
 inDeclForLoop = true;
-    DeclGroupPtrTy First = ParseSimpleDeclaration(Declarator::MemberContext, DeclEnd, attrs, false);
+    DeclGroupPtrTy FirstItem = ParseSimpleDeclaration(Declarator::MemberContext, DeclEnd, attrs, false);
 inDeclForLoop = false;
+    Stmt *First = Actions.ActOnDeclStmt(FirstItem, ForLoc, Tok.getLocation()).get();
+    VarDecl *topForVariable = nullptr;
+    if (auto item = dyn_cast<DeclStmt>(First))
+      topForVariable = dyn_cast<VarDecl>(item->getSingleDecl());
     // Parse the second part of the for specifier.
     Sema::ConditionResult SecondPart;
     if (!(Tok.is(tok::semi) || Tok.is(tok::r_paren)))
@@ -2602,11 +2605,12 @@ inDeclForLoop = false;
     if (Tok.isNot(tok::r_paren))
       ThirdPart = ParseExpression();
     T.consumeClose();       // Match the ')'.
-    forContext = ProcessFor(Actions, ForLoc, "",
-        Actions.ActOnDeclStmt(First, ForLoc, Tok.getLocation()).get(),
-        SecondPart.get().second, ThirdPart.get(), nullptr,
-        dyn_cast<CXXRecordDecl>(Actions.CurContext),
-        "__instantiateFor", &topForVariable);
+    NestedNameSpecifierLoc NNSloc;
+    Record->addAttr(::new (Actions.Context) AtomiccArrayMemberAttr(ForLoc, Actions.Context,
+        ProcessFor(Actions, ForLoc, "", First,
+            SecondPart.get().second, ThirdPart.get(), nullptr, Record, "__instantiateFor"),
+        DeclRefExpr::Create(Actions.Context, NNSloc, ForLoc,
+            topForVariable, false, ForLoc, topForVariable->getType(), VK_LValue, nullptr), 0));
     BalancedDelimiterTracker declItem(*this, tok::l_brace);
     declItem.consumeOpen();
     while (Tok.isNot(tok::r_brace)) {
@@ -2615,8 +2619,7 @@ inDeclForLoop = false;
       // copying the call to __instantiateFor is done in ParseFunctionStatementBody()
     }
     declItem.consumeClose();       // Match the '}'.
-    forContext = nullptr;
-    topForVariable = nullptr;
+printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     return nullptr;
   }
   if (Tok.is(tok::kw___connect)) {

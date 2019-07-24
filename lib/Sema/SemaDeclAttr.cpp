@@ -3518,9 +3518,10 @@ static void handleAtomiccArrayMemberAttr(Sema &S, Decl *D, const AttributeList &
   // Make sure that there is an expression as the annotation's single
   // argument.
   Expr *Context = Attr.getArgAsExpr(0);
+  Expr *Variable = Attr.getArgAsExpr(1);
 
   D->addAttr(::new (S.Context)
-             AtomiccArrayMemberAttr(Attr.getRange(), S.Context, Context,
+             AtomiccArrayMemberAttr(Attr.getRange(), S.Context, Context, Variable,
                  Attr.getAttributeSpellingListIndex()));
 }
 

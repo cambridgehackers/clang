@@ -27,6 +27,7 @@
 #include "llvm/ADT/StringExtras.h"
 using namespace clang;
 
+Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth);
 //===----------------------------------------------------------------------===//
 // C99 6.8: Statements and Blocks.
 //===----------------------------------------------------------------------===//
@@ -903,8 +904,9 @@ void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
   Method->getDeclContext()->addDecl(Method);   // must be a member of class so that template instantiation works correctly
 }
 
-Expr *castMethod(Sema &Actions, CXXMethodDecl *Method, SourceLocation loc)
+Expr *castMethod(Sema &Actions, CXXMethodDecl *Method)
 {
+  SourceLocation loc = Method->getLocStart();
   return CStyleCastExpr::Create(Actions.Context, Actions.Context.LongTy, VK_RValue, CK_PointerToIntegral,
       getACCCallRef(Actions, Method), nullptr, Method->getTypeSourceInfo(), loc, loc);
 }
@@ -1156,12 +1158,12 @@ exit(-1);
                         llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), 0),
                         Actions.Context.IntTy, transform.RuleLoc), nullptr, VK_RValue),
           // instantiate captured values into guard function by calling fixupFunction()
-          guardM ? castMethod(Actions, guardM, transform.RuleLoc) :
+          guardM ? castMethod(Actions, guardM) :
               IntegerLiteral::Create(Actions.Context,
                   llvm::APInt(Actions.Context.getTypeSize(Actions.Context.LongTy), 0),
                   Actions.Context.LongTy, transform.RuleLoc),
           // instantiate captured values into method function by calling fixupFunction()
-          castMethod(Actions, transform.ruleM, transform.RuleLoc)
+          castMethod(Actions, transform.ruleM)
       };
       // Call runtime to add guard/method function into list of pairs to be processed by backend
       TopStmts.push_back(new (Actions.Context) CallExpr(Actions.Context, 
@@ -2305,10 +2307,17 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   StmtResult FnBody(ParseCompoundStatementBody());
   if (CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(Decl))
   if (const AtomiccArrayMemberAttr *A = method->getAttr<AtomiccArrayMemberAttr>()) {
-      SourceLocation loc;
+      CallExpr *call = cast<CallExpr>(A->getContext());
+      VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(A->getVariable())->getDecl());
+      static int subcount;
+      SourceLocation loc = call->getLocStart();
+      auto Record = dyn_cast<CXXRecordDecl>(method->getDeclContext());
+      call->setArg(call->getNumArgs()-1,
+          setForContents(Actions,
+              "FOR$__DYNFORBODY__" + llvm::utostr(subcount++), method->getReturnType(),
+              "", Record, var, FnBody.get(), nullptr, 1));
       SmallVector<Stmt*, 32> stmtsCond;
-      stmtsCond.push_back(A->getContext());
-      stmtsCond.push_back(FnBody.get());
+      stmtsCond.push_back(call);
       FnBody = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
   }
 
