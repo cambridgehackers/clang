@@ -10899,10 +10899,10 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
       dummyField->markUsed(Context);
   }
   else {
-if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module) {
-printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRRRRRR\n", __FUNCTION__, __LINE__);
-Record->dump();
-}
+//if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module) {
+//printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRRRRRR\n", __FUNCTION__, __LINE__);
+//Record->dump();
+//}
       // Check for module definitions that were preceeded by an emodule declaration
       if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
           && Record->hasAttr<AtomiccInheritEModuleAttr>()) {

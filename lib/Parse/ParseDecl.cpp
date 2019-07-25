@@ -5732,35 +5732,28 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
     declItem.consumeOpen();
     ExprResult sub = ParseExpression();
     declItem.consumeClose();       // Match the ']'.
-    CallExpr *newCall = nullptr, *call = nullptr;
-    VarDecl *var = nullptr;
-    static int subcount;
     if (Record->hasAttr<AtomiccArrayMemberAttr>()) {
+        static int subcount;
         AtomiccArrayMemberAttr *attr = Record->getAttr<AtomiccArrayMemberAttr>();
-        call = cast<CallExpr>(attr->getContext());
-        var = cast<VarDecl>(cast<DeclRefExpr>(attr->getVariable())->getDecl());
+        Expr *variable = attr->getVariable();
+        VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl());
+        Expr *newInst = setForContents(Actions, "FOR$__DYNFORINST__" + llvm::utostr(subcount++),
+               Actions.Context.IntTy, "", Record, var, nullptr, sub.get(), 1);
+        CallExpr *call = cast<CallExpr>(attr->getContext());
+        SmallVector<Expr *, 16> Args;
+        for (unsigned int i = 0; i < call->getNumArgs(); i++)
+            Args.push_back((i == call->getNumArgs() - 2) ? newInst : call->getArg(i));
+        ParsedAttributes Attributes(AttrFactory);
+        NestedNameSpecifierLoc NNSloc;
+        ArgsVector ArgExprs;
+        ArgExprs.push_back(new (Actions.Context) CallExpr(Actions.Context,
+            call->getCallee(), Args, Actions.Context.IntTy, VK_RValue, SubLoc));
+        ArgExprs.push_back(variable);
+        IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember"); // AtomiccArrayMemberAttr
+        Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
+            ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
+        D.takeAttributes(Attributes, SubLoc);
     }
-    SourceLocation loc = call->getLocStart();
-    SmallVector<Expr *, 16> Args;
-    for (unsigned int i = 0; i < call->getNumArgs(); i++) {
-        Expr *arg = call->getArg(i);
-        if (i == call->getNumArgs() - 2)
-            arg = setForContents(Actions, "FOR$__DYNFORINST__" + llvm::utostr(subcount++),
-                Actions.Context.IntTy, "", Record, var, nullptr, sub.get(), 1);
-        Args.push_back(arg);
-    }
-    newCall = new (Actions.Context) CallExpr(Actions.Context,
-        call->getCallee(), Args, Actions.Context.IntTy, VK_RValue, loc);
-    ParsedAttributes Attributes(AttrFactory);
-    NestedNameSpecifierLoc NNSloc;
-    ArgsVector ArgExprs;
-    ArgExprs.push_back(newCall);
-    ArgExprs.push_back(DeclRefExpr::Create(Actions.Context, NNSloc, SubLoc,
-        var, false, SubLoc, var->getType(), VK_LValue, nullptr));
-    IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember"); // AtomiccArrayMemberAttr
-    Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
-        ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
-    D.takeAttributes(Attributes, SubLoc);
   }
 
   while (1) {

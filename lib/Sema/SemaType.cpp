@@ -7340,6 +7340,11 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
   if (!Incomplete)
   if (auto PTy = dyn_cast<PointerType>(T)) {
     QualType Ty = PTy->getPointeeType();
+    if (auto TTy = dyn_cast<TypedefType>(PTy->getPointeeType())) {
+        QualType desug = TTy->desugar();
+        if (desug->isIncompleteType(&Def))
+           return RequireCompleteTypeImpl(Loc, desug, Diagnoser);
+    }
     if (!Ty.isNull() && dyn_cast<TemplateSpecializationType>(Ty)) {
         Incomplete = Ty->isIncompleteType(&Def);
         T = Ty;

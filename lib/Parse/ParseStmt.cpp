@@ -2307,18 +2307,15 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   StmtResult FnBody(ParseCompoundStatementBody());
   if (CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(Decl))
   if (const AtomiccArrayMemberAttr *A = method->getAttr<AtomiccArrayMemberAttr>()) {
-      CallExpr *call = cast<CallExpr>(A->getContext());
-      VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(A->getVariable())->getDecl());
       static int subcount;
-      SourceLocation loc = call->getLocStart();
+      CallExpr *call = cast<CallExpr>(A->getContext());
       auto Record = dyn_cast<CXXRecordDecl>(method->getDeclContext());
       call->setArg(call->getNumArgs()-1,
-          setForContents(Actions,
-              "FOR$__DYNFORBODY__" + llvm::utostr(subcount++), method->getReturnType(),
-              "", Record, var, FnBody.get(), nullptr, 1));
-      SmallVector<Stmt*, 32> stmtsCond;
-      stmtsCond.push_back(call);
-      FnBody = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
+          setForContents(Actions, "FOR$__DYNFORBODY__" + llvm::utostr(subcount++),
+              method->getReturnType(), "", Record,
+              cast<VarDecl>(cast<DeclRefExpr>(A->getVariable())->getDecl()),
+              FnBody.get(), nullptr, 1));
+      FnBody = call;
   }
 
   // If the function body could not be parsed, make a bogus compoundstmt.
