@@ -1916,10 +1916,10 @@ VD->dump();
       if (block->hasAttrs()) {
         for (auto item: block->getAttrs())
             if (auto param = dyn_cast<AtomiccVerilogParamAttr>(item))
-                namePrefix = param->getParam().str() + "$";
+                namePrefix = param->getParam().str() + "$"; // prepend original method name to params
       }
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().CurContext))
-        namePrefix = containingMethod->getName().str() + "$";
+        namePrefix = containingMethod->getName().str() + "$"; // prepend original method name to params
       if (CallExpr *callMe = ProcessFor(getSema(), S->getForLoc(), namePrefix, S->getInit(), S->getCond(), S->getInc(), S->getBody(), Record, "__generateFor")) {
           SourceLocation loc = S->getForLoc();
           SmallVector<Stmt*, 32> stmtsCond;

@@ -2312,7 +2312,7 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
       auto Record = dyn_cast<CXXRecordDecl>(method->getDeclContext());
       call->setArg(call->getNumArgs()-1,
           setForContents(Actions, "FOR$__DYNFORBODY__" + llvm::utostr(subcount++),
-              method->getReturnType(), "", Record,
+              method->getReturnType(), method->getName().str() + "$", Record, // prepend for params
               cast<VarDecl>(cast<DeclRefExpr>(A->getVariable())->getDecl()),
               FnBody.get(), nullptr, 1));
       FnBody = call;

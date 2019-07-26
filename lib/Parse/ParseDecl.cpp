@@ -5738,7 +5738,8 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
         Expr *variable = attr->getVariable();
         VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl());
         Expr *newInst = setForContents(Actions, "FOR$__DYNFORINST__" + llvm::utostr(subcount++),
-               Actions.Context.IntTy, "", Record, var, nullptr, sub.get(), 1);
+            Actions.Context.IntTy, D.getIdentifier()->getName().str() + "$", // prepend for params
+            Record, var, nullptr, sub.get(), 1);
         CallExpr *call = cast<CallExpr>(attr->getContext());
         SmallVector<Expr *, 16> Args;
         for (unsigned int i = 0; i < call->getNumArgs(); i++)
