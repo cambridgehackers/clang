@@ -512,23 +512,6 @@ void Parser::ParseLexedMethodDef(LexedMethod &LM) {
   ParseScope FnScope(this, Scope::FnScope|Scope::DeclScope);
   Actions.ActOnStartOfFunctionDef(getCurScope(), LM.D);
 
-  if (Tok.is(tok::kw_if) || LM.D->hasAttr<VectorCallAttr>()) {
-    ParseFunctionIfBlock(LM.D, FnScope);
-
-    while (Tok.isNot(tok::eof))
-      ConsumeAnyToken();
-
-    if (Tok.is(tok::eof) && Tok.getEofData() == LM.D)
-      ConsumeAnyToken();
-
-    // Clear the late-template-parsed bit if we set it before.
-    if (LM.D)
-      LM.D->getAsFunction()->setLateTemplateParsed(false);
-
-    if (CXXMethodDecl *MD = dyn_cast_or_null<CXXMethodDecl>(LM.D))
-      Actions.ActOnFinishInlineFunctionDef(MD);
-    return;
-  }
   if (Tok.is(tok::kw_try)) {
     ParseFunctionTryBlock(LM.D, FnScope);
 

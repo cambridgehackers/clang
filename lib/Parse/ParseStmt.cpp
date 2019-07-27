@@ -2289,6 +2289,95 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
 }
 
 Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
+  static int subcount;
+  auto Record = dyn_cast<CXXRecordDecl>(Decl->getDeclContext());
+  CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(Decl);
+  const AtomiccArrayMemberAttr *A = Decl->getAttr<AtomiccArrayMemberAttr>();
+  CallExpr *call = A ? cast<CallExpr>(A->getContext()) : nullptr;
+  Expr *variable = A ? A->getVariable() : nullptr;
+  VarDecl *var = variable ? cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl()) : nullptr;
+  if (Tok.is(tok::kw_if)) {
+    SourceLocation IfLoc = ConsumeToken();
+    PrettyDeclStackTraceEntry CrashInfo(Actions, Decl, IfLoc,
+                                        "parsing function if block");
+    // Constructor initializer list?
+    if (Tok.is(tok::colon))
+      ParseConstructorInitializer(Decl);
+    else
+      Actions.ActOnDefaultCtorInitializers(Decl);
+  
+    if (SkipFunctionBodies && Actions.canSkipFunctionBody(Decl) &&
+        trySkippingFunctionBody()) {
+      BodyScope.Exit();
+      return Actions.ActOnSkippedFunctionBody(Decl);
+    }
+  
+    assert(Tok.is(tok::l_paren) && "Expected '('");
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+    if (T.consumeOpen()) {
+  assert(false && "not open");
+      //return StmtError();
+    }
+    ExprResult Rexp = ParseExpression();
+    if (Rexp.isInvalid()) {
+        SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
+    }
+    if (!T.consumeClose())
+      {}
+    method->setIsUsed();
+    method->addAttr(::new (method->getASTContext()) UsedAttr(method->getLocStart(), method->getASTContext(), 0));
+    Actions.MarkFunctionReferenced(method->getLocation(), method, true);
+    DeclContext *DC = method->getParent();
+    const char *Dummy = nullptr;
+    unsigned DiagID;
+    SourceLocation NoLoc;
+  
+    AttributeFactory attrFactory;
+    DeclSpec DSBool(attrFactory);
+    (void)DSBool.SetTypeSpecType(DeclSpec::TST_bool, IfLoc, Dummy,
+        DiagID, Actions.Context.getPrintingPolicy());
+  
+    ParsedAttributes parsedAttrs(attrFactory);
+    Declarator DFunc(DSBool, Declarator::MemberContext);
+    IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
+    parsedAttrs.addNew(&AttrID, IfLoc, nullptr, IfLoc, nullptr, 0, AttributeList::AS_GNU);
+    IdentifierInfo &AttrIDu = Actions.Context.Idents.get("used");
+    parsedAttrs.addNew(&AttrIDu, IfLoc, nullptr, IfLoc, nullptr, 0, AttributeList::AS_GNU);
+    DFunc.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
+         /*IsAmbiguous=*/false, /*LParenLoc=*/NoLoc, /*Params=*/nullptr,
+         /*NumParams=*/0, /*EllipsisLoc=*/NoLoc, /*RParenLoc=*/NoLoc,
+         /*TypeQuals=*/0, /*RefQualifierIsLvalueRef=*/true,
+         /*RefQualifierLoc=*/NoLoc, /*ConstQualifierLoc=*/NoLoc,
+         /*VolatileQualifierLoc=*/NoLoc, /*RestrictQualifierLoc=*/NoLoc,
+         /*MutableLoc=*/NoLoc, EST_None, /*ESpecRange=*/SourceRange(),
+         /*Exceptions=*/nullptr, /*ExceptionRanges=*/nullptr,
+         /*NumExceptions=*/0, /*NoexceptExpr=*/nullptr,
+         /*ExceptionSpecTokens=*/nullptr, /*DeclsInPrototype=*/None,
+         IfLoc, IfLoc, DFunc), parsedAttrs, IfLoc);
+    DFunc.setFunctionDefinitionKind(FDK_Declaration);
+    IdentifierInfo &funcName = Actions.Context.Idents.get(method->getName().str() + "__RDY");
+    DFunc.SetIdentifier(&funcName, IfLoc);
+    LookupResult Previous(Actions, Actions.GetNameForDeclarator(DFunc),
+        Sema::LookupOrdinaryName, Sema::ForRedeclaration);
+    bool AddToScope = true;
+    MultiTemplateParamsArg TemplateParams(nullptr, (size_t)0);
+    auto New = Actions.ActOnFunctionDeclarator(Actions.getCurScope(), DFunc,
+        DC, Actions.GetTypeForDeclarator(DFunc, Actions.getCurScope()),
+        Previous, TemplateParams, AddToScope);
+    FunctionDecl *FD = New->getAsFunction();
+    FD->setIsUsed();
+    FD->setAccess(method->getAccess());
+    FD->setLexicalDeclContext(DC);
+    DC->addDecl(New);
+    Expr *returnValue = Rexp.get();
+    if (A)
+        returnValue = setForContents(Actions, "FOR$__DYNFORIF__" + llvm::utostr(subcount++),
+            FD->getReturnType(), FD->getName().str() + "$", Record, // prepend for params
+            var, nullptr, Rexp.get(), 1);
+    FD->setBody(new (Actions.Context) ReturnStmt(IfLoc, returnValue, nullptr));
+    Actions.ActOnFinishInlineFunctionDef(FD);
+    Actions.MarkFunctionReferenced(FD->getLocation(), FD, true);
+  } // end of 'if'
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
 
@@ -2305,16 +2394,11 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // (the function body) as the body itself.  Instead, just read the statement
   // list and put it into a CompoundStmt for safe keeping.
   StmtResult FnBody(ParseCompoundStatementBody());
-  if (CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(Decl))
-  if (const AtomiccArrayMemberAttr *A = method->getAttr<AtomiccArrayMemberAttr>()) {
-      static int subcount;
-      CallExpr *call = cast<CallExpr>(A->getContext());
-      auto Record = dyn_cast<CXXRecordDecl>(method->getDeclContext());
+  if (A) {
       call->setArg(call->getNumArgs()-1,
           setForContents(Actions, "FOR$__DYNFORBODY__" + llvm::utostr(subcount++),
               method->getReturnType(), method->getName().str() + "$", Record, // prepend for params
-              cast<VarDecl>(cast<DeclRefExpr>(A->getVariable())->getDecl()),
-              FnBody.get(), nullptr, 1));
+              var, FnBody.get(), nullptr, 1));
       FnBody = call;
   }
 
@@ -2361,107 +2445,6 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
     FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
   }
 
-  BodyScope.Exit();
-  return Actions.ActOnFinishFunctionBody(Decl, FnBody.get());
-}
-
-/// ParseFunctionIfBlock - Parse a C++ function-if-block.
-///
-///       function-if-block:
-///         'if' ctor-initializer[opt] compound-statement handler-seq
-///
-Decl *Parser::ParseFunctionIfBlock(Decl *Decl, ParseScope &BodyScope) {
-  CXXMethodDecl *mdecl = cast<CXXMethodDecl>(Decl);
-  std::string mname = mdecl->getName();
-  SourceLocation loc = Tok.getLocation();
-  ExprResult Rexp;
-  assert(Tok.is(tok::kw_if) && "Expected 'if'");
-  SourceLocation IfLoc = ConsumeToken();
-  PrettyDeclStackTraceEntry CrashInfo(Actions, Decl, IfLoc,
-                                      "parsing function if block");
-  // Constructor initializer list?
-  if (Tok.is(tok::colon))
-    ParseConstructorInitializer(Decl);
-  else
-    Actions.ActOnDefaultCtorInitializers(Decl);
-
-  if (SkipFunctionBodies && Actions.canSkipFunctionBody(Decl) &&
-      trySkippingFunctionBody()) {
-    BodyScope.Exit();
-    return Actions.ActOnSkippedFunctionBody(Decl);
-  }
-
-  assert(Tok.is(tok::l_paren) && "Expected '('");
-  BalancedDelimiterTracker T(*this, tok::l_paren);
-  if (T.consumeOpen()) {
-assert(false && "not open");
-    //return StmtError();
-  }
-  Rexp = ParseExpression();
-  if (Rexp.isInvalid()) {
-      SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
-  }
-  if (!T.consumeClose())
-    {}
-  mdecl->setIsUsed();
-  mdecl->addAttr(::new (mdecl->getASTContext()) UsedAttr(mdecl->getLocStart(), mdecl->getASTContext(), 0));
-  Actions.MarkFunctionReferenced(mdecl->getLocation(), mdecl, true);
-  DeclContext *DC = mdecl->getParent();
-  SmallVector<Stmt*, 32> Stmts;
-  StmtResult retStmt = new (Actions.Context) ReturnStmt(loc, Rexp.get(), nullptr);
-  Stmts.push_back(retStmt.get());
-  const char *Dummy = nullptr;
-  unsigned DiagID;
-  SourceLocation NoLoc;
-
-  AttributeFactory attrFactory;
-  DeclSpec DSBool(attrFactory);
-  (void)DSBool.SetTypeSpecType(DeclSpec::TST_bool, loc, Dummy,
-      DiagID, Actions.Context.getPrintingPolicy());
-
-  ParsedAttributes parsedAttrs(attrFactory);
-  Declarator DFunc(DSBool, Declarator::MemberContext);
-  IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
-  parsedAttrs.addNew(&AttrID, loc, nullptr, loc, nullptr, 0, AttributeList::AS_GNU);
-  IdentifierInfo &AttrIDu = Actions.Context.Idents.get("used");
-  parsedAttrs.addNew(&AttrIDu, loc, nullptr, loc, nullptr, 0, AttributeList::AS_GNU);
-  DFunc.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
-       /*IsAmbiguous=*/false, /*LParenLoc=*/NoLoc, /*Params=*/nullptr,
-       /*NumParams=*/0, /*EllipsisLoc=*/NoLoc, /*RParenLoc=*/NoLoc,
-       /*TypeQuals=*/0, /*RefQualifierIsLvalueRef=*/true,
-       /*RefQualifierLoc=*/NoLoc, /*ConstQualifierLoc=*/NoLoc,
-       /*VolatileQualifierLoc=*/NoLoc, /*RestrictQualifierLoc=*/NoLoc,
-       /*MutableLoc=*/NoLoc, EST_None, /*ESpecRange=*/SourceRange(),
-       /*Exceptions=*/nullptr, /*ExceptionRanges=*/nullptr,
-       /*NumExceptions=*/0, /*NoexceptExpr=*/nullptr,
-       /*ExceptionSpecTokens=*/nullptr, /*DeclsInPrototype=*/None,
-       loc, loc, DFunc), parsedAttrs, loc);
-  DFunc.setFunctionDefinitionKind(FDK_Declaration);
-  IdentifierInfo &funcName = Actions.Context.Idents.get(mname + "__RDY");
-  DFunc.SetIdentifier(&funcName, loc);
-  LookupResult Previous(Actions, Actions.GetNameForDeclarator(DFunc),
-      Sema::LookupOrdinaryName, Sema::ForRedeclaration);
-  bool AddToScope = true;
-  MultiTemplateParamsArg TemplateParams(nullptr, (size_t)0);
-  auto New = Actions.ActOnFunctionDeclarator(Actions.getCurScope(), DFunc,
-      DC, Actions.GetTypeForDeclarator(DFunc, Actions.getCurScope()),
-      Previous, TemplateParams, AddToScope);
-  FunctionDecl *FD = New->getAsFunction();
-  FD->setIsUsed();
-  FD->setAccess(mdecl->getAccess());
-  FD->setLexicalDeclContext(DC);
-  DC->addDecl(New);
-  FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
-  Actions.ActOnFinishInlineFunctionDef(FD);
-  Actions.MarkFunctionReferenced(FD->getLocation(), FD, true);
-  assert(Tok.is(tok::l_brace));
-  SourceLocation LBraceLoc = Tok.getLocation();
-  StmtResult FnBody(ParseCompoundStatementBody());
-  // If the function body could not be parsed, make a bogus compoundstmt.
-  if (FnBody.isInvalid()) {
-    Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
-  }
   BodyScope.Exit();
   return Actions.ActOnFinishFunctionBody(Decl, FnBody.get());
 }
