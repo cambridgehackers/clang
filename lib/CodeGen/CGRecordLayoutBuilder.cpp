@@ -34,6 +34,7 @@ static llvm::cl::opt<bool>
     recordGenTrace("rgentrace", llvm::cl::Optional, llvm::cl::desc("trace clang record generation"));
 QualType getSimpleType(QualType ftype);
 extern std::map<CXXMethodDecl *, int> InterfaceDecls;
+std::string normalizeName(std::string name);
 namespace {
 /// The CGRecordLowering is responsible for lowering an ASTRecordLayout to an
 /// llvm::Type.  Some of the lowering is straightforward, some is not.  Here we
@@ -867,7 +868,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         SmallString<256> Buffer;
         llvm::raw_svector_ostream Out(Buffer);
         getCXXABI().getMangleContext().mangleName(ND, Out);
-        std::string mname = MD->getName();
+        std::string mname = normalizeName(MD->getName());
         if (FT->getReturnType()->isVoidType())
             mname += "__ENA";
         if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {

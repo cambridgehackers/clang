@@ -5734,6 +5734,11 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
     declItem.consumeClose();       // Match the ']'.
     if (Record->hasAttr<AtomiccArrayMemberAttr>()) {
         static int subcount;
+#if 1
+    IdentifierInfo *Id = D.getIdentifier();
+    IdentifierInfo &IdNew = Actions.Context.Idents.get(Id->getName().str() + "$$$$START" + llvm::utostr(subcount) + "$$$$END");
+    D.SetIdentifier(&IdNew, SubLoc); // handle duplicated subscripted declarations
+#endif
         AtomiccArrayMemberAttr *attr = Record->getAttr<AtomiccArrayMemberAttr>();
         Expr *variable = attr->getVariable();
         VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl());

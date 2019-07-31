@@ -1799,9 +1799,20 @@ VT->dump();
   };
 }
 
+std::string normalizeName(std::string name)
+{
+    // handle 'instantiate for' multiple definitions
+    int ind = name.find("$$$$START");
+    int inde = name.find("$$$$END");
+    if (ind > 0 && inde > ind)
+        name = name.substr(0, ind) + name.substr(inde + 7);
+    return name;
+}
+
 #define GENVAR_NAME "__inst$Genvar"
 Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth)
 {
+    prefix = normalizeName(prefix);
     SourceLocation loc = variable->getLocation();
     CXXMethodDecl *Fn = buildFunc(Actions, funcname, loc, retType, Record);
     TransformVardef transVar(Actions, prefix, Record, Fn);
