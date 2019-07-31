@@ -5161,67 +5161,35 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
         std::string rstr;
         Expr *val = ArgExprs[i];
 printf("[%s:%d]VALLLLLLLLLLLLIIIIIIIIIDDDDDDDDDDDDDDD\n", __FUNCTION__, __LINE__);
-ArgExprs[i]->dump();
+//ArgExprs[i]->dump();
         if (auto TE = dyn_cast<TypoExpr>(ArgExprs[i])) {
           auto &State = getTypoExprState(TE);
           auto BestTC = State.Consumer->getCurrentCorrection();
           if (auto *II = State.Consumer->getLookupResult().getLookupName().getAsIdentifierInfo())
             rstr = II->getName();
-printf("[%s:%d] name %s\n", __FUNCTION__, __LINE__, rstr.c_str());
-          rstr += (name == "__valid" ? "__ENA" : "__RDY");
-          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
-              StringLiteral::Ascii, /*Pascal*/ false,
-              Context.getConstantArrayType(Context.CharTy.withConst(),
-              llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
-              ccharp, CK_ArrayToPointerDecay).get();
-          Fn = getACCCallRef(*this, ValidReadyDecl);
+printf("[%s:%d] typoname %s\n", __FUNCTION__, __LINE__, rstr.c_str());
         }
-        else if (ArgExprs[i]->getType() == Context.DependentTy) {
-          while (auto memb = dyn_cast_or_null<CXXDependentScopeMemberExpr>(val)) { // ref method
-            if (rstr != "")
-              rstr = "$" + rstr;
-            rstr = memb->getMember().getAsString() + rstr;
-            val = memb->getBase();
-            //if (auto citem = dyn_cast_or_null<CastExpr>(val))
-              //val = citem->getSubExpr();
-#if 1
-          while (auto memb = dyn_cast_or_null<MemberExpr>(val)) {
-            if (rstr != "")
-              rstr = "$" + rstr;
-            rstr = memb->getMemberDecl()->getName().str() + rstr;
-            val = memb->getBase();
-            if (auto citem = dyn_cast_or_null<CastExpr>(val))
-              val = citem->getSubExpr();
-          }
-#endif
-printf("[%s:%d]iteratettttt rstr %s\n", __FUNCTION__, __LINE__, rstr.c_str());
-val->dump();
-          }
-          rstr += (name == "__valid" ? "__ENA" : "__RDY");
-          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
-              StringLiteral::Ascii, /*Pascal*/ false,
-              Context.getConstantArrayType(Context.CharTy.withConst(),
-              llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
-              ccharp, CK_ArrayToPointerDecay).get();
-          Fn = getACCCallRef(*this, ValidReadyDecl);
+        else {
+            SmallString<256> Buffer;
+            llvm::raw_svector_ostream Out(Buffer);
+            val->printPretty(Out, nullptr, getPrintingPolicy());
+            rstr = Out.str();
+            if (rstr.substr(0, 6) == "this->")
+                rstr = rstr.substr(6);
+            int ind;
+            while ((ind = rstr.find(".")) > 0)
+                rstr = rstr.substr(0, ind) + "$" + rstr.substr(ind+1);
+            while ((ind = rstr.find("->")) > 0)
+                rstr = rstr.substr(0, ind) + "$" + rstr.substr(ind+2);
+printf("[%s:%d] exprname %s\n", __FUNCTION__, __LINE__, rstr.c_str());
         }
-        else if (ArgExprs[i]->getType() == Context.BoundMemberTy) { // ref verilog port
-          while (auto memb = dyn_cast_or_null<MemberExpr>(val)) {
-            if (rstr != "")
-              rstr = "$" + rstr;
-            rstr = memb->getMemberDecl()->getName().str() + rstr;
-            val = memb->getBase();
-            if (auto citem = dyn_cast_or_null<CastExpr>(val))
-              val = citem->getSubExpr();
-          }
-          rstr += (name == "__valid" ? "__ENA" : "__RDY");
-          ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
-              StringLiteral::Ascii, /*Pascal*/ false,
-              Context.getConstantArrayType(Context.CharTy.withConst(),
-              llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
-              ccharp, CK_ArrayToPointerDecay).get();
-          Fn = getACCCallRef(*this, ValidReadyDecl);
-        }
+        rstr += (name == "__valid" ? "__ENA" : "__RDY");
+        ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
+            StringLiteral::Ascii, /*Pascal*/ false,
+            Context.getConstantArrayType(Context.CharTy.withConst(),
+            llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
+            ccharp, CK_ArrayToPointerDecay).get();
+        Fn = getACCCallRef(*this, ValidReadyDecl);
       }
     }
   }
