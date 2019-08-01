@@ -5162,17 +5162,18 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
         Expr *val = ArgExprs[i];
 printf("[%s:%d]VALLLLLLLLLLLLIIIIIIIIIDDDDDDDDDDDDDDD\n", __FUNCTION__, __LINE__);
 //ArgExprs[i]->dump();
-        if (auto TE = dyn_cast<TypoExpr>(ArgExprs[i])) {
+        if (auto TE = dyn_cast<TypoExpr>(val)) {
+// occurs on __rule items
           auto &State = getTypoExprState(TE);
           auto BestTC = State.Consumer->getCurrentCorrection();
           if (auto *II = State.Consumer->getLookupResult().getLookupName().getAsIdentifierInfo())
             rstr = II->getName();
 printf("[%s:%d] typoname %s\n", __FUNCTION__, __LINE__, rstr.c_str());
         }
-        else {
+        else if (auto memb = dyn_cast<MemberExpr>(val)) {
             SmallString<256> Buffer;
             llvm::raw_svector_ostream Out(Buffer);
-            val->printPretty(Out, nullptr, getPrintingPolicy());
+            memb->printPretty(Out, nullptr, getPrintingPolicy());
             rstr = Out.str();
             if (rstr.substr(0, 6) == "this->")
                 rstr = rstr.substr(6);
@@ -5183,6 +5184,8 @@ printf("[%s:%d] typoname %s\n", __FUNCTION__, __LINE__, rstr.c_str());
                 rstr = rstr.substr(0, ind) + "$" + rstr.substr(ind+2);
 printf("[%s:%d] exprname %s\n", __FUNCTION__, __LINE__, rstr.c_str());
         }
+        else
+            continue;
         rstr += (name == "__valid" ? "__ENA" : "__RDY");
         ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
             StringLiteral::Ascii, /*Pascal*/ false,
