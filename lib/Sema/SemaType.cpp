@@ -39,6 +39,7 @@
 #include "clang/AST/ExprCXX.h" // SubstNonTypeTemplateParmExpr
 
 using namespace clang;
+extern bool suppressTemplatePrint;
 
 enum TypeDiagSelector {
   TDS_Function,
@@ -1231,53 +1232,16 @@ static OpenCLAccessAttr::Spelling getImageAccess(const AttributeList *Attrs) {
 /// to be converted, along with other associated processing state.
 /// \returns The type described by the declaration specifiers.  This function
 /// never returns null.
-extern "C" std::string expr2str(Sema &Sema, const Expr *E)
+namespace clang {
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy)
 {
-//printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-//E->dump();
-    //llvm::APSInt itemWidth(32);
-    if (auto item = dyn_cast<UnaryExprOrTypeTraitExpr>(E)) {
-        if (item->isArgumentType())
-            return "";
-        return expr2str(Sema, item->getArgumentExpr());
-    }
-    if (auto item = dyn_cast<DeclRefExpr>(E)) {
-        if (auto VD = dyn_cast<VarDecl>(item->getDecl()))
-            return VD->getName();
-        if (auto VD = dyn_cast<NonTypeTemplateParmDecl>(item->getDecl()))
-            return VD->getName();
-    }
-    if (auto item = dyn_cast<CastExpr>(E)) {
-        return expr2str(Sema, item->getSubExpr());
-    }
-    if (auto item = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
-        return expr2str(Sema, item->getReplacement());
-        //NonTypeTemplateParmDecl *getParameter() const { return Param; }
-    }
-    if (auto item = dyn_cast<IntegerLiteral>(E))
-    //if (E->isIntegerConstantExpr(itemWidth, Sema.Context))
-        return llvm::utostr(item->getValue().getZExtValue());
-    if (auto item = dyn_cast<ParenExpr>(E)) {
-        return expr2str(Sema, item->getSubExpr());
-    }
-    if (auto item = dyn_cast<BinaryOperator>(E)) {
-        return "(" + expr2str(Sema, item->getLHS())
-            + ") " + BinaryOperator::getOpcodeStr(item->getOpcode()).str()
-            + " (" + expr2str(Sema, item->getRHS()) + ")";
-    }
-    if (auto item = dyn_cast<CallExpr>(E))
-    if (auto callee = item->getDirectCallee()) {
-        std::string sep, ret = callee->getName().str() + "(";
-        for (auto arg: item->arguments()) {
-            ret += sep +  expr2str(Sema, arg);
-            sep = ", ";
-        }
-        return ret + ")";
-    }
-printf("[%s:%d]\n", __FUNCTION__, __LINE__);
-E->dump();
-exit(-1);
-    return "";
+    SmallString<256> Buffer;
+    llvm::raw_svector_ostream Out(Buffer);
+    suppressTemplatePrint = true;
+    expr->printPretty(Out, nullptr, Policy);
+    suppressTemplatePrint = false;
+    return Out.str();
+}
 }
 static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   // FIXME: Should move the logic from DeclSpec::Finish to here for validity
@@ -1395,7 +1359,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     if (DS.dsAtomiccWidth) {
       BuiltinType *Ty = new (S.Context, TypeAlignment)
           BuiltinType(DS.getTypeSpecSign()==DeclSpec::TSS_unsigned ? BuiltinType::UInt : BuiltinType::Int);
-      std::string val = expr2str(state.getSema(), DS.dsAtomiccWidth);
+      std::string val = expr2str(DS.dsAtomiccWidth, state.getSema().getPrintingPolicy());
 //printf("[%s:%d]ACCWWWWW '%s'\n", __FUNCTION__, __LINE__, val.c_str());
       if (val.find(" ") != std::string::npos) {
           Ty->atomiccWidthStr = val;
@@ -7348,7 +7312,7 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
     if (!Ty.isNull() && dyn_cast<TemplateSpecializationType>(Ty)) {
         Incomplete = Ty->isIncompleteType(&Def);
         T = Ty;
-        printf("[%s:%d]PTRincomple %d type %p\n", __FUNCTION__, __LINE__, Incomplete, Ty);
+        printf("[%s:%d]PTRincomple %d\n", __FUNCTION__, __LINE__, Incomplete);
         Ty->dump();
     }
   }

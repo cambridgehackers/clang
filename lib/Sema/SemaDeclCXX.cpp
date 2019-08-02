@@ -10901,10 +10901,6 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
       dummyField->markUsed(Context);
   }
   else {
-//if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module) {
-//printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRRRRRR\n", __FUNCTION__, __LINE__);
-//Record->dump();
-//}
       // Check for module definitions that were preceeded by an emodule declaration
       if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
           && Record->hasAttr<AtomiccInheritEModuleAttr>()) {
@@ -10967,7 +10963,9 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                   if (eitem != imap.end()) {
                       eitem->second.found = true;
                       if (rec != eitem->second.rec || isPtr != eitem->second.isPtr)
-                          printf("%s: ERROR: interface declarations for %s differ %p/%d != %p/%d\n", __FUNCTION__, name.c_str(), rec, isPtr, eitem->second.rec, eitem->second.isPtr);
+                          printf("%s: ERROR: interface declarations for %s differ %p/%d != %p/%d\n",
+                              __FUNCTION__, name.c_str(), (void *)rec, isPtr,
+                              (void *)eitem->second.rec, eitem->second.isPtr);
                   }
                   else
                       printf("%s: ERROR: missing interface %s from inherited declaration for %s\n",
@@ -11026,7 +11024,10 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
               if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
               if (Method->getDeclName().isIdentifier()) {
                   if (traceDeclaration) {
-                      printf("[%s:%d]TTTMETHOD %p %s meth %s %p public %d hasBody %d\n", __FUNCTION__, __LINE__, Method, Record->getName().str().c_str(), mitem->getName().str().c_str(), Method, Method->getAccess() == AS_public, Method->hasBody());
+                      printf("%s: TTTMETHOD %p %s meth %s hasBody %d\n",
+                           __FUNCTION__, (void *)Method, Record->getName().str().c_str(),
+                           mitem->getName().str().c_str(),
+                           Method->hasBody());
                       //Method->dump();
                   }
                   if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)

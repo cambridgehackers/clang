@@ -28,6 +28,7 @@
 #include "llvm/Support/Format.h"
 using namespace clang;
 
+bool suppressTemplatePrint;
 //===----------------------------------------------------------------------===//
 // StmtPrinter Visitor
 //===----------------------------------------------------------------------===//
@@ -1291,6 +1292,7 @@ void StmtPrinter::VisitDeclRefExpr(DeclRefExpr *Node) {
   if (NestedNameSpecifier *Qualifier = Node->getQualifier())
     Qualifier->print(OS, Policy);
   if (Node->hasTemplateKeyword())
+  if (!suppressTemplatePrint)
     OS << "template ";
   OS << Node->getNameInfo();
   if (Node->hasExplicitTemplateArgs())
@@ -1303,6 +1305,7 @@ void StmtPrinter::VisitDependentScopeDeclRefExpr(
   if (NestedNameSpecifier *Qualifier = Node->getQualifier())
     Qualifier->print(OS, Policy);
   if (Node->hasTemplateKeyword())
+  if (!suppressTemplatePrint)
     OS << "template ";
   OS << Node->getNameInfo();
   if (Node->hasExplicitTemplateArgs())
@@ -1314,6 +1317,7 @@ void StmtPrinter::VisitUnresolvedLookupExpr(UnresolvedLookupExpr *Node) {
   if (Node->getQualifier())
     Node->getQualifier()->print(OS, Policy);
   if (Node->hasTemplateKeyword())
+  if (!suppressTemplatePrint)
     OS << "template ";
   OS << Node->getNameInfo();
   if (Node->hasExplicitTemplateArgs())
@@ -1499,7 +1503,9 @@ void StmtPrinter::VisitUnaryOperator(UnaryOperator *Node) {
       break;
     }
   }
+  OS << "(";
   PrintExpr(Node->getSubExpr());
+  OS << ")";
 
   if (Node->isPostfix())
     OS << UnaryOperator::getOpcodeStr(Node->getOpcode());
@@ -1644,6 +1650,7 @@ void StmtPrinter::VisitMemberExpr(MemberExpr *Node) {
   if (NestedNameSpecifier *Qualifier = Node->getQualifier())
     Qualifier->print(OS, Policy);
   if (Node->hasTemplateKeyword())
+  if (!suppressTemplatePrint)
     OS << "template ";
   OS << Node->getMemberNameInfo();
   if (Node->hasExplicitTemplateArgs())
@@ -1677,9 +1684,11 @@ void StmtPrinter::VisitImplicitCastExpr(ImplicitCastExpr *Node) {
   PrintExpr(Node->getSubExpr());
 }
 void StmtPrinter::VisitBinaryOperator(BinaryOperator *Node) {
+  OS << "(";
   PrintExpr(Node->getLHS());
   OS << " " << BinaryOperator::getOpcodeStr(Node->getOpcode()) << " ";
   PrintExpr(Node->getRHS());
+  OS << ")";
 }
 void StmtPrinter::VisitCompoundAssignOperator(CompoundAssignOperator *Node) {
   PrintExpr(Node->getLHS());
@@ -1687,11 +1696,13 @@ void StmtPrinter::VisitCompoundAssignOperator(CompoundAssignOperator *Node) {
   PrintExpr(Node->getRHS());
 }
 void StmtPrinter::VisitConditionalOperator(ConditionalOperator *Node) {
+  OS << "(";
   PrintExpr(Node->getCond());
   OS << " ? ";
   PrintExpr(Node->getLHS());
   OS << " : ";
   PrintExpr(Node->getRHS());
+  OS << ")";
 }
 
 // GNU extensions.
@@ -2364,6 +2375,7 @@ void StmtPrinter::VisitCXXDependentScopeMemberExpr(
   if (NestedNameSpecifier *Qualifier = Node->getQualifier())
     Qualifier->print(OS, Policy);
   if (Node->hasTemplateKeyword())
+  if (!suppressTemplatePrint)
     OS << "template ";
   OS << Node->getMemberNameInfo();
   if (Node->hasExplicitTemplateArgs())
@@ -2379,6 +2391,7 @@ void StmtPrinter::VisitUnresolvedMemberExpr(UnresolvedMemberExpr *Node) {
   if (NestedNameSpecifier *Qualifier = Node->getQualifier())
     Qualifier->print(OS, Policy);
   if (Node->hasTemplateKeyword())
+  if (!suppressTemplatePrint)
     OS << "template ";
   OS << Node->getMemberNameInfo();
   if (Node->hasExplicitTemplateArgs())

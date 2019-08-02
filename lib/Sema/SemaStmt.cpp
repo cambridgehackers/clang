@@ -1810,7 +1810,7 @@ std::string normalizeName(std::string name)
 }
 
 #define GENVAR_NAME "__inst$Genvar"
-Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth)
+Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, std::string &retString)
 {
     prefix = normalizeName(prefix);
     SourceLocation loc = variable->getLocation();
@@ -1819,15 +1819,22 @@ Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std:
     transVar.addEntry(variable, GENVAR_NAME + llvm::utostr(depth));
     FunctionProtoType::ExtProtoInfo EPI;
     if (stmt) {
-        EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+        if (retType == Actions.Context.VoidTy)
+            EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
         stmt = transVar.TransformStmt(stmt).get();
+    }
+    else if (retType == Actions.Context.VoidTy) {
+        SmallVector<Stmt*, 32> stmtsCond;
+        stmt = new (Actions.Context) CompoundStmt(Actions.Context, stmtsCond, loc, loc);
     }
     else {
         if (!expr)
             expr = IntegerLiteral::Create(Actions.Context,
                 llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), 0),
                 Actions.Context.IntTy, loc);
-        stmt = new (Actions.Context) ReturnStmt(loc, transVar.TransformExpr(expr).get(), nullptr);
+        expr = transVar.TransformExpr(expr).get();
+        retString += ",(" + expr2str(expr, Actions.getPrintingPolicy()) + ")";
+        return nullptr;
     }
     buildTemplate(Actions, Fn, transVar.Params, EPI);
     {
@@ -1859,19 +1866,25 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
     if (!variable)
         return nullptr;
     depth++;
-    std::string fname =  "FOR$" + llvm::utostr(counter++);
-    SmallVector<Expr *, 16> Args;
-    auto setParam = [&] (std::string name, QualType retType, Stmt *stmt, Expr *expr) -> void {
-        Args.push_back(setForContents(Actions, fname + name, retType,
-            prefix, Record, variable, stmt, expr, depth));
+    std::string sparam = GENVAR_NAME + llvm::utostr(depth);
+    auto setStringParam = [&] (Expr *expr) -> void {
+        setForContents(Actions, "UNUSED", Actions.Context.IntTy,
+            prefix, Record, variable, nullptr, expr, depth, sparam);
     };
+    setStringParam(const_cast<Expr *>(init));
+    setStringParam(cond);
+    setStringParam(getExprValue(Actions, incExpr));
 
-    setParam("Init", Actions.Context.IntTy, nullptr, const_cast<Expr *>(init));
-    setParam("Cond", Actions.Context.BoolTy, nullptr, cond);
-    setParam("Incr", Actions.Context.IntTy, nullptr, getExprValue(Actions, incExpr));
-    if (functionName == "__instantiateFor")
-        setParam("Subscr", Actions.Context.IntTy, nullptr, nullptr);
-    setParam("Body", Actions.Context.VoidTy, body, nullptr);
+    std::string fname =  "FOR$" + llvm::utostr(counter++);
+    QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+    SmallVector<Expr *, 16> Args;
+    Args.push_back(Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, sparam,
+        StringLiteral::Ascii, /*Pascal*/ false,
+        Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+        llvm::APInt(32, sparam.size() + 1), ArrayType::Normal, 0), loc),
+        ccharp, CK_ArrayToPointerDecay).get());
+    Args.push_back(setForContents(Actions, fname + "Body", Actions.Context.VoidTy,
+        prefix, Record, variable, body, nullptr, depth, sparam));
     depth--;
 
     // Call runtime to add guard/method function into list of pairs to be processed by backend
@@ -1882,9 +1895,10 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
         CLinkageDecl->setImplicit();
         Parent->addDecl(CLinkageDecl);
         SmallVector<ParmVarDecl *, 16> Params;
-        for (int i = 0; i < 4 + (functionName == "__instantiateFor"); i++)
-            Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-                loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, Actions.Context.LongTy, /*TInfo=*/nullptr, SC_None, nullptr));
         GenerateForDecl[functionName] =
             getACCFunction(Actions, CLinkageDecl, functionName, Actions.Context.VoidTy, Params);
     }
@@ -1932,7 +1946,7 @@ VD->dump();
           SourceLocation loc = S->getForLoc();
           SmallVector<Stmt*, 32> stmtsCond;
           stmtsCond.push_back(callMe);
-          return new (getSema().Context) class CompoundStmt(getSema().Context, stmtsCond, loc, loc);
+          return new (getSema().Context) CompoundStmt(getSema().Context, stmtsCond, loc, loc);
       }
 printf("[%s:%d] dont optimize FORSTMT\n", __FUNCTION__, __LINE__);
 S->dump();

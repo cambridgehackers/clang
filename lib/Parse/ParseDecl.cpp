@@ -33,7 +33,7 @@
 #include "llvm/Support/ScopedPrinter.h"
 
 using namespace clang;
-Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth);
+Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, std::string &retString);
 
 //===----------------------------------------------------------------------===//
 // C99 6.7: Declarations.
@@ -5737,9 +5737,20 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
         CallExpr *call = cast<CallExpr>(attr->getContext());
         Expr *variable = attr->getVariable();
         VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl());
+        std::string retValue;
         Expr *newInst = setForContents(Actions, "FOR$__DYNFORINST__" + llvm::utostr(subcount++),
             Actions.Context.IntTy, D.getIdentifier()->getName().str() + "$", // prepend for params
-            Record, var, nullptr, sub.get(), 1);
+            Record, var, nullptr, sub.get(), 1, retValue);
+        if (auto item = dyn_cast<ImplicitCastExpr>(call->getArg(0)))
+        if (auto str = dyn_cast<StringLiteral>(item->getSubExpr())) {
+            retValue = str->getString().str() + retValue;
+            QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+            newInst = Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, retValue,
+                StringLiteral::Ascii, /*Pascal*/ false,
+                Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+                llvm::APInt(32, retValue.size() + 1), ArrayType::Normal, 0), SubLoc),
+                ccharp, CK_ArrayToPointerDecay).get();
+        }
         SmallVector<Expr *, 16> Args;
         for (unsigned int i = 0; i < call->getNumArgs(); i++)
             Args.push_back((i == call->getNumArgs() - 2) ? newInst : call->getArg(i));

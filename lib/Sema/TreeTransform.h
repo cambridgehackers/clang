@@ -39,6 +39,7 @@
 #include <algorithm>
 
 namespace clang {
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy);
 using namespace sema;
 
 /// \brief A semantic tree transformation that allows one to transform one
@@ -4373,7 +4374,6 @@ QualType TransformTypeSpecType(TypeLocBuilder &TLB, TyLoc T) {
   return T.getType();
 }
 
-extern "C" std::string expr2str(Sema &Sema, const Expr *E);
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformBuiltinType(TypeLocBuilder &TLB,
                                                       BuiltinTypeLoc T) {
@@ -4383,7 +4383,7 @@ QualType TreeTransform<Derived>::TransformBuiltinType(TypeLocBuilder &TLB,
      ExprResult Result = TransformExpr(BT->atomiccExpr);
      if (!Result.isInvalid()) {
      Expr *E = Result.getAs<Expr>();
-        std::string val = expr2str(SemaRef, E);
+        std::string val = expr2str(E, SemaRef.getPrintingPolicy());
 //printf("[%s:%d]TREEACCWWWWW '%s'\n", __FUNCTION__, __LINE__, val.c_str());
      if (!E->isValueDependent()) {
         unsigned DestWidth = 9;

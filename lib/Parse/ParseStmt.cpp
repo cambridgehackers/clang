@@ -27,7 +27,7 @@
 #include "llvm/ADT/StringExtras.h"
 using namespace clang;
 
-Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth);
+Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, std::string &retString);
 //===----------------------------------------------------------------------===//
 // C99 6.8: Statements and Blocks.
 //===----------------------------------------------------------------------===//
@@ -1000,7 +1000,7 @@ StmtResult Parser::ParseRuleStatement(bool isDecl) {
   ConsumeToken();
   transform.TopContext = Actions.CurContext;
   CXXRecordDecl *DC = cast<CXXRecordDecl>(isDecl ? Actions.CurContext : Actions.getCurFunctionDecl()->getParent());
-printf("[%s:%d]START CurContent %p isDecl %d Record %p\n", __FUNCTION__, __LINE__, Actions.CurContext, isDecl, DC);
+printf("[%s:%d]START CurContent %p isDecl %d Record %p\n", __FUNCTION__, __LINE__, (void *)Actions.CurContext, isDecl, (void *)DC);
   Expr *GuardExpr = nullptr;
   CXXMethodDecl *guardM = nullptr;
   transform.ruleM = buildFunc(Actions, fname, transform.RuleLoc, Actions.Context.VoidTy, DC);
@@ -1032,7 +1032,7 @@ printf("[%s:%d]RULEPARSEIF end\n", __FUNCTION__, __LINE__);
   }
 
   // Now parse the body of the __rule declaration/statement
-printf("[%s:%d]RULEPARSEBODY CurContext %p\n", __FUNCTION__, __LINE__, Actions.CurContext);
+printf("[%s:%d]RULEPARSEBODY CurContext %p\n", __FUNCTION__, __LINE__, (void *)Actions.CurContext);
   StmtResult BodyStmt(ParseStatement(nullptr));
 printf("[%s:%d]RULEPARSEBODY end\n", __FUNCTION__, __LINE__);
   if (Tok.is(tok::code_completion)) {
@@ -2369,12 +2369,14 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
     FD->setAccess(method->getAccess());
     FD->setLexicalDeclContext(DC);
     DC->addDecl(New);
-    Expr *returnValue = Rexp.get();
+    Stmt *returnValue = new (Actions.Context) ReturnStmt(IfLoc, Rexp.get(), nullptr);
+    std::string retString;
     if (A)
-        returnValue = setForContents(Actions, "FOR$__DYNFORIF__" + llvm::utostr(subcount++),
+        returnValue = new (Actions.Context) ReturnStmt(IfLoc, 
+        setForContents(Actions, "FOR$__DYNFORIF__" + llvm::utostr(subcount++),
             FD->getReturnType(), FD->getName().str() + "$", Record, // prepend for params
-            var, nullptr, Rexp.get(), 1);
-    FD->setBody(new (Actions.Context) ReturnStmt(IfLoc, returnValue, nullptr));
+            var, returnValue, nullptr, 1, retString), nullptr);
+    FD->setBody(returnValue);
     Actions.ActOnFinishInlineFunctionDef(FD);
     Actions.MarkFunctionReferenced(FD->getLocation(), FD, true);
   } // end of 'if'
@@ -2395,10 +2397,11 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // list and put it into a CompoundStmt for safe keeping.
   StmtResult FnBody(ParseCompoundStatementBody());
   if (A) {
+      std::string retString;
       call->setArg(call->getNumArgs()-1,
           setForContents(Actions, "FOR$__DYNFORBODY__" + llvm::utostr(subcount++),
               method->getReturnType(), method->getName().str() + "$", Record, // prepend for params
-              var, FnBody.get(), nullptr, 1));
+              var, FnBody.get(), nullptr, 1, retString));
       FnBody = call;
   }
 

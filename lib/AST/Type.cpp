@@ -28,6 +28,9 @@
 #include <algorithm>
 using namespace clang;
 
+namespace clang {
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy);
+}
 bool Qualifiers::isStrictSupersetOf(Qualifiers Other) const {
   return (*this != Other) &&
     // CVR qualifiers superset
@@ -2521,14 +2524,6 @@ const char *Type::getTypeClassName() const {
   llvm_unreachable("Invalid type class.");
 }
 
-static std::string printACCExpr(Expr *expr, const PrintingPolicy &Policy)
-{
-   SmallString<256> Buffer;
-   llvm::raw_svector_ostream Out(Buffer);
-   expr->printPretty(Out, nullptr, Policy);
-   return Out.str();
-}
-
 StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   switch (getKind()) {
   case Void:
@@ -2544,7 +2539,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Short:
     return "short";
   case Int:
-    return atomiccExpr ? ("int[[" + printACCExpr(atomiccExpr, Policy) + "]]") :
+    return atomiccExpr ? ("int[[" + expr2str(atomiccExpr, Policy) + "]]") :
          atomiccWidth == -1 ? "int" : ("int[[" + llvm::utostr(atomiccWidth) + "]]");
   case Long:
     return "long";
@@ -2557,7 +2552,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case UShort:
     return "unsigned short";
   case UInt:
-    return atomiccExpr ? ("unsigned int[[" + printACCExpr(atomiccExpr, Policy) + "]]") :
+    return atomiccExpr ? ("unsigned int[[" + expr2str(atomiccExpr, Policy) + "]]") :
         atomiccWidth == -1 ? "unsigned int" : ("uint[[" + llvm::utostr(atomiccWidth) + "]]");
   case ULong:
     return "unsigned long";
@@ -3152,7 +3147,7 @@ anyDependentTemplateArguments(ArrayRef<TemplateArgumentLoc> Args,
       const Type *Ty = ArgLoc.getArgument().getAsType().getTypePtr();
       if (auto aa = dyn_cast<BuiltinType>(Ty))
       if (aa->atomiccExpr) {
-        printf("[%s:%d]atomicccweee BT %p ccw %p\n", __FUNCTION__, __LINE__, aa, aa->atomiccExpr);
+        printf("[%s:%d]atomicccweee BT %p ccw %p\n", __FUNCTION__, __LINE__, (void *)aa, (void *)aa->atomiccExpr);
         InstantiationDependent = true;
         return true;
       }
