@@ -2521,6 +2521,14 @@ const char *Type::getTypeClassName() const {
   llvm_unreachable("Invalid type class.");
 }
 
+static std::string printACCExpr(Expr *expr, const PrintingPolicy &Policy)
+{
+   SmallString<256> Buffer;
+   llvm::raw_svector_ostream Out(Buffer);
+   expr->printPretty(Out, nullptr, Policy);
+   return Out.str();
+}
+
 StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   switch (getKind()) {
   case Void:
@@ -2536,7 +2544,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Short:
     return "short";
   case Int:
-    return atomiccExpr ? ("int[[(EXPR)]]") :
+    return atomiccExpr ? ("int[[" + printACCExpr(atomiccExpr, Policy) + "]]") :
          atomiccWidth == -1 ? "int" : ("int[[" + llvm::utostr(atomiccWidth) + "]]");
   case Long:
     return "long";
@@ -2549,7 +2557,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case UShort:
     return "unsigned short";
   case UInt:
-    return atomiccExpr ? ("unsigned int[[(EXPR)]]") :
+    return atomiccExpr ? ("unsigned int[[" + printACCExpr(atomiccExpr, Policy) + "]]") :
         atomiccWidth == -1 ? "unsigned int" : ("uint[[" + llvm::utostr(atomiccWidth) + "]]");
   case ULong:
     return "unsigned long";
