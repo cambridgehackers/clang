@@ -1823,14 +1823,11 @@ Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std:
         stmt = transVar.TransformStmt(stmt).get();
     }
     else {
-        SmallVector<Stmt*, 32> stmtsCond;
         if (!expr)
             expr = IntegerLiteral::Create(Actions.Context,
                 llvm::APInt(Actions.Context.getTypeSize(Actions.Context.IntTy), 0),
                 Actions.Context.IntTy, loc);
-        stmtsCond.push_back(new (Actions.Context) ReturnStmt(loc,
-            transVar.TransformExpr(expr).get(), nullptr));
-        stmt = new (Actions.Context) class CompoundStmt(Actions.Context, stmtsCond, loc, loc);
+        stmt = new (Actions.Context) ReturnStmt(loc, transVar.TransformExpr(expr).get(), nullptr);
     }
     buildTemplate(Actions, Fn, transVar.Params, EPI);
     {

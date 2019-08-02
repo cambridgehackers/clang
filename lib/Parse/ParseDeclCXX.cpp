@@ -2619,6 +2619,7 @@ inDeclForLoop = false;
       // copying the call to __instantiateFor is done in ParseFunctionStatementBody()
     }
     declItem.consumeClose();       // Match the '}'.
+    Record->dropAttr<AtomiccArrayMemberAttr>(); // no longer needed on CXXRecordDecl
 printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     return nullptr;
   }

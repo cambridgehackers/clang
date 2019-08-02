@@ -5732,20 +5732,14 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
     declItem.consumeOpen();
     ExprResult sub = ParseExpression();
     declItem.consumeClose();       // Match the ']'.
-    if (Record->hasAttr<AtomiccArrayMemberAttr>()) {
+    if (AtomiccArrayMemberAttr *attr = Record->getAttr<AtomiccArrayMemberAttr>()) {
         static int subcount;
-#if 1
-    IdentifierInfo *Id = D.getIdentifier();
-    IdentifierInfo &IdNew = Actions.Context.Idents.get(Id->getName().str() + "$$$$START" + llvm::utostr(subcount) + "$$$$END");
-    D.SetIdentifier(&IdNew, SubLoc); // handle duplicated subscripted declarations
-#endif
-        AtomiccArrayMemberAttr *attr = Record->getAttr<AtomiccArrayMemberAttr>();
+        CallExpr *call = cast<CallExpr>(attr->getContext());
         Expr *variable = attr->getVariable();
         VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl());
         Expr *newInst = setForContents(Actions, "FOR$__DYNFORINST__" + llvm::utostr(subcount++),
             Actions.Context.IntTy, D.getIdentifier()->getName().str() + "$", // prepend for params
             Record, var, nullptr, sub.get(), 1);
-        CallExpr *call = cast<CallExpr>(attr->getContext());
         SmallVector<Expr *, 16> Args;
         for (unsigned int i = 0; i < call->getNumArgs(); i++)
             Args.push_back((i == call->getNumArgs() - 2) ? newInst : call->getArg(i));
@@ -5758,7 +5752,10 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
         IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember"); // AtomiccArrayMemberAttr
         Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
             ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
-        D.takeAttributes(Attributes, SubLoc);
+        D.takeAttributes(Attributes, SubLoc); // used in ParseFunctionStatementBody()
+        IdentifierInfo *Id = D.getIdentifier();
+        IdentifierInfo &IdNew = Actions.Context.Idents.get(Id->getName().str() + "$$$$START" + llvm::utostr(subcount) + "$$$$END");
+        D.SetIdentifier(&IdNew, SubLoc); // handle duplicated subscripted declarations
     }
   }
 

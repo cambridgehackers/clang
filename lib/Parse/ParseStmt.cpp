@@ -2409,6 +2409,7 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   }
 
   BodyScope.Exit();
+  Decl->dropAttr<AtomiccArrayMemberAttr>(); // no longer needed on CXXMethodDecl
   return Actions.ActOnFinishFunctionBody(Decl, FnBody.get());
 }
 
