@@ -11007,17 +11007,22 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
       }
       }
       if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
-       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule
+       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
           if (traceDeclaration || traceTemplate) {
-              printf("[%s:%d] E/MODULE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
-              Record->dump();
+              printf("[%s:%d] E/MODULE/INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+              if (traceDeclaration)
+                  Record->dump();
               if (traceTemplate)
               if (auto item = dyn_cast<ClassTemplateSpecializationDecl>(Record)) {
                   const ClassTemplateDecl *decl = item->getSpecializedTemplate();
                   printf("[%s:%d] ORIGINAL TEMPLATE\n", __FUNCTION__, __LINE__);
-                  decl->dump();
+                  decl->getTemplatedDecl()->dump();
               }
           }
+      }
+      if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
           for (auto mitem: Record->methods()) {
               if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
                   Method->setAccess(AS_public);

@@ -35,6 +35,9 @@ static llvm::cl::opt<bool>
 QualType getSimpleType(QualType ftype);
 extern std::map<CXXMethodDecl *, int> InterfaceDecls;
 std::string normalizeName(std::string name);
+namespace clang {
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy);
+}
 namespace {
 /// The CGRecordLowering is responsible for lowering an ASTRecordLayout to an
 /// llvm::Type.  Some of the lowering is straightforward, some is not.  Here we
@@ -811,11 +814,34 @@ printf("[%s:%d] UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n", __FUNCTION__, __LINE__);
   }
 }
 else {  // !isUnion()
+// ! Union
+// , item separator
+//     : item component separator
+// /
+// ;
+// @
+// <> params
+// # template options
+// ^&\?
   RecordDecl::field_iterator it = D->field_begin();
+  RecordDecl::field_iterator itemplate = it;
+  const CXXRecordDecl *templateDecl = nullptr;
+  auto &Policy = getContext().getPrintingPolicy();
+  if (auto item = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
+    templateDecl = item->getSpecializedTemplate()->getTemplatedDecl();
+    itemplate = templateDecl->field_begin();
+  //ArrayRef<TemplateArgument> formal;
+    //formal = item->getTemplateArgs().asArray();
+    //for (auto arg: formal) {
+//printf("[%s:%d]formarg\n", __FUNCTION__, __LINE__);
+//arg.dump();
+    //}
+  }
   unsigned Idx = 0;
   std::string softwareItems, connectList;
-  for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it) {
+  for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it, itemplate++) {
     const FieldDecl *FD = *it;
+    const FieldDecl *FDtemplate = *itemplate;
 
     if (Ty->structFieldMap.length())
       Ty->structFieldMap += ',';
@@ -828,6 +854,40 @@ else {  // !isUnion()
           fname += ":shared";
         else if (const AtomiccVerilogPortAttr *A = FD->getAttr<AtomiccVerilogPortAttr>())
           fname += ":" + std::string(A->getSpelling()).substr(2); // remove leading '__'
+        if (templateDecl) {
+          std::string templateOptions;
+          QualType FTy = FDtemplate->getType();
+          if (auto PTy = dyn_cast<PointerType>(FTy))
+             FTy = PTy->getPointeeType();
+          if (auto TTy = dyn_cast<TypedefType>(FTy))
+             FTy = TTy->getDecl()->getUnderlyingType();
+          templateOptions += ":";
+          if (auto ATy = dyn_cast<DependentSizedArrayType>(FTy)) {
+             templateOptions += expr2str(ATy->getSizeExpr(), Policy);
+             FTy = ATy->getElementType();
+          }
+          if (auto ATy = dyn_cast<ArrayType>(FTy))
+             FTy = ATy->getElementType();
+          if (auto TTy = dyn_cast<TemplateSpecializationType>(FTy)) {
+             auto templateName = TTy->getTemplateName();
+             templateOptions += ":";
+             if (TemplateDecl *temp = templateName.getAsTemplateDecl()) {
+                templateOptions += temp->getName().str();
+                NamedDecl *item = temp->getTemplatedDecl();
+             }
+             for (auto arg: TTy->template_arguments()) {
+               templateOptions += ":";
+//printf("[%s:%d]arg %d \n", __FUNCTION__, __LINE__, arg.getKind() == TemplateArgument::Expression);
+               if (arg.getKind() == TemplateArgument::Expression)
+                   templateOptions += expr2str(arg.getAsExpr(), Policy);
+             }
+          }
+          if (auto BTy = dyn_cast<BuiltinType>(FTy))
+          if (BTy->atomiccExpr)
+             templateOptions = expr2str(BTy->atomiccExpr, Policy) + templateOptions;
+          if (templateOptions != "" && templateOptions != ":")
+             fname += "#" + templateOptions;
+        }
       }
       if (Idx > FieldNo) {
 printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, __LINE__, Idx, FieldNo, fname.c_str());
