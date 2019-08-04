@@ -869,18 +869,27 @@ else {  // !isUnion()
           if (auto ATy = dyn_cast<ArrayType>(FTy))
              FTy = ATy->getElementType();
           if (auto TTy = dyn_cast<TemplateSpecializationType>(FTy)) {
+             bool skip = false;
+             std::string templateInfo;
              auto templateName = TTy->getTemplateName();
-             templateOptions += ":";
              if (TemplateDecl *temp = templateName.getAsTemplateDecl()) {
-                templateOptions += temp->getName().str();
+                templateInfo += ":" + temp->getName().str();
                 NamedDecl *item = temp->getTemplatedDecl();
              }
              for (auto arg: TTy->template_arguments()) {
-               templateOptions += ":";
+               templateInfo += ":";
 //printf("[%s:%d]arg %d \n", __FUNCTION__, __LINE__, arg.getKind() == TemplateArgument::Expression);
                if (arg.getKind() == TemplateArgument::Expression)
-                   templateOptions += expr2str(arg.getAsExpr(), Policy);
+                   templateInfo += expr2str(arg.getAsExpr(), Policy);
+               else {
+                   templateInfo += "__ARGKIND" + llvm::utostr(arg.getKind()) + "__";
+                   skip = true;
+               }
              }
+             if (skip || TTy->getNumArgs() == 0)
+                 printf("[%s:%d] SKIPADD OF TEMPLATE INFO '%s'\n", __FUNCTION__, __LINE__, templateInfo.c_str());
+             else
+                 templateOptions += templateInfo;
           }
           if (auto BTy = dyn_cast<BuiltinType>(FTy))
           if (BTy->atomiccExpr)
