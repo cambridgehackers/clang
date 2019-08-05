@@ -1754,24 +1754,12 @@ namespace {
       SourceLocation loc = VD->getLocation();
       IdentifierInfo *II = &getSema().Context.Idents.get(name);
       QualType VT = VD->getType(), newVT = VT;
-      if (auto BT = dyn_cast<BuiltinType>(VT)) {
-          if (BT->atomiccExpr) {
-               BuiltinType *newTy = new (getSema().Context, TypeAlignment) BuiltinType(BT->getKind());
-               newTy->atomiccWidth = 666; // hack
-               VT = QualType(newTy, 0);
-          }
-          newVT = getSema().Context.getLValueReferenceType(VT, false);
-      }
-      else if (auto AT = dyn_cast<ArrayType>(VT)) {
+      if (auto AT = dyn_cast<ArrayType>(VT)) {
           VT = getSema().Context.getPointerType(AT->getElementType());
           newVT = VT;
       }
-      else {
-printf("[%s:%d] PARAMTYPE\n", __FUNCTION__, __LINE__);
-VT->dump();
-      }
       auto thisParam = ParmVarDecl::Create(getSema().Context, forBody,
-          loc, loc, II, newVT, /*TInfo=*/nullptr, SC_None, nullptr);
+          loc, loc, II, newVT, getSema().Context.getTrivialTypeSourceInfo(newVT, loc), SC_None, nullptr);
       thisParam->setIsUsed();
       Params.push_back(thisParam);
       auto newRet = DeclRefExpr::Create(getSema().Context, NNSloc, loc,
@@ -1840,7 +1828,8 @@ Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std:
     {
     Sema::ContextRAII MethodContext(Actions, Fn);
     Fn->setBody(stmt);
-    Actions.ActOnFinishInlineFunctionDef(Fn);
+    if (retType == Actions.Context.VoidTy)
+        Actions.ActOnFinishInlineFunctionDef(Fn);
     }
     return castMethod(Actions, Fn);
 }

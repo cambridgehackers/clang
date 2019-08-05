@@ -753,6 +753,62 @@ decl->dump();
     }
     return tname;
 }
+std::string getTemplateInfo(QualType FTy, const PrintingPolicy &Policy)
+{
+std::string templateOptions;
+    if (auto PTy = dyn_cast<PointerType>(FTy))
+       FTy = PTy->getPointeeType();
+    if (auto TTy = dyn_cast<TypedefType>(FTy))
+       FTy = TTy->getDecl()->getUnderlyingType();
+    templateOptions += ":";
+    if (auto ATy = dyn_cast<DependentSizedArrayType>(FTy)) {
+       templateOptions += expr2str(ATy->getSizeExpr(), Policy);
+       FTy = ATy->getElementType();
+    }
+    if (auto ATy = dyn_cast<ArrayType>(FTy))
+       FTy = ATy->getElementType();
+    if (auto TTy = dyn_cast<TemplateSpecializationType>(FTy)) {
+       bool skip = false;
+       std::string templateInfo;
+       auto templateName = TTy->getTemplateName();
+       if (TemplateDecl *temp = templateName.getAsTemplateDecl())
+          templateInfo += ":" + temp->getName().str();
+       for (auto arg: TTy->template_arguments()) {
+         templateInfo += ":";
+//printf("[%s:%d]arg %d \n", __FUNCTION__, __LINE__, arg.getKind() == TemplateArgument::Expression);
+         if (arg.getKind() == TemplateArgument::Expression)
+             templateInfo += expr2str(arg.getAsExpr(), Policy);
+         else {
+             templateInfo += "__ARGKIND" + llvm::utostr(arg.getKind()) + "__";
+             skip = true;
+         }
+       }
+       if (skip || TTy->getNumArgs() == 0)
+           printf("[%s:%d] SKIPADD OF TEMPLATE INFO '%s'\n", __FUNCTION__, __LINE__, templateInfo.c_str());
+       else
+           templateOptions += templateInfo;
+    }
+    if (auto BTy = dyn_cast<BuiltinType>(FTy))
+    if (BTy->atomiccExpr)
+       templateOptions = expr2str(BTy->atomiccExpr, Policy) + templateOptions;
+    if (templateOptions != "" && templateOptions != ":")
+       return templateOptions;
+    return "";
+}
+static std::string findDecl(std::string methodName, const CompoundStmt *compound, const PrintingPolicy &Policy)
+{
+    std::string ret;
+    for (auto item: compound->body()) {
+      if (auto CS = dyn_cast<CompoundStmt>(item))
+        ret += findDecl(methodName, CS, Policy);
+      else if (auto DS = dyn_cast<DeclStmt>(item))
+        for (auto ditem : DS->decls()) {
+          if (auto vdecl = dyn_cast<VarDecl>(ditem))
+            ret += ";" + vdecl->getName().str() + ";" + getTemplateInfo(vdecl->getType(), Policy);
+        }
+    }
+    return ret;
+}
 CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
                                                   llvm::StructType *Ty) {
   CGRecordLowering Builder(*this, D, /*Packed=*/false);
@@ -793,6 +849,11 @@ CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
 
   // Add bitfield info.
   RL->BitFields.swap(Builder.BitFields);
+  const CXXRecordDecl *templateDecl = nullptr;
+  auto &Policy = getContext().getPrintingPolicy();
+  if (auto item = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
+    templateDecl = item->getSpecializedTemplate()->getTemplatedDecl();
+  }
 #if 1
 if (D->isUnion()) {
 printf("[%s:%d] UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n", __FUNCTION__, __LINE__);
@@ -824,19 +885,7 @@ else {  // !isUnion()
 // # template options
 // ^&\?
   RecordDecl::field_iterator it = D->field_begin();
-  RecordDecl::field_iterator itemplate = it;
-  const CXXRecordDecl *templateDecl = nullptr;
-  auto &Policy = getContext().getPrintingPolicy();
-  if (auto item = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
-    templateDecl = item->getSpecializedTemplate()->getTemplatedDecl();
-    itemplate = templateDecl->field_begin();
-  //ArrayRef<TemplateArgument> formal;
-    //formal = item->getTemplateArgs().asArray();
-    //for (auto arg: formal) {
-//printf("[%s:%d]formarg\n", __FUNCTION__, __LINE__);
-//arg.dump();
-    //}
-  }
+  RecordDecl::field_iterator itemplate = templateDecl ? templateDecl->field_begin() : it;
   unsigned Idx = 0;
   std::string softwareItems, connectList;
   for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it, itemplate++) {
@@ -855,46 +904,8 @@ else {  // !isUnion()
         else if (const AtomiccVerilogPortAttr *A = FD->getAttr<AtomiccVerilogPortAttr>())
           fname += ":" + std::string(A->getSpelling()).substr(2); // remove leading '__'
         if (templateDecl) {
-          std::string templateOptions;
-          QualType FTy = FDtemplate->getType();
-          if (auto PTy = dyn_cast<PointerType>(FTy))
-             FTy = PTy->getPointeeType();
-          if (auto TTy = dyn_cast<TypedefType>(FTy))
-             FTy = TTy->getDecl()->getUnderlyingType();
-          templateOptions += ":";
-          if (auto ATy = dyn_cast<DependentSizedArrayType>(FTy)) {
-             templateOptions += expr2str(ATy->getSizeExpr(), Policy);
-             FTy = ATy->getElementType();
-          }
-          if (auto ATy = dyn_cast<ArrayType>(FTy))
-             FTy = ATy->getElementType();
-          if (auto TTy = dyn_cast<TemplateSpecializationType>(FTy)) {
-             bool skip = false;
-             std::string templateInfo;
-             auto templateName = TTy->getTemplateName();
-             if (TemplateDecl *temp = templateName.getAsTemplateDecl()) {
-                templateInfo += ":" + temp->getName().str();
-                NamedDecl *item = temp->getTemplatedDecl();
-             }
-             for (auto arg: TTy->template_arguments()) {
-               templateInfo += ":";
-//printf("[%s:%d]arg %d \n", __FUNCTION__, __LINE__, arg.getKind() == TemplateArgument::Expression);
-               if (arg.getKind() == TemplateArgument::Expression)
-                   templateInfo += expr2str(arg.getAsExpr(), Policy);
-               else {
-                   templateInfo += "__ARGKIND" + llvm::utostr(arg.getKind()) + "__";
-                   skip = true;
-               }
-             }
-             if (skip || TTy->getNumArgs() == 0)
-                 printf("[%s:%d] SKIPADD OF TEMPLATE INFO '%s'\n", __FUNCTION__, __LINE__, templateInfo.c_str());
-             else
-                 templateOptions += templateInfo;
-          }
-          if (auto BTy = dyn_cast<BuiltinType>(FTy))
-          if (BTy->atomiccExpr)
-             templateOptions = expr2str(BTy->atomiccExpr, Policy) + templateOptions;
-          if (templateOptions != "" && templateOptions != ":")
+          std::string templateOptions = getTemplateInfo(FDtemplate->getType(), Policy);
+          if (templateOptions != "")
              fname += "#" + templateOptions;
         }
       }
@@ -924,6 +935,12 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
   if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D)) {
     Ty->structFieldMap += ",/";
 //printf("[%s:%d]beforemethoodododododod\n", __FUNCTION__, __LINE__);
+    std::map<std::string, const NamedDecl *> mapTemplate;
+    if (templateDecl)
+        for (auto MD: templateDecl->methods())
+            if (const auto *ND = dyn_cast<NamedDecl>(MD))
+            if (ND->getDeclName().isIdentifier())
+                mapTemplate[ND->getName()] = ND;
     for (auto *MD : RD->methods()) {
 //MD->dump();
       MD = MD->getCanonicalDecl();
@@ -933,7 +950,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
           ty = AT->getModifiedType();
       if (auto *FT = dyn_cast<FunctionType>(ty))
       if (FT->getCallConv() == CC_X86VectorCall)
-      if (const auto *ND = dyn_cast<NamedDecl>(MD)) {
+      if (auto ND = dyn_cast<CXXMethodDecl>(MD)) {
         SmallString<256> Buffer;
         llvm::raw_svector_ostream Out(Buffer);
         getCXXABI().getMangleContext().mangleName(ND, Out);
@@ -947,6 +964,26 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         Ty->structFieldMap += Out.str().str() + ":" + mname;
         if (MD->hasAttr<AtomiccActionAttr>())
           Ty->structFieldMap += ":action";
+        if (auto NDtemplate = mapTemplate[ND->getName()])
+        if (auto method = dyn_cast<CXXMethodDecl>(NDtemplate)) {
+            std::string templateOptions = getTemplateInfo(method->getReturnType(), Policy);
+            bool skip = templateOptions == "";
+            for (auto arg: method->parameters()) {
+                std::string info = getTemplateInfo(arg->getType(), Policy);
+                templateOptions += ";" + info;
+                if (info != "")
+                    skip = false;
+            }
+            if (auto body = dyn_cast_or_null<CompoundStmt>(method->getBody())) {
+                std::string local = findDecl(mname, body, Policy);
+                if (local != "") {
+                   templateOptions += "#" + local;
+                   skip = false;
+                }
+            }
+            if (!skip)
+                Ty->structFieldMap += "#" + templateOptions;
+        }
         Ty->structFieldMap += ",";
       }
       }

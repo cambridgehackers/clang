@@ -899,9 +899,16 @@ void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
       ArgTypes.push_back(item->getType());
   QualType FnType = Actions.Context.getFunctionType(Method->getReturnType(), ArgTypes, EPI);
   Method->setType(FnType);
-  Method->setTypeSourceInfo(Actions.Context.CreateTypeSourceInfo(FnType));
   Method->setParams(Params);
   Method->getDeclContext()->addDecl(Method);   // must be a member of class so that template instantiation works correctly
+  TypeSourceInfo *TSI = Actions.Context.CreateTypeSourceInfo(FnType);
+  FunctionProtoTypeLoc FPTL = TSI->getTypeLoc().castAs<FunctionProtoTypeLoc>();
+  int ind = 0;
+  for (auto item: Params) {
+      item->setScopeInfo(0, ind);
+      FPTL.setParam(ind++, item);
+  }
+  Method->setTypeSourceInfo(TSI);
 }
 
 Expr *castMethod(Sema &Actions, CXXMethodDecl *Method)

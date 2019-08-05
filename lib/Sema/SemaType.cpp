@@ -1361,6 +1361,10 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
           BuiltinType(DS.getTypeSpecSign()==DeclSpec::TSS_unsigned ? BuiltinType::UInt : BuiltinType::Int);
       std::string val = expr2str(DS.dsAtomiccWidth, state.getSema().getPrintingPolicy());
 //printf("[%s:%d]ACCWWWWW '%s'\n", __FUNCTION__, __LINE__, val.c_str());
+//DS.dsAtomiccWidth->dump();
+      if (auto item = dyn_cast<UnaryExprOrTypeTraitExpr>(DS.dsAtomiccWidth))
+      if (item->getKind() == UnaryExprOrTypeTrait::UETT_BitSize)
+          val = "";
       if (val.find(" ") != std::string::npos) {
           Ty->atomiccWidthStr = val;
 //printf("[%s:%d]NOTINTLI1\n", __FUNCTION__, __LINE__);
