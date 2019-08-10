@@ -7756,6 +7756,15 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     return Success(Val.countPopulation() % 2, E);
   }
 
+  // AtomicC
+  case Builtin::BI__builtin_clog2: {
+    APSInt Val;
+    if (!EvaluateInteger(E->getArg(0), Val, Info))
+      return false;
+
+    return Success(Val.countPopulation(), E);
+  }
+
   case Builtin::BI__builtin_popcount:
   case Builtin::BI__builtin_popcountl:
   case Builtin::BI__builtin_popcountll: {
