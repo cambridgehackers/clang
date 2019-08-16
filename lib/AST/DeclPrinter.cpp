@@ -24,6 +24,7 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace clang;
 
+std::string atomiccAttrStr(int attr);
 namespace {
   class DeclPrinter : public DeclVisitor<DeclPrinter> {
     raw_ostream &Out;
@@ -905,7 +906,7 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
       printTemplateArguments(S->getTemplateArgs());
   }
   if (D->AtomiccAttr)
-    Out << "ATOMICCATTR[" << D->AtomiccAttr << "]";
+    Out << "ATOMICCATTR[" << atomiccAttrStr(D->AtomiccAttr) << "]";
 
   if (D->isCompleteDefinition()) {
     // Print the base classes

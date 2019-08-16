@@ -7762,7 +7762,12 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!EvaluateInteger(E->getArg(0), Val, Info))
       return false;
 
-    return Success(Val.countPopulation(), E);
+    unsigned LZ = Val.countLeadingZeros();
+    unsigned BW = Val.getBitWidth();
+    //long intval = Val.getZExtValue();
+    //unsigned TZ = Val.countTrailingZeros();
+//printf("[%s:%d]CLOG2CONST %ld. TRAILZ %d LEADZ %d BW %d\n", __FUNCTION__, __LINE__, intval, TZ, LZ, BW);
+    return Success((BW - LZ), E);
   }
 
   case Builtin::BI__builtin_popcount:

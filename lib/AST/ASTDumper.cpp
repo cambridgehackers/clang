@@ -27,6 +27,7 @@
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringExtras.h" // utostr()
 using namespace clang;
 using namespace clang::comments;
 
@@ -1357,12 +1358,21 @@ void ASTDumper::VisitTypeAliasTemplateDecl(const TypeAliasTemplateDecl *D) {
   dumpDecl(D->getTemplatedDecl());
 }
 
+std::string atomiccAttrStr(int attr)
+{
+  switch (attr) {
+  case CXXRecordDecl::AtomiccAttr_EModule: return "EMODULE";
+  case CXXRecordDecl::AtomiccAttr_Module: return "MODULE";
+  case CXXRecordDecl::AtomiccAttr_Interface: return "INTERFACE";
+  }
+  return llvm::utostr(attr);
+}
 void ASTDumper::VisitCXXRecordDecl(const CXXRecordDecl *D) {
   VisitRecordDecl(D);
   if (!D->isCompleteDefinition())
     return;
   if (D->AtomiccAttr)
-    OS << "ATOMICCATTRDDD[" << D->AtomiccAttr << "]";
+    OS << "ATOMICCATTRDDD[" << atomiccAttrStr(D->AtomiccAttr) << "]";
 
   for (const auto &I : D->bases()) {
     dumpChild([=] {
