@@ -36,7 +36,7 @@ QualType getSimpleType(QualType ftype);
 extern std::map<CXXMethodDecl *, int> InterfaceDecls;
 std::string normalizeName(std::string name);
 namespace clang {
-std::string expr2str(Expr *expr, const PrintingPolicy &Policy);
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 }
 namespace {
 /// The CGRecordLowering is responsible for lowering an ASTRecordLayout to an
@@ -888,6 +888,21 @@ else {  // !isUnion()
   RecordDecl::field_iterator itemplate = templateDecl ? templateDecl->field_begin() : it;
   unsigned Idx = 0;
   std::string softwareItems, connectList;
+  if (auto Record = dyn_cast<CXXRecordDecl>(D))
+  if (!Record->hasAttr<AtomiccSerializeAttr>())
+  if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+    || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)
+    for (auto field: Record->fields()) {
+      if (Expr *cinit = field->getInClassInitializer()) {
+        std::string lstr = field->getName();
+        std::string rstr = expr2str(cinit, Policy, true);
+        connectList += lstr + ":" + rstr + ",";
+        //if (trace_hoist)
+        printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
+        field->dump();
+        //if (rstr.find(" ") != std::string::npos)
+      }
+    }
   for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it, itemplate++) {
     const FieldDecl *FD = *it;
     const FieldDecl *FDtemplate = *itemplate;
@@ -997,6 +1012,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         connectList += attr->getInterfaces().str() + ",";
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
+printf("[%s:%d] %s = %s\n", __FUNCTION__, __LINE__, D->getName().str().c_str(), Ty->structFieldMap.c_str());
 
   // Detect/rename classes that were created from <int> parameterized templates
   if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(D)) {

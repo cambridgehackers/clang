@@ -39,7 +39,7 @@
 #include <algorithm>
 
 namespace clang {
-std::string expr2str(Expr *expr, const PrintingPolicy &Policy);
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 using namespace sema;
 
 /// \brief A semantic tree transformation that allows one to transform one

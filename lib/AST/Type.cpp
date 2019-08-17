@@ -29,7 +29,7 @@
 using namespace clang;
 
 namespace clang {
-std::string expr2str(Expr *expr, const PrintingPolicy &Policy);
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 }
 bool Qualifiers::isStrictSupersetOf(Qualifiers Other) const {
   return (*this != Other) &&

@@ -46,7 +46,9 @@
 
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
-extern std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr);
+namespace clang {
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
+};
 
 static llvm::cl::opt<bool>
     traceDeclaration("dtrace", llvm::cl::Optional, llvm::cl::desc("trace declaration creation"));
@@ -57,58 +59,33 @@ static llvm::cl::opt<bool>
 
 QualType getSimpleType(QualType ftype)
 {
-    if (auto ttype = dyn_cast<TypedefType>(ftype))
-        ftype = ttype->getDecl()->getUnderlyingType();
-    if (auto etype = dyn_cast<ElaboratedType>(ftype))
-        ftype = etype->desugar();
-    if (auto stype = dyn_cast<TemplateSpecializationType>(ftype))
-        ftype = stype->desugar();
-    return ftype;
-}
-static bool hoistInterface(Sema &Actions, CXXRecordDecl *parent, Decl *field, std::string interfaceName, SourceLocation loc)
-{
-    bool ret = false;
-    if (interfaceName != "")
-        if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
-            field = frec->getDecl();
-    if (auto rec = dyn_cast<CXXRecordDecl>(field))
-    if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
-        ret = true;
-        std::string recname = rec->getName();
-        for (auto ritem: rec->methods()) {
-            if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
-            if (Method->getDeclName().isIdentifier()) {
-                std::string mname = interfaceName + ritem->getName().str();
-                int len = mname.length() - strlen(BOGUS_FORCE_DECLARATION_METHOD);
-                if (len > 0 && mname.substr(len) == BOGUS_FORCE_DECLARATION_METHOD)
-                    continue;
-                for (auto item: parent->decls())
-                    if (auto TMethod = dyn_cast<CXXMethodDecl>(item))
-                    if (TMethod->getDeclName().isIdentifier()) {
-                        if (TMethod->getName() == mname) {
-                            if (trace_hoist)
-                            printf("[%s:%d] recname %s name exists %s, skip\n", __FUNCTION__, __LINE__, recname.c_str(), mname.c_str());
-                            goto nextItem;
-                        }
-                        if (trace_hoist)
-                        printf("[%s:%d] checking %s preexist %s\n", __FUNCTION__, __LINE__, mname.c_str(), TMethod->getName().str().c_str());
-                    }
-                if(parent->hasAttr<AtomiccConnectAttr>()) {
-printf("[%s:%d] HOISTATOMICCCCCCONNNECT\n", __FUNCTION__, __LINE__);
-                    goto nextItem;
-                }
-                if(parent->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module) {
-                    printf("[%s:%d] ATTEMPT TO HOIST pname %s recname %s interface %s mname %s\n", __FUNCTION__, __LINE__, parent->getName().str().c_str(), recname.c_str(), interfaceName.c_str(), mname.c_str());
-                    field->dump();
-                    Method->dump();
-                    parent->dump();
-                    exit(-1);
-                }
-            }
-nextItem:;
+    bool changed = true;
+    while(changed) {
+        changed = false;
+        if (dyn_cast<DecltypeType>(ftype)) {
+            SplitQualType split = ftype.getSplitDesugaredType();
+            ftype = QualType(split.Ty, 0);
+            if (!dyn_cast<DecltypeType>(ftype))
+               changed = true;
+        }
+        if (auto ttype = dyn_cast<TypedefType>(ftype)) {
+            ftype = ttype->getDecl()->getUnderlyingType();
+            changed = true;
+        }
+        if (auto etype = dyn_cast<ElaboratedType>(ftype)) {
+            ftype = etype->desugar();
+            changed = true;
+        }
+        if (auto stype = dyn_cast<TemplateSpecializationType>(ftype)) {
+            ftype = stype->desugar();
+            changed = true;
+        }
+        if (auto stype = dyn_cast<SubstTemplateTypeParmType>(ftype)) {
+            ftype = stype->getReplacementType();
+            changed = true;
         }
     }
-    return ret;
+    return ftype;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3621,6 +3598,16 @@ void Sema::ActOnFinishCXXInClassMemberInitializer(Decl *D,
   }
 
   ExprResult Init = InitExpr;
+  QualType ITY = getSimpleType(FD->getType());
+  //if (auto DestAT = Context.getAsArrayType(FD->getType()))
+  if (auto DestAT = dyn_cast<ArrayType>(ITY))
+  if (auto RT = dyn_cast<RecordType>(getSimpleType(DestAT->getElementType())))
+  if (auto Record = dyn_cast<CXXRecordDecl>(RT->getDecl())) {
+    if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
+      printf("[%s:%d] INTERFACEARRAYJJ\n", __FUNCTION__, __LINE__);
+      goto completeInit; // In AtomicC, initialized interface items used to export interior interfaces
+    }
+  }
   if (!FD->getType()->isDependentType() && !InitExpr->isTypeDependent()) {
     InitializedEntity Entity = InitializedEntity::InitializeMember(FD);
     InitializationKind Kind = FD->getInClassInitStyle() == ICIS_ListInit
@@ -3633,6 +3620,7 @@ void Sema::ActOnFinishCXXInClassMemberInitializer(Decl *D,
       return;
     }
   }
+completeInit:
 
   // C++11 [class.base.init]p7:
   //   The initialization of each base and member constitutes a
@@ -10816,6 +10804,7 @@ void Sema::ActOnFinishCXXMemberDecls() {
 static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
 {
     static int counter;
+    auto StartLoc = Record->getLocStart();
     std::string mname = llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_METHOD;
     const char *Dummy = nullptr;
     unsigned DiagID;
@@ -10858,54 +10847,77 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     Record->addDecl(FD);
     SmallVector<Stmt*, 32> Stmts;
     FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
-}
-
-void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
-  referenceDLLExportedClassMethods();
-  auto Record = dyn_cast<CXXRecordDecl>(D);
-  if (!Record)
-    return;
-  auto StartLoc = Record->getLocStart();
-  int aattr = Record->AtomiccAttr;
-  if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
-   || aattr == CXXRecordDecl::AtomiccAttr_EModule)
-    buildForceDeclaration(*this, Record);
-  if(Record->hasAttr<AtomiccSerializeAttr>()) {
-      uint64_t rsize = 0;
-      for (const Decl *field : Record->fields()) {
-          if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
-            field = frec->getDecl();
-          if (auto rec = dyn_cast<CXXRecordDecl>(field)) {
-            if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
-            for (auto ritem: rec->methods())
-                if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
-                if (Method->getDeclName().isIdentifier()) {
-                    uint64_t psize = 0;
-                    for (auto item: Method->parameters())
-                         psize += Context.getTypeSize(item->getType());
-                    if (psize > rsize)
-                        rsize = psize;
+    if(Record->hasAttr<AtomiccSerializeAttr>()) {
+        uint64_t rsize = 0;
+        for (const Decl *field : Record->fields()) {
+            if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
+              field = frec->getDecl();
+            if (auto rec = dyn_cast<CXXRecordDecl>(field)) {
+              if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
+              for (auto ritem: rec->methods())
+                  if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
+                  if (Method->getDeclName().isIdentifier()) {
+                      uint64_t psize = 0;
+                      for (auto item: Method->parameters())
+                           psize += Actions.Context.getTypeSize(item->getType());
+                      if (psize > rsize)
+                          rsize = psize;
+                  }
+             }
+             else if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType()))
+                 const_cast<BuiltinType *>(Ty)->atomiccWidth = rsize;
+        }
+        IdentifierInfo *blII = &Actions.Context.Idents.get("dummy");
+        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
+        Ty->atomiccWidth = rsize;
+        QualType NewTy = QualType(Ty, 0);
+        FieldDecl *dummyField = FieldDecl::Create(Actions.Context, Record, StartLoc, StartLoc, blII, NewTy,
+              /*TInfo*/nullptr, /*BitWidth=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
+        dummyField->setAccess(AS_public);
+        Record->addDecl(dummyField);
+        dummyField->markUsed(Actions.Context);
+    }
+    else if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+     || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+        for (auto mitem: Record->methods()) {
+            if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
+                Method->setAccess(AS_public);
+            if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
+            if (Method->getDeclName().isIdentifier()) {
+                if (traceDeclaration) {
+                    printf("%s: TTTMETHOD %p %s meth %s hasBody %d\n",
+                         __FUNCTION__, (void *)Method, Record->getName().str().c_str(),
+                         mitem->getName().str().c_str(),
+                         Method->hasBody());
+                    //Method->dump();
                 }
-           }
-           else if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType()))
-               const_cast<BuiltinType *>(Ty)->atomiccWidth = rsize;
+                if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
+                    Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+                if (Method->hasBody())
+                    Actions.ActOnFinishInlineFunctionDef(Method);
+            }
+        }
+      for (auto mitem: Record->methods()) {
+          if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
+          if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
+              Method->setAccess(AS_public);
       }
-      IdentifierInfo *blII = &Context.Idents.get("dummy");
-      BuiltinType *Ty = new (Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
-      Ty->atomiccWidth = rsize;
-      QualType NewTy = QualType(Ty, 0);
-      FieldDecl *dummyField = FieldDecl::Create(Context, Record, StartLoc, StartLoc, blII, NewTy,
-            /*TInfo*/nullptr, /*BitWidth=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
-      dummyField->setAccess(AS_public);
-      Record->addDecl(dummyField);
-      dummyField->markUsed(Context);
-  }
-  else {
+      for (auto field: Record->fields()) {
+          bool isInterface = false;
+          Decl *ftemp = field;
+          if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(ftemp)->getType())))
+              ftemp = frec->getDecl();
+          if (auto rec = dyn_cast<CXXRecordDecl>(ftemp))
+          if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
+             isInterface = true;
+          if (isInterface || field->getType()->isPointerType())
+              field->setAccess(AS_public);
+      }
       // Check for module definitions that were preceeded by an emodule declaration
       if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
           && Record->hasAttr<AtomiccInheritEModuleAttr>()) {
           CXXRecordDecl *importedEModule = nullptr;
-          for (Attr *item: D->getAttrs())
+          for (Attr *item: Record->getAttrs())
               if (auto attr = dyn_cast<AtomiccInheritEModuleAttr>(item))
                   importedEModule = cast<CXXRecordDecl>(attr->getProto());
 printf("[%s:%d]CHECKINTERFACEINHERITANCE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
@@ -10978,70 +10990,28 @@ printf("[%s:%d] Mname %s ptr %d recname %s\n", __FUNCTION__, __LINE__, name.c_st
                       __FUNCTION__, item.second.name.c_str(), Record->getName().str().c_str());
           }
       }
-      if(Record->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Interface) {
-      /* do hoisting for all class definitions */
-      for (auto mitem: Record->methods()) { // before hoisting
-          if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
-          if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
-              Method->setAccess(AS_public);
+    }
+}
+
+void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
+  referenceDLLExportedClassMethods();
+  if (auto Record = dyn_cast<CXXRecordDecl>(D)) {
+    int aattr = Record->AtomiccAttr;
+    if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
+     || aattr == CXXRecordDecl::AtomiccAttr_EModule) {
+      buildForceDeclaration(*this, Record);
+      if (traceDeclaration || traceTemplate) {
+        printf("[%s:%d] E/MODULE/INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+        if (traceDeclaration)
+            Record->dump();
+        if (traceTemplate)
+        if (auto item = dyn_cast<ClassTemplateSpecializationDecl>(Record)) {
+            const ClassTemplateDecl *decl = item->getSpecializedTemplate();
+            printf("[%s:%d] ORIGINAL TEMPLATE\n", __FUNCTION__, __LINE__);
+            decl->getTemplatedDecl()->dump();
+        }
       }
-      for (auto bitem: Record->bases())
-          if (auto base = dyn_cast<RecordType>(getSimpleType(bitem.getType())))
-          if (auto rec = dyn_cast<CXXRecordDecl>(base->getDecl())) {
-              hoistInterface(*this, Record, rec, "", StartLoc);
-              for (auto field: rec->fields())
-                  hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc);
-          }
-      for (auto field: Record->fields()) {
-          if (Expr *cinit = field->getInClassInitializer()) {
-              field->setAccess(AS_public);
-              std::string lstr = field->getName();
-              std::string rstr = methString(*this, getLangOpts(), cinit);
-              if (trace_hoist)
-              printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
-              Record->addAttr(::new (Context) AtomiccConnectAttr(StartLoc, Context, lstr + ":" + rstr, 0));
-          }
-          else if (hoistInterface(*this, Record, field, field->getName().str() + "$", StartLoc)
-           || field->getType()->isPointerType())
-              field->setAccess(AS_public);
-      }
-      }
-      if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
-       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule
-       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
-          if (traceDeclaration || traceTemplate) {
-              printf("[%s:%d] E/MODULE/INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
-              if (traceDeclaration)
-                  Record->dump();
-              if (traceTemplate)
-              if (auto item = dyn_cast<ClassTemplateSpecializationDecl>(Record)) {
-                  const ClassTemplateDecl *decl = item->getSpecializedTemplate();
-                  printf("[%s:%d] ORIGINAL TEMPLATE\n", __FUNCTION__, __LINE__);
-                  decl->getTemplatedDecl()->dump();
-              }
-          }
-      }
-      if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
-       || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
-          for (auto mitem: Record->methods()) {
-              if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
-                  Method->setAccess(AS_public);
-              if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
-              if (Method->getDeclName().isIdentifier()) {
-                  if (traceDeclaration) {
-                      printf("%s: TTTMETHOD %p %s meth %s hasBody %d\n",
-                           __FUNCTION__, (void *)Method, Record->getName().str().c_str(),
-                           mitem->getName().str().c_str(),
-                           Method->hasBody());
-                      //Method->dump();
-                  }
-                  if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
-                      MarkFunctionReferenced(Method->getLocation(), Method, true);
-                  if (Method->hasBody())
-                      ActOnFinishInlineFunctionDef(Method);
-              }
-          }
-      }
+    }
   }
 }
 

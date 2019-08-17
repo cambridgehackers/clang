@@ -3809,6 +3809,8 @@ bool Sema::SemaBuiltinVAStartARM(CallExpr *Call) {
     const Expr *Arg = Call->getArg(AT.ArgNo)->IgnoreParens();
     if (Arg->getType().getCanonicalType() == AT.Type.getCanonicalType())
       continue;
+printf("[%s:%d]JJerr_typecheck_convert_incompatible\n", __FUNCTION__, __LINE__);
+Arg->getType()->dump();
     Diag(Arg->getLocStart(), diag::err_typecheck_convert_incompatible)
       << Arg->getType() << AT.Type << 1 /* different class */
       << 0 /* qualifier difference */ << 3 /* parameter mismatch */
@@ -9429,6 +9431,14 @@ void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
       std::string PrettySourceValue = Value.toString(10);
       std::string PrettyTargetValue = PrettyPrintInRange(Value, TargetRange);
 
+printf("[%s:%d]builtin\n", __FUNCTION__, __LINE__);
+SourceBT->dump();
+TargetBT->dump();
+printf("[%s:%d]Sourcewidth width %d nonneg %d\n", __FUNCTION__, __LINE__, SourceRange.Width, SourceRange.NonNegative);
+printf("[%s:%d]Targetwidth width %d nonneg %d\n", __FUNCTION__, __LINE__, TargetRange.Width, TargetRange.NonNegative);
+printf("[%s:%d]JJwarn_impcast_integer_precision_constant\n", __FUNCTION__, __LINE__);
+E->dump();
+E->getType()->dump();
       S.DiagRuntimeBehavior(E->getExprLoc(), E,
         S.PDiag(diag::warn_impcast_integer_precision_constant)
             << PrettySourceValue << PrettyTargetValue
@@ -9464,6 +9474,7 @@ void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         if (auto Ty = dyn_cast<BuiltinType>(T))
             skip = Ty->atomiccWidth != -1;
         if (!skip) {
+printf("[%s:%d]JJwarn_impcast_integer_precision_constant\n", __FUNCTION__, __LINE__);
         S.DiagRuntimeBehavior(
             E->getExprLoc(), E,
             S.PDiag(diag::warn_impcast_integer_precision_constant)

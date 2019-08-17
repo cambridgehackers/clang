@@ -39,6 +39,7 @@
 #include "clang/AST/ExprCXX.h" // SubstNonTypeTemplateParmExpr
 
 using namespace clang;
+#define MODULE_SEPARATOR "$"
 extern bool suppressTemplatePrint;
 
 enum TypeDiagSelector {
@@ -1233,14 +1234,24 @@ static OpenCLAccessAttr::Spelling getImageAccess(const AttributeList *Attrs) {
 /// \returns The type described by the declaration specifiers.  This function
 /// never returns null.
 namespace clang {
-std::string expr2str(Expr *expr, const PrintingPolicy &Policy)
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false)
 {
     SmallString<256> Buffer;
     llvm::raw_svector_ostream Out(Buffer);
     suppressTemplatePrint = true;
     expr->printPretty(Out, nullptr, Policy);
     suppressTemplatePrint = false;
-    return Out.str();
+    std::string ret = Out.str();
+    if (ret.substr(0, 6) == "this->")
+        ret = ret.substr(6);
+    if (methodName) {
+        int ind;
+        while ((ind = ret.find(".")) > 0)
+            ret = ret.substr(0, ind) + MODULE_SEPARATOR + ret.substr(ind+1);
+        while ((ind = ret.find(MODULE_SEPARATOR "_" MODULE_SEPARATOR)) > 0)
+            ret = ret.substr(0, ind) + ret.substr(ind+2);
+    }
+    return ret;
 }
 }
 static QualType ConvertDeclSpecToType(TypeProcessingState &state) {

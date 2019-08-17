@@ -26,11 +26,13 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/SmallString.h"
-#include "clang/AST/ExprCXX.h"    // CXXConstructExpr for methString
 
 using namespace clang;
 bool inDeclForLoop;
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
+namespace clang {
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
+};
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
 /// may either be a top level namespace or a block-level namespace alias. If
@@ -2386,50 +2388,6 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
   }
 }
 
-static int trace_meth;//= 1;
-std::string methString(Sema &Actions, const LangOptions &Opt, Expr *expr)
-{
-static int nesting = 0;
-    if (!expr)
-        return "";
-    nesting++;
-    std::string retVal;
-    if (auto rr = dyn_cast<CXXConstructExpr>(expr)) {
-        Expr **item2 = rr->getArgs();
-        if (auto ss = *item2++)
-            expr = ss;
-    }
-    expr = expr->IgnoreParenImpCasts();
-    if (auto item = dyn_cast_or_null<MemberExpr>(expr)) {
-        retVal =  methString(Actions, Opt, item->getBase());
-        if (trace_meth) {
-            printf("[%s:%d]nest %d BASE %s\n", __FUNCTION__, __LINE__, nesting, retVal.c_str());
-            item->getBase()->getType()->dump();
-        }
-        if (auto meth = item->getMemberDecl()) {
-            std::string mname = meth->getName();
-            if (trace_meth) {
-                printf("[%s:%d]nest %d method %d meth %s\n", __FUNCTION__, __LINE__, nesting, dyn_cast<FunctionDecl>(meth) != nullptr, mname.c_str());
-                meth->getType()->dump();
-            }
-            if (nesting == 1 || mname != "_") {
-                if (retVal != "")
-                    retVal += "$";
-                retVal += mname;
-            }
-            if (auto Method = dyn_cast<FunctionDecl>(meth)) {
-                if (trace_meth)
-                    printf("[%s:%d]nest %d METHOD %s, meth %s\n", __FUNCTION__, __LINE__, nesting, Method->getName().str().c_str(), mname.c_str());
-                Method->addAttr(::new (Method->getASTContext()) UsedAttr(Method->getLocStart(), Method->getASTContext(), 0));
-                Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
-            }
-        }
-    }
-    if (trace_meth)
-        printf("[%s:%d]nest %d END %s\n", __FUNCTION__, __LINE__, nesting, retVal.c_str());
-    nesting--;
-    return retVal;
-}
 /// ParseCXXClassMemberDeclaration - Parse a C++ class member declaration.
 ///
 ///       member-declaration:
@@ -2638,8 +2596,8 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     ConsumeToken();
     ExprResult RHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
     Actions.PopDeclContext();
-    std::string lstr = methString(Actions, Actions.getLangOpts(), LHS.get());
-    std::string rstr = methString(Actions, Actions.getLangOpts(), RHS.get());
+    std::string lstr = expr2str(LHS.get(), Actions.getPrintingPolicy(), true);
+    std::string rstr = expr2str(RHS.get(), Actions.getPrintingPolicy(), true);
     lstr = "CONNECT;" + lstr;
     //printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
     thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,

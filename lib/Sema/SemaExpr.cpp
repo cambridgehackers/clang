@@ -10428,6 +10428,9 @@ static bool CheckForModifiableLvalue(Expr *E, SourceLocation Loc, Sema &S) {
     return true;
   case Expr::MLV_ArrayType:
   case Expr::MLV_ArrayTemporary:
+printf("[%s:%d]JJJerr_typecheck_array_not_modifiable_lvalue  %d \n", __FUNCTION__, __LINE__, IsLV == Expr::MLV_ArrayType);
+E->dump();
+return false;
     DiagID = diag::err_typecheck_array_not_modifiable_lvalue;
     NeedType = true;
     break;
@@ -13110,6 +13113,9 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
       return true;
     }
 
+printf("[%s:%d]JJerr_typecheck_convert_incompatible\n", __FUNCTION__, __LINE__);
+SrcType->dump();
+DstType->dump();
     DiagKind = diag::err_typecheck_convert_incompatible;
     ConvHints.tryToFixConversion(SrcExpr, SrcType, DstType, *this);
     MayHaveConvFixit = true;
