@@ -888,21 +888,6 @@ else {  // !isUnion()
   RecordDecl::field_iterator itemplate = templateDecl ? templateDecl->field_begin() : it;
   unsigned Idx = 0;
   std::string softwareItems, connectList;
-  if (auto Record = dyn_cast<CXXRecordDecl>(D))
-  if (!Record->hasAttr<AtomiccSerializeAttr>())
-  if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
-    || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)
-    for (auto field: Record->fields()) {
-      if (Expr *cinit = field->getInClassInitializer()) {
-        std::string lstr = field->getName();
-        std::string rstr = expr2str(cinit, Policy, true);
-        connectList += lstr + ":" + rstr + ",";
-        //if (trace_hoist)
-        printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
-        field->dump();
-        //if (rstr.find(" ") != std::string::npos)
-      }
-    }
   for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it, itemplate++) {
     const FieldDecl *FD = *it;
     const FieldDecl *FDtemplate = *itemplate;
@@ -922,6 +907,13 @@ else {  // !isUnion()
           std::string templateOptions = getTemplateInfo(FDtemplate->getType(), Policy);
           if (templateOptions != "")
              fname += "#" + templateOptions;
+        }
+        if (Expr *cinit = FDtemplate->getInClassInitializer()) {
+          std::string rstr = expr2str(cinit, Policy, true);
+          connectList += fname + ":" + rstr + ",";
+          //if (recordGenTrace)
+          printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, fname.c_str(), rstr.c_str());
+          ND->dump();
         }
       }
       if (Idx > FieldNo) {
