@@ -913,7 +913,7 @@ else {  // !isUnion()
           connectList += fname + ":" + rstr + ",";
           //if (recordGenTrace)
           printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, fname.c_str(), rstr.c_str());
-          ND->dump();
+          //ND->dump();
         }
       }
       if (Idx > FieldNo) {

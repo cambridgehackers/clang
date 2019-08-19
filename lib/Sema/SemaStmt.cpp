@@ -1798,8 +1798,9 @@ std::string normalizeName(std::string name)
 }
 
 #define GENVAR_NAME "__inst$Genvar"
-Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, std::string &retString)
+Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *argStmt, Expr *expr, int depth, std::string &retString)
 {
+    Stmt *stmt = argStmt;
     prefix = normalizeName(prefix);
     SourceLocation loc = variable->getLocation();
     CXXMethodDecl *Fn = buildFunc(Actions, funcname, loc, retType, Record);
@@ -1837,7 +1838,6 @@ Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std:
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName)
 {
     static std::map<std::string, FunctionDecl *>GenerateForDecl;
-    static int counter, depth;
     VarDecl *variable = nullptr;
     const Expr *init = nullptr;
     if (auto decl = dyn_cast<DeclStmt>(initExpr)) {
@@ -1854,7 +1854,9 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
     }
     if (!variable)
         return nullptr;
+    static int counter, depth;
     depth++;
+    std::string fname =  "FOR$" + llvm::utostr(counter++);
     std::string sparam = GENVAR_NAME + llvm::utostr(depth);
     auto setStringParam = [&] (Expr *expr) -> void {
         setForContents(Actions, "UNUSED", Actions.Context.IntTy,
@@ -1864,7 +1866,6 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
     setStringParam(cond);
     setStringParam(getExprValue(Actions, incExpr));
 
-    std::string fname =  "FOR$" + llvm::utostr(counter++);
     QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
     SmallVector<Expr *, 16> Args;
     Args.push_back(Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, sparam,
@@ -1874,7 +1875,6 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
         ccharp, CK_ArrayToPointerDecay).get());
     Args.push_back(setForContents(Actions, fname + "Body", Actions.Context.VoidTy,
         prefix, Record, variable, body, nullptr, depth, sparam));
-    depth--;
 
     // Call runtime to add guard/method function into list of pairs to be processed by backend
     if (!GenerateForDecl[functionName]) {
@@ -1891,6 +1891,7 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
         GenerateForDecl[functionName] =
             getACCFunction(Actions, CLinkageDecl, functionName, Actions.Context.VoidTy, Params);
     }
+    depth--;
     return new (Actions.Context) CallExpr(Actions.Context, 
         getACCCallRef(Actions, GenerateForDecl[functionName]),
         Args, Actions.Context.VoidTy, VK_RValue, loc);
