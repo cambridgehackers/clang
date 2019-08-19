@@ -13114,8 +13114,9 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     }
 
 printf("[%s:%d]JJerr_typecheck_convert_incompatible\n", __FUNCTION__, __LINE__);
-SrcType->dump();
-DstType->dump();
+//SrcType->dump();
+//DstType->dump();
+//return false; // no error
     DiagKind = diag::err_typecheck_convert_incompatible;
     ConvHints.tryToFixConversion(SrcExpr, SrcType, DstType, *this);
     MayHaveConvFixit = true;

@@ -1581,6 +1581,7 @@ void CodeGenFunction::EmitAggregateCopy(Address DestPtr,
              "Trying to aggregate-copy a type without a trivial copy/move "
              "constructor or assignment operator");
       // Ignore empty classes in C++.
+      if (Record->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Interface)
       if (Record->isEmpty())
         return;
     }
