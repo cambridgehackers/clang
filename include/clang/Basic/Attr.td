@@ -590,7 +590,7 @@ def AtomiccModule : InheritableAttr {
 
 def AtomiccInheritEModule : InheritableAttr {
   let Spellings = [ GNU<"atomicc_inherit_emodule"> ];
-  let Args = [NamedArgument<"proto">];
+  let Args = [NamedArgument<"atomiccProto">];
   let Subjects = SubjectList<[CXXRecord]>;
   let Documentation = [Undocumented];
 }

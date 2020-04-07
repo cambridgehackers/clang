@@ -95,7 +95,7 @@ CXXRecordDecl::CXXRecordDecl(Kind K, TagKind TK, const ASTContext &C,
     : RecordDecl(K, TK, C, DC, StartLoc, IdLoc, Id, PrevDecl),
       DefinitionData(PrevDecl ? PrevDecl->DefinitionData
                               : nullptr),
-      TemplateOrInstantiation(), AtomiccAttr(0) {}
+      TemplateOrInstantiation(), AtomiccAttr(0), AtomiccImplements(nullptr) {}
 
 CXXRecordDecl *CXXRecordDecl::Create(const ASTContext &C, TagKind TK,
                                      DeclContext *DC, SourceLocation StartLoc,
@@ -109,8 +109,10 @@ CXXRecordDecl *CXXRecordDecl::Create(const ASTContext &C, TagKind TK,
   // FIXME: DelayTypeCreation seems like such a hack
   if (!DelayTypeCreation)
     C.getTypeDeclType(R, PrevDecl);
-  if (PrevDecl)
+  if (PrevDecl) {
       R->AtomiccAttr = PrevDecl->AtomiccAttr;
+      R->AtomiccImplements = PrevDecl->AtomiccImplements;
+  }
   return R;
 }
 

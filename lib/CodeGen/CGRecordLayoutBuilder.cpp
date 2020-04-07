@@ -939,7 +939,8 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
           Ty->structFieldMap += "<" + params + ">";
     }
   }
-  if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D)) {
+  const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D);
+  if (RD) {
     Ty->structFieldMap += ",/";
 //printf("[%s:%d]beforemethoodododododod\n", __FUNCTION__, __LINE__);
     std::map<std::string, const NamedDecl *> mapTemplate;
@@ -1004,7 +1005,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         connectList += attr->getInterfaces().str() + ",";
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
-printf("[%s:%d] %s = %s\n", __FUNCTION__, __LINE__, D->getName().str().c_str(), Ty->structFieldMap.c_str());
+printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, D, RD ? RD->AtomiccAttr : -1, Ty, D->getName().str().c_str(), Ty->structFieldMap.c_str());
 
   // Detect/rename classes that were created from <int> parameterized templates
   if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(D)) {

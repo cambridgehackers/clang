@@ -46,6 +46,7 @@
 
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
+void adjustInterfaceType(Sema &Actions, QualType Ty);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 };
@@ -76,9 +77,17 @@ QualType getSimpleType(QualType ftype)
             ftype = etype->desugar();
             changed = true;
         }
-        if (auto stype = dyn_cast<TemplateSpecializationType>(ftype)) {
-            ftype = stype->desugar();
-            changed = true;
+        else if (auto stype = dyn_cast<TemplateSpecializationType>(ftype)) {
+            TemplateDecl *Template = stype->getTemplateName().getAsTemplateDecl();
+            if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(Template)) {
+                for (auto *I : TSD->specializations())
+                    if (auto RD = dyn_cast<CXXRecordDecl>(I))
+                        ftype = QualType(RD->getTypeForDecl(), 0);
+            }
+            else
+                ftype = stype->desugar();
+            if (!(dyn_cast<TemplateSpecializationType>(ftype)))
+                changed = true;
         }
         if (auto stype = dyn_cast<SubstTemplateTypeParmType>(ftype)) {
             ftype = stype->getReplacementType();
@@ -86,6 +95,44 @@ QualType getSimpleType(QualType ftype)
         }
     }
     return ftype;
+}
+
+static std::map<std::string, const CXXMethodDecl *> mapInterface;
+static void extractInterface(const CXXRecordDecl *rec, std::string prefix)
+{
+    std::string name = prefix;
+    if (prefix != "")
+        name += "$"; // MODULE_SEPARATOR
+    for (auto item: rec->fields()) {
+        std::string fname;
+        if (item->getDeclName().isIdentifier())
+            fname = item->getName();
+        Decl *field = item;
+        if (auto frec = dyn_cast<RecordType>(getSimpleType(item->getType())))
+            field = frec->getDecl();
+        if (auto RD = dyn_cast<CXXRecordDecl>(field))
+            extractInterface(RD, name + fname);
+    }
+    for (auto item: rec->methods()) {
+        if (item->getDeclName().isIdentifier())
+        if (!item->getName().endswith(BOGUS_FORCE_DECLARATION_METHOD))
+            mapInterface[name + item->getName().str()] = item;
+    }
+}
+void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method)
+{
+    if (!Method->getDeclName().isIdentifier()
+     || Method->getName().endswith(BOGUS_FORCE_DECLARATION_METHOD))
+        return;
+    const FunctionProtoType *FPT = Method->getType()->castAs<FunctionProtoType>();
+    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+    EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+    Method->setType(Method->getASTContext().getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI));
+    Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+    Method->setAccess(AS_public);
+    //Method->setIsUsed();
+    //Method->markUsed(Actions.Context);
+    //Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
 }
 
 //===----------------------------------------------------------------------===//
@@ -10801,7 +10848,7 @@ void Sema::ActOnFinishCXXMemberDecls() {
   }
 }
 
-static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
+void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
 {
     static int counter;
     auto StartLoc = Record->getLocStart();
@@ -10879,20 +10926,39 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     }
     else if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
      || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+        if (Record->AtomiccImplements) {
+            auto Imp = getSimpleType((Record->bases_end()-1)->getType());
+printf("[%s:%d]LIMP\n", __FUNCTION__, __LINE__);
+Imp->dump();
+            mapInterface.clear();
+            if (CXXRecordDecl *rec = Imp->getAsCXXRecordDecl())
+                extractInterface(rec, "");
+            for (auto item: mapInterface) {
+printf("[%s:%d] interface %s\n", __FUNCTION__, __LINE__, item.first.c_str());
+//item.second->dump();
+            }
+        }
         for (auto mitem: Record->methods()) {
             if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
                 Method->setAccess(AS_public);
             if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
             if (Method->getDeclName().isIdentifier()) {
+                bool hasMap = (mapInterface.find(Method->getName()) != mapInterface.end());
+                if (hasMap)
+                    setX86VectorCall(Actions, Method);
                 if (traceDeclaration) {
-                    printf("%s: TTTMETHOD %p %s meth %s hasBody %d\n",
+                    printf("%s: TTTMETHOD %p %s meth %s hasBody %d map %p\n",
                          __FUNCTION__, (void *)Method, Record->getName().str().c_str(),
                          mitem->getName().str().c_str(),
-                         Method->hasBody());
+                         Method->hasBody(), hasMap);
                     //Method->dump();
                 }
-                if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
+                if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
                     Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+                    Method->setIsUsed();
+                    Method->markUsed(Actions.Context);
+                    Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
+                }
                 if (Method->hasBody())
                     Actions.ActOnFinishInlineFunctionDef(Method);
             }
@@ -10919,7 +10985,7 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
           CXXRecordDecl *importedEModule = nullptr;
           for (Attr *item: Record->getAttrs())
               if (auto attr = dyn_cast<AtomiccInheritEModuleAttr>(item))
-                  importedEModule = cast<CXXRecordDecl>(attr->getProto());
+                  importedEModule = cast<CXXRecordDecl>(attr->getAtomiccProto());
 printf("[%s:%d]CHECKINTERFACEINHERITANCE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
           typedef struct {
               CXXRecordDecl *rec;
@@ -10999,9 +11065,12 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
     int aattr = Record->AtomiccAttr;
     if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
      || aattr == CXXRecordDecl::AtomiccAttr_EModule) {
-      buildForceDeclaration(*this, Record);
+      if (aattr == CXXRecordDecl::AtomiccAttr_Interface)
+          adjustInterfaceType(*this, QualType(Record->getTypeForDecl(), 0));
+      else
+          buildForceDeclaration(*this, Record);
       if (traceDeclaration || traceTemplate) {
-        printf("[%s:%d] E/MODULE/INTERFACE %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+        printf("[%s:%d] E/MODULE/INTERFACE %p %s\n", __FUNCTION__, __LINE__, Record, Record->getName().str().c_str());
         if (traceDeclaration)
             Record->dump();
         if (traceTemplate)

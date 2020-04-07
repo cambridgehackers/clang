@@ -13606,15 +13606,15 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
     if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl))
     if (CXXRecordDecl *RD = dyn_cast_or_null<CXXRecordDecl>(PrevTagDecl->getDefinition()))
     if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
-      for (const AttributeList* aitem = Attr; aitem; aitem = aitem->getNext())
-        if (!aitem->isInvalid() && aitem->getKind() != AttributeList::IgnoredAttribute)
-        if (aitem->getKind() == AttributeList::AT_AtomiccModule) {
+      //for (const AttributeList* aitem = Attr; aitem; aitem = aitem->getNext())
+        //if (!aitem->isInvalid() && aitem->getKind() != AttributeList::IgnoredAttribute)
+        //if (aitem->getKind() == AttributeList::AT_AtomiccModule) {
           printf("[%s:%d] specialize EModule %s\n", __FUNCTION__, __LINE__, RD->getNameAsString().c_str());
           importedEModule = RD;
           // Ignoring the old declaration.
           Previous.clear();
           goto CreateNewDecl;
-        }
+        //}
     }
 
     if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl)) {
@@ -14172,6 +14172,7 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
                             /*PrevDecl=*/nullptr,
                             /*DelayTypeCreation=*/true);
   InjectedClassName->AtomiccAttr = Record->AtomiccAttr;
+  InjectedClassName->AtomiccImplements = Record->AtomiccImplements;
   Context.getTypeDeclType(InjectedClassName, Record);
   InjectedClassName->setImplicit();
   InjectedClassName->setAccess(AS_public);

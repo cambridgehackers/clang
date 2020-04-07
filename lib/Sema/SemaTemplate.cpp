@@ -37,6 +37,7 @@
 using namespace clang;
 using namespace sema;
 
+void adjustInterfaceType(Sema &Actions, QualType Ty);
 // Exported for use by Parser.
 SourceRange
 clang::getTemplateParamsRange(TemplateParameterList const * const *Ps,
@@ -1337,12 +1338,8 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
 
         if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(Def))
         if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
-          for (const AttributeList* aitem = Attr; aitem; aitem = aitem->getNext())
-            if (!aitem->isInvalid() && aitem->getKind() != AttributeList::IgnoredAttribute)
-            if (aitem->getKind() == AttributeList::AT_AtomiccModule) {
               printf("[%s:%d] specialize EModule template\n", __FUNCTION__, __LINE__);
               goto skipCheck;
-            }
         }
         Diag(NameLoc, diag::err_redefinition) << Name;
         Diag(Def->getLocation(), diag::note_previous_definition);
@@ -3079,9 +3076,22 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
                                                      ClassTemplate,
                                                      Converted, nullptr);
       Decl->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
+      Decl->AtomiccImplements = ClassTemplate->getTemplatedDecl()->AtomiccImplements;
       ClassTemplate->AddSpecialization(Decl, InsertPos);
       if (ClassTemplate->isOutOfLine())
         Decl->setLexicalDeclContext(ClassTemplate->getLexicalDeclContext());
+      if (Decl->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
+        if (Decl->hasDefinition())
+            adjustInterfaceType(*this, QualType(Decl->getTypeForDecl(), 0));
+        auto spec = Decl->getSpecializedTemplate();
+        for (auto I = spec->spec_begin(), E = spec->spec_end(); I != E; I++) {
+            auto SD = *I;
+            if (auto RD = dyn_cast<CXXRecordDecl>(SD))
+                adjustInterfaceType(*this, QualType(RD->getTypeForDecl(), 0));
+        }
+        if (auto RD = dyn_cast<CXXRecordDecl>(Decl->getSpecializedTemplate()->getTemplatedDecl()))
+            adjustInterfaceType(*this, QualType(RD->getTypeForDecl(), 0));
+      }
     }
 
     if (Decl->getSpecializationKind() == TSK_Undeclared) {

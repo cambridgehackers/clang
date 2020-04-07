@@ -1861,7 +1861,6 @@ Sema::ConditionResult Parser::ParseCXXCondition(StmtResult *InitStmt,
 ///         typedef-name
 ///
 void Parser::ParseCXXSimpleTypeSpecifier(DeclSpec &DS) {
-  bool skipConsume = false;
   DS.SetRangeStart(Tok.getLocation());
   const char *PrevSpec;
   unsigned DiagID;
@@ -1916,12 +1915,6 @@ void Parser::ParseCXXSimpleTypeSpecifier(DeclSpec &DS) {
   case tok::kw_int:
     DS.SetTypeSpecType(DeclSpec::TST_int, Loc, PrevSpec, DiagID, Policy);
     break;
-#if 0
-  case tok::kw___int://JCAJCAjca
-  case tok::kw___uint: {
-    break;
-    }
-#endif
   case tok::kw___int128:
     DS.SetTypeSpecType(DeclSpec::TST_int128, Loc, PrevSpec, DiagID, Policy);
     break;
@@ -1960,7 +1953,6 @@ void Parser::ParseCXXSimpleTypeSpecifier(DeclSpec &DS) {
     DS.Finish(Actions, Policy);
     return;
   }
-  if (!skipConsume)
   ConsumeAnyToken();
   DS.SetRangeEnd(PrevTokLocation);
   DS.Finish(Actions, Policy);

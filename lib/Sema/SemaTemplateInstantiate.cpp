@@ -29,6 +29,7 @@
 using namespace clang;
 using namespace sema;
 
+void adjustInterfaceType(Sema &Actions, QualType Ty);
 //===----------------------------------------------------------------------===/
 // Template Instantiation Support
 //===----------------------------------------------------------------------===/
@@ -2077,6 +2078,11 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
       Instantiation->setInvalidDecl();
       continue;
     }
+    if (auto FD = dyn_cast<FieldDecl>(Member)) {
+#define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
+       if (FD->getName().endswith(BOGUS_FORCE_DECLARATION_FIELD)) // skip copy of these markers
+           continue;
+    }
 
     Decl *NewMember = Instantiator.Visit(Member);
     if (NewMember) {
@@ -2201,6 +2207,10 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
       MarkVTableUsed(PointOfInstantiation, Instantiation, true);
   }
 
+    if (auto item = dyn_cast_or_null<ClassTemplateSpecializationDecl>(Instantiation))
+    if (auto RD = dyn_cast<CXXRecordDecl>(item->getSpecializedTemplate()->getTemplatedDecl()))
+    if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
+        adjustInterfaceType(*this, QualType(RD->getTypeForDecl(), 0));
   return Instantiation->isInvalidDecl();
 }
 

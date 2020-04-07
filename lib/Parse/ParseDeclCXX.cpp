@@ -26,13 +26,96 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h" // utostr()
 
 using namespace clang;
+
+#define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
 bool inDeclForLoop;
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
+QualType getSimpleType(QualType ftype);
+void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
+void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 };
+static CXXRecordDecl *findRecord(Decl *decl)
+{
+    if (auto RD = dyn_cast_or_null<CXXRecordDecl>(decl))
+        return RD;
+    else if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(decl))
+        return findRecord(TSD->getTemplatedDecl());
+    return nullptr;
+}
+static CXXRecordDecl *findRecordType(QualType Ty)
+{
+    if (auto RD = findRecord(Ty->getAsCXXRecordDecl()))
+        return RD;
+    else if (auto stype = dyn_cast<InjectedClassNameType>(Ty))
+        return stype->getDecl();
+    else if (auto stype = dyn_cast<TemplateSpecializationType>(Ty))
+        return findRecord(stype->getTemplateName().getAsTemplateDecl());
+    return nullptr;
+}
+
+void adjustInterfaceType(Sema &Actions, QualType Ty)
+{
+    static int counter;
+    if (auto PTy = dyn_cast<PointerType>(Ty))
+        Ty = PTy->getPointeeType();
+//printf("[%s:%d]TTTTTTTTTTTTTTTTTTTTTTTTTTTTT %p\n", __FUNCTION__, __LINE__, Ty);
+//Ty->dump();
+    if (auto item = dyn_cast_or_null<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())) {
+        adjustInterfaceType(Actions, QualType(item->getSpecializedTemplate()->getTemplatedDecl()->getTypeForDecl(), 0));
+    }
+    if (auto RD = findRecordType(Ty)) {
+        if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Interface) {
+            printf("[%s:%d] changing %s AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, RD->getName().str().c_str(), RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Interface);
+            RD->dump();
+            exit(-1);
+        }
+        bool initialized = false;
+        for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
+            FieldDecl *fd = *I;
+            if (fd->getName().endswith(BOGUS_FORCE_DECLARATION_FIELD))
+                initialized = true;
+        }
+//printf("[%s:%d] PROCESS init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, initialized, RD, RD->hasDefinition(), counter);
+//RD->dump();
+        if (!initialized) {
+        RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface; // needed to set Empty in ActOnBaseSpecifiers
+        RD->setIsUsed();
+        RD->markUsed(Actions.Context);
+        RD->addAttr(::new (Actions.Context) UsedAttr(RD->getLocation(), Actions.Context, 0));
+        for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
+            I->setAccess(AS_public);
+            FieldDecl *fd = *I;
+            adjustInterfaceType(Actions, fd->getType());
+        }
+        for (auto I = RD->method_begin(), E = RD->method_end(); I != E; ++I) {
+            CXXMethodDecl *Method = *I;
+            setX86VectorCall(Actions, Method);
+            Method->setAccess(AS_public);
+            if (Method->hasBody())
+                Actions.ActOnFinishInlineFunctionDef(Method);
+        }
+        if (RD->hasDefinition()) {
+        auto StartLoc = RD->getLocation();
+        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
+        Ty->atomiccWidth = 64;
+        QualType NewTy = QualType(Ty, 0);
+        IdentifierInfo *blII = &Actions.Context.Idents.get(llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_FIELD);
+        FieldDecl *fillField = FieldDecl::Create(Actions.Context, RD, StartLoc, StartLoc, blII, NewTy,
+              Actions.Context.CreateTypeSourceInfo(NewTy),
+              /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
+        fillField->setAccess(AS_public);
+        RD->addDecl(fillField);
+        fillField->markUsed(Actions.Context);
+        buildForceDeclaration(Actions, RD);
+        }
+    }
+    }
+}
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
 /// may either be a top level namespace or a block-level namespace alias. If
@@ -1626,7 +1709,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   if (DSC == DSC_trailing)
     TUK = Sema::TUK_Reference;
   else if (Tok.is(tok::l_brace) ||
-           (getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
+           (getLangOpts().CPlusPlus && (Tok.is(tok::colon) || Tok.is(tok::kw___implements))) ||
            (isCXX11FinalKeyword() &&
             (NextToken().is(tok::l_brace) || NextToken().is(tok::colon)))) {
     if (DS.isFriendSpecified()) {
@@ -1668,7 +1751,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       }
     }
 
-    if (Tok.isOneOf(tok::l_brace, tok::colon))
+    if (Tok.isOneOf(tok::l_brace, tok::colon, tok::kw___implements))
       TUK = Sema::TUK_Definition;
     else
       TUK = Sema::TUK_Reference;
@@ -1907,7 +1990,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   // If there is a body, parse it and inform the actions module.
   if (TUK == Sema::TUK_Definition) {
     assert(Tok.is(tok::l_brace) ||
-           (getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
+           (getLangOpts().CPlusPlus && (Tok.is(tok::colon) || Tok.is(tok::kw___implements))) ||
            isCXX11FinalKeyword());
     if (SkipBody.ShouldSkip)
       SkipCXXMemberSpecification(StartLoc, AttrFixitLoc, TagType,
@@ -1989,7 +2072,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///         base-specifier '...'[opt]
 ///         base-specifier-list ',' base-specifier '...'[opt]
 void Parser::ParseBaseClause(Decl *ClassDecl) {
-  assert(Tok.is(tok::colon) && "Not a base clause");
+  bool isImplements = Tok.is(tok::kw___implements);
+  assert((Tok.is(tok::colon) || Tok.is(tok::kw___implements)) && "Not a base clause");
   ConsumeToken();
 
   // Build up an array of parsed base specifiers.
@@ -1997,7 +2081,7 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
 
   while (true) {
     // Parse a base-specifier.
-    BaseResult Result = ParseBaseSpecifier(ClassDecl);
+    BaseResult Result = ParseBaseSpecifier(ClassDecl, isImplements);
     if (Result.isInvalid()) {
       // Skip the rest of this base specifier, up until the comma or
       // opening brace.
@@ -2005,11 +2089,19 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
     } else {
       // Add this to our array of base specifiers.
       BaseInfo.push_back(Result.get());
+      if (isImplements) {
+        if (auto RD = findRecord(ClassDecl))
+          RD->AtomiccImplements = Result.get()->getTypeSourceInfo();
+        adjustInterfaceType(Actions, Result.get()->getType());
+        break;
+      }
     }
 
     // If the next token is a comma, consume it and keep reading
     // base-specifiers.
-    if (!TryConsumeToken(tok::comma))
+    if ((isImplements = Tok.is(tok::kw___implements)))
+      ConsumeToken();
+    else if (!TryConsumeToken(tok::comma))
       break;
   }
 
@@ -2028,7 +2120,7 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
 ///                 base-type-specifier
 ///         attribute-specifier-seq[opt] access-specifier 'virtual'[opt]
 ///                 base-type-specifier
-BaseResult Parser::ParseBaseSpecifier(Decl *ClassDecl) {
+BaseResult Parser::ParseBaseSpecifier(Decl *ClassDecl, bool isImplements) {
   bool IsVirtual = false;
   SourceLocation StartLoc = Tok.getLocation();
 
@@ -2045,6 +2137,8 @@ BaseResult Parser::ParseBaseSpecifier(Decl *ClassDecl) {
   AccessSpecifier Access = getAccessSpecifierIfPresent();
   if (Access != AS_none)
     ConsumeToken();
+  else if (isImplements)
+    Access = AS_public;
 
   CheckMisplacedCXX11Attribute(Attributes, StartLoc);
 
@@ -3119,6 +3213,7 @@ void Parser::SkipCXXMemberSpecification(SourceLocation RecordLoc,
     Actions.ActOnTagFinishSkippedDefinition(OldContext);
 
     if (!Tok.is(tok::l_brace)) {
+printf("[%s:%d]MISSINGBRACE2\n", __FUNCTION__, __LINE__);
       Diag(PP.getLocForEndOfToken(PrevTokLocation),
            diag::err_expected_lbrace_after_base_specifiers);
       return;
@@ -3328,10 +3423,22 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
     }
   }
 
-  if (Tok.is(tok::colon)) {
+  if ((Tok.is(tok::colon) || Tok.is(tok::kw___implements))) {
     ParseBaseClause(TagDecl);
     if (!Tok.is(tok::l_brace)) {
       bool SuggestFixIt = false;
+      if (CXXRecordDecl *RD = findRecord(TagDecl))
+      if (RD->AtomiccImplements) {
+          // Atomicc external items
+          RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_EModule;
+          Actions.ActOnStartCXXMemberDeclarations(getCurScope(), TagDecl, FinalLoc, IsFinalSpelledSealed, FinalLoc);
+          Actions.ActOnFinishCXXMemberSpecification(getCurScope(), RecordLoc, TagDecl, FinalLoc, FinalLoc, nullptr);
+          Actions.ActOnFinishCXXNonNestedClass(TagDecl);
+          Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl, SourceRange());
+          ParsingDef.Pop();
+          ClassScope.Exit();
+          return;
+      }
       SourceLocation BraceLoc = PP.getLocForEndOfToken(PrevTokLocation);
       if (Tok.isAtStartOfLine()) {
         switch (Tok.getKind()) {
@@ -3369,6 +3476,31 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
       }
     }
   }
+  if (CXXRecordDecl *RD = findRecord(TagDecl))
+  if (RD->AtomiccImplements) {
+            if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Module) {
+printf("[%s:%d] changing %p AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, RD, RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Module);
+RD->dump();
+            }
+      RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;
+      auto StartLoc = RD->getLocation();
+      BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
+      Ty->atomiccWidth = 1;
+      QualType NewTy = QualType(Ty, 0);
+      auto TSI = Actions.Context.CreateTypeSourceInfo(NewTy);
+      IdentifierInfo *blII = &Actions.Context.Idents.get("__defaultClock");
+      FieldDecl *clockField = FieldDecl::Create(Actions.Context, RD, StartLoc, StartLoc, blII, NewTy,
+            TSI, /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
+      clockField->setAccess(AS_public);
+      RD->addDecl(clockField);
+      clockField->markUsed(Actions.Context);
+      IdentifierInfo *rblII = &Actions.Context.Idents.get("__defaultnReset");
+      FieldDecl *resetField = FieldDecl::Create(Actions.Context, RD, StartLoc, StartLoc, rblII, NewTy,
+            TSI, /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
+      resetField->setAccess(AS_public);
+      RD->addDecl(resetField);
+      resetField->markUsed(Actions.Context);
+  }
 
   assert(Tok.is(tok::l_brace));
   BalancedDelimiterTracker T(*this, tok::l_brace);
@@ -3384,12 +3516,8 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   // are public by default.
   AccessSpecifier CurAS;
   bool hasInterface = false;
-  AttributeList *myattr = Attrs.getList();
-  while(myattr) {
-      if (myattr->getName()->getName() == "atomicc_interface")
-          hasInterface = true;
-      myattr = myattr->getNext();
-  }
+  if (auto RD = findRecord(TagDecl))
+      hasInterface = (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface);
   if (TagType == DeclSpec::TST_class && !hasInterface)
     CurAS = AS_private;
   else

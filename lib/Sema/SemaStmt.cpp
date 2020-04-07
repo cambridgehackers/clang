@@ -1932,6 +1932,7 @@ VD->dump();
       }
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().CurContext))
         namePrefix = containingMethod->getName().str() + "$"; // prepend original method name to params
+printf("[%s:%d]beforeprocessfor name %s record %p\n", __FUNCTION__, __LINE__, namePrefix.c_str(), Record);
       if (CallExpr *callMe = ProcessFor(getSema(), S->getForLoc(), namePrefix, S->getInit(), S->getCond(), S->getInc(), S->getBody(), Record, "__generateFor")) {
           SourceLocation loc = S->getForLoc();
           SmallVector<Stmt*, 32> stmtsCond;
@@ -2039,14 +2040,10 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   if (auto meth = dyn_cast<CXXMethodDecl>(CurContext->getParent()))
       Record = dyn_cast<CXXRecordDecl>(meth->getDeclContext());
   if (auto meth = dyn_cast<CXXMethodDecl>(CurContext))
-  if (meth->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall)
       Record = dyn_cast<CXXRecordDecl>(meth->getDeclContext());
   if (Record && (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
    || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)) {
     // unroll loops if possible
-printf("[%s:%d] beforetransformfor record %p\n", __FUNCTION__, __LINE__, (void *)Record);
-//Record->dump();
-//forStmt->dump();
     TransformAtomiccLoop transform(*this);
     transform.Record = Record;
     forStmt = transform.TransformStmt(forStmt).get();
