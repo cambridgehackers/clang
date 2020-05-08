@@ -2040,6 +2040,7 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   if (auto meth = dyn_cast<CXXMethodDecl>(CurContext->getParent()))
       Record = dyn_cast<CXXRecordDecl>(meth->getDeclContext());
   if (auto meth = dyn_cast<CXXMethodDecl>(CurContext))
+  if (!dyn_cast<CXXConstructorDecl>(meth))    // Do not use for constructors
       Record = dyn_cast<CXXRecordDecl>(meth->getDeclContext());
   if (Record && (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
    || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)) {
