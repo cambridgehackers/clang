@@ -576,27 +576,9 @@ def AtomiccShared : Attr {
   let Documentation = [Undocumented];
 }
 
-def AtomiccInterface : InheritableAttr {
-  let Spellings = [ GNU<"atomicc_interface"> ];
-  let Subjects = SubjectList<[CXXRecord]>;
-  let Documentation = [Undocumented];
-}
-
-def AtomiccModule : InheritableAttr {
-  let Spellings = [ GNU<"atomicc_module"> ];
-  let Subjects = SubjectList<[CXXRecord]>;
-  let Documentation = [Undocumented];
-}
-
 def AtomiccInheritEModule : InheritableAttr {
   let Spellings = [ GNU<"atomicc_inherit_emodule"> ];
   let Args = [NamedArgument<"atomiccProto">];
-  let Subjects = SubjectList<[CXXRecord]>;
-  let Documentation = [Undocumented];
-}
-
-def AtomiccEModule : InheritableAttr {
-  let Spellings = [ GNU<"atomicc_emodule"> ];
   let Subjects = SubjectList<[CXXRecord]>;
   let Documentation = [Undocumented];
 }

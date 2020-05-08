@@ -30,15 +30,30 @@
 
 using namespace clang;
 
+#define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 #define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
 bool inDeclForLoop;
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
 QualType getSimpleType(QualType ftype);
-void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
 void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 };
+void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method)
+{
+    if (!Method->getDeclName().isIdentifier()
+     || Method->getName().endswith(BOGUS_FORCE_DECLARATION_METHOD))
+        return;
+    const FunctionProtoType *FPT = Method->getType()->castAs<FunctionProtoType>();
+    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+    EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+    Method->setType(Method->getASTContext().getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI));
+    Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+    Method->setAccess(AS_public);
+    //Method->setIsUsed();
+    //Method->markUsed(Actions.Context);
+    //Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
+}
 static CXXRecordDecl *findRecord(Decl *decl)
 {
     if (auto RD = dyn_cast_or_null<CXXRecordDecl>(decl))
@@ -2091,7 +2106,7 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
       BaseInfo.push_back(Result.get());
       if (isImplements) {
         if (auto RD = findRecord(ClassDecl))
-          RD->AtomiccImplements = Result.get()->getTypeSourceInfo();
+          RD->AtomiccImplements = true;
         adjustInterfaceType(Actions, Result.get()->getType());
         break;
       }

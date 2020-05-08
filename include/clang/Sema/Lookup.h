@@ -347,6 +347,9 @@ public:
   NamedDecl *getAcceptableDecl(NamedDecl *D) const {
     if (!D->isInIdentifierNamespace(IDNS))
       return nullptr;
+    if (auto RD = dyn_cast<CXXRecordDecl>(D))
+    if (RD->AtomiccHidden)
+      return nullptr;
 
     if (isVisible(getSema(), D) || isHiddenDeclarationVisible(D))
       return D;

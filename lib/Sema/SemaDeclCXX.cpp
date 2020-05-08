@@ -119,21 +119,6 @@ static void extractInterface(const CXXRecordDecl *rec, std::string prefix)
             mapInterface[name + item->getName().str()] = item;
     }
 }
-void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method)
-{
-    if (!Method->getDeclName().isIdentifier()
-     || Method->getName().endswith(BOGUS_FORCE_DECLARATION_METHOD))
-        return;
-    const FunctionProtoType *FPT = Method->getType()->castAs<FunctionProtoType>();
-    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
-    EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-    Method->setType(Method->getASTContext().getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI));
-    Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
-    Method->setAccess(AS_public);
-    //Method->setIsUsed();
-    //Method->markUsed(Actions.Context);
-    //Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
-}
 
 //===----------------------------------------------------------------------===//
 // CheckDefaultArgumentVisitor
@@ -10941,27 +10926,20 @@ printf("[%s:%d] interface %s\n", __FUNCTION__, __LINE__, item.first.c_str());
         for (auto mitem: Record->methods()) {
             if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
                 Method->setAccess(AS_public);
+#if 0
             if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
             if (Method->getDeclName().isIdentifier()) {
-                bool hasMap = (mapInterface.find(Method->getName()) != mapInterface.end());
-                if (hasMap)
-                    setX86VectorCall(Actions, Method);
                 if (traceDeclaration) {
-                    printf("%s: TTTMETHOD %p %s meth %s hasBody %d map %p\n",
+                    printf("%s: TTTMETHOD %p %s meth %s hasBody %d\n",
                          __FUNCTION__, (void *)Method, Record->getName().str().c_str(),
                          mitem->getName().str().c_str(),
-                         Method->hasBody(), hasMap);
+                         Method->hasBody());
                     //Method->dump();
                 }
-                if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
-                    Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
-                    Method->setIsUsed();
-                    Method->markUsed(Actions.Context);
-                    Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
-                }
-                if (Method->hasBody())
-                    Actions.ActOnFinishInlineFunctionDef(Method);
             }
+#endif
+            if (mitem->hasBody())
+                Actions.ActOnFinishInlineFunctionDef(mitem);
         }
       for (auto mitem: Record->methods()) {
           if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
@@ -11069,6 +11047,7 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
           adjustInterfaceType(*this, QualType(Record->getTypeForDecl(), 0));
       else
           buildForceDeclaration(*this, Record);
+          //adjustInterfaceType(*this, getSimpleType((Record->bases_end()-1)->getType()));
       if (traceDeclaration || traceTemplate) {
         printf("[%s:%d] E/MODULE/INTERFACE %p %s\n", __FUNCTION__, __LINE__, Record, Record->getName().str().c_str());
         if (traceDeclaration)

@@ -909,6 +909,8 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
     Out << "ATOMICCATTR[" << atomiccAttrStr(D->AtomiccAttr) << "]";
   if (D->AtomiccImplements)
     Out << "ATOMICCIMPL";
+  if (D->AtomiccHidden)
+    Out << "ATOMICCHIDDEN";
 
   if (D->isCompleteDefinition()) {
     // Print the base classes

@@ -37,7 +37,6 @@
 using namespace clang;
 using namespace sema;
 
-void adjustInterfaceType(Sema &Actions, QualType Ty);
 // Exported for use by Parser.
 SourceRange
 clang::getTemplateParamsRange(TemplateParameterList const * const *Ps,
@@ -1322,6 +1321,14 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
 
     // Check for redefinition of this class template.
     if (TUK == TUK_Definition) {
+      bool isHidden = false;
+      if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(PrevRecordDecl))
+      if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+            printf("[%s:%d] SemaTemplate specialize EModule template\n", __FUNCTION__, __LINE__);
+            //RD->AtomiccHidden = true;
+            isHidden = true;
+      }
+      if (!isHidden)
       if (TagDecl *Def = PrevRecordDecl->getDefinition()) {
         // If we have a prior definition that is not visible, treat this as
         // simply making that previous definition visible.
@@ -1336,17 +1343,11 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
           return Def;
         }
 
-        if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(Def))
-        if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
-              printf("[%s:%d] specialize EModule template\n", __FUNCTION__, __LINE__);
-              goto skipCheck;
-        }
         Diag(NameLoc, diag::err_redefinition) << Name;
         Diag(Def->getLocation(), diag::note_previous_definition);
         // FIXME: Would it make sense to try to "forget" the previous
         // definition, as part of error recovery?
         return true;
-skipCheck:;
       }
     }
   } else if (PrevDecl) {
@@ -3076,22 +3077,10 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
                                                      ClassTemplate,
                                                      Converted, nullptr);
       Decl->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
-      Decl->AtomiccImplements = ClassTemplate->getTemplatedDecl()->AtomiccImplements;
+      Decl->AtomiccImplements = true;
       ClassTemplate->AddSpecialization(Decl, InsertPos);
       if (ClassTemplate->isOutOfLine())
         Decl->setLexicalDeclContext(ClassTemplate->getLexicalDeclContext());
-      if (Decl->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
-        if (Decl->hasDefinition())
-            adjustInterfaceType(*this, QualType(Decl->getTypeForDecl(), 0));
-        auto spec = Decl->getSpecializedTemplate();
-        for (auto I = spec->spec_begin(), E = spec->spec_end(); I != E; I++) {
-            auto SD = *I;
-            if (auto RD = dyn_cast<CXXRecordDecl>(SD))
-                adjustInterfaceType(*this, QualType(RD->getTypeForDecl(), 0));
-        }
-        if (auto RD = dyn_cast<CXXRecordDecl>(Decl->getSpecializedTemplate()->getTemplatedDecl()))
-            adjustInterfaceType(*this, QualType(RD->getTypeForDecl(), 0));
-      }
     }
 
     if (Decl->getSpecializationKind() == TSK_Undeclared) {
@@ -7521,7 +7510,6 @@ Sema::ActOnClassTemplateSpecialization(Scope *S, unsigned TagSpec,
                                                 ClassTemplate,
                                                 Converted,
                                                 PrevDecl);
-    //Specialization->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
     SetNestedNameSpecifier(Specialization, SS);
     if (TemplateParameterLists.size() > 0) {
       Specialization->setTemplateParameterListsInfo(Context,
@@ -8620,7 +8608,6 @@ Sema::ActOnExplicitInstantiation(Scope *S,
                                                 ClassTemplate,
                                                 Converted,
                                                 PrevDecl);
-    //Specialization->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
     SetNestedNameSpecifier(Specialization, SS);
 
     if (!HasNoEffect && !PrevDecl) {
