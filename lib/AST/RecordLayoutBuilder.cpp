@@ -2982,6 +2982,8 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
       bool skipTailPadding =
           mustSkipTailPadding(getTargetInfo().getCXXABI(), RD);
 
+skipTailPadding = true; //JCAJCAJCJJCAJCAJCJAJCAJC
+printf("[%s:%d] skipTailPadding skipTailPadding skipTailPadding skipTailPadding\n", __FUNCTION__, __LINE__);
       // FIXME: This should be done in FinalizeLayout.
 //printf("[%s:%d] skiptail %d getSize %d getdatasize %d bits %d DataBSize %d\n", __FUNCTION__, __LINE__, skipTailPadding, (int)Builder.getSize().getQuantity(), (int)Builder.getDataSize().getQuantity(), (int)Builder.getSizeInBits(), (int)Builder.DataBSize);
 //RD->dump();
