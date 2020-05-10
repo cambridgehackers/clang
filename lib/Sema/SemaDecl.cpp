@@ -13262,7 +13262,6 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
   DeclContext *DC = CurContext;
   bool isStdBadAlloc = false;
   bool isStdAlignValT = false;
-  CXXRecordDecl *importedEModule = nullptr;
 
   RedeclarationKind Redecl = ForRedeclaration;
   if (TUK == TUK_Friend || TUK == TUK_Reference)
@@ -13602,19 +13601,17 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
         goto CreateNewDecl;
       }
     }
-    if (TUK == TUK_Definition)
-    if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl))
-    if (CXXRecordDecl *RD = dyn_cast_or_null<CXXRecordDecl>(PrevTagDecl->getDefinition()))
-    if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
+
+    if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl)) {
+      if (TUK == TUK_Definition)
+      if (CXXRecordDecl *RD = dyn_cast_or_null<CXXRecordDecl>(PrevTagDecl->getDefinition()))
+      if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
           printf("[%s:%d] SemaDecl.cpp specialize EModule %s\n", __FUNCTION__, __LINE__, RD->getNameAsString().c_str());
           RD->AtomiccHidden = true;
-          importedEModule = RD;
           // Ignoring the old declaration.
           Previous.clear();
           goto CreateNewDecl;
-    }
-
-    if (TagDecl *PrevTagDecl = dyn_cast<TagDecl>(PrevDecl)) {
+      }
       // If this is a use of a previous tag, or if the tag is already declared
       // in the same scope (so that the definition/declaration completes or
       // rementions the tag), reuse the decl.
@@ -13942,8 +13939,6 @@ CreateNewDecl:
 
       if (isStdBadAlloc && (!StdBadAlloc || getStdBadAlloc()->isImplicit()))
         StdBadAlloc = cast<CXXRecordDecl>(New);
-      if (importedEModule)
-        New->addAttr(::new (Context) AtomiccInheritEModuleAttr(Loc, Context, importedEModule, 0));
     } else
       New = RecordDecl::Create(Context, Kind, SearchDC, KWLoc, Loc, Name,
                                cast_or_null<RecordDecl>(PrevDecl));
