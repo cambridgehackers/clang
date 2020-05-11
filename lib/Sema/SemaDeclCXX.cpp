@@ -47,6 +47,7 @@
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 void adjustInterfaceType(Sema &Actions, QualType Ty);
+void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 };
@@ -10928,6 +10929,31 @@ printf("[%s:%d] interface %s\n", __FUNCTION__, __LINE__, item.first.c_str());
                 Method->setAccess(AS_public);
             if (mitem->hasBody())
                 Actions.ActOnFinishInlineFunctionDef(mitem);
+            if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
+            if (Method->getDeclName().isIdentifier()) {
+                bool hasMap = (mapInterface.find(Method->getName()) != mapInterface.end());
+                if (hasMap && Method->getType()->castAs<FunctionType>()->getCallConv() != CC_X86VectorCall) {
+printf("[%s:%d]MMMMMMMMMMMMMMMMMMMMM\n", __FUNCTION__, __LINE__);
+Method->dump();
+                }
+                if (hasMap)
+                    setX86VectorCall(Actions, Method);
+#if 1
+                if (traceDeclaration) {
+                    printf("%s: TTTMETHOD %p %s meth %s hasBody %d map %p\n",
+                         __FUNCTION__, (void *)Method, Record->getName().str().c_str(),
+                         mitem->getName().str().c_str(),
+                         Method->hasBody(), hasMap);
+                    //Method->dump();
+                }
+                if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
+                    Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
+                    Method->setIsUsed();
+                    Method->markUsed(Actions.Context);
+                    Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
+                }
+#endif
+            }
         }
     }
 }
