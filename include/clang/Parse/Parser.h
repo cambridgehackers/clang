@@ -2458,7 +2458,7 @@ private:
                                ParsedAttributes &attrs,
                                BalancedDelimiterTracker &Tracker,
                                bool IsAmbiguous,
-                               bool RequiresArg = false, bool isAtomicc = false);
+                               bool RequiresArg = false);
   bool ParseRefQualifier(bool &RefQualifierIsLValueRef,
                          SourceLocation &RefQualifierLoc);
   bool isFunctionDeclaratorIdentifierList();

@@ -5703,7 +5703,6 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
   assert(D.isPastIdentifier() &&
          "Haven't past the location of the identifier yet?");
 
-  bool isAtomicc = false;
   while (Tok.is(tok::period)) {
     ConsumeToken(); // tok::period
     if (!Tok.is(tok::identifier)) {
@@ -5716,16 +5715,14 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     IdentifierInfo &IdNew = Actions.Context.Idents.get(mname);
     D.SetIdentifier(&IdNew, Tok.getLocation());
     ConsumeToken(); // tok::identifier
-    isAtomicc = true;
   }
   auto Record = dyn_cast<CXXRecordDecl>(Actions.CurContext);
-  if (Record)
-  if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
-    isAtomicc = true;
   // Don't parse attributes unless we have parsed an unparenthesized name.
   if (D.hasName() && !D.getNumTypeObjects())
     MaybeParseCXX11Attributes(D);
-  if (isAtomicc && Tok.is(tok::l_square)) {
+if (false)
+  if (Record)
+  if (Tok.is(tok::l_square)) {
     SourceLocation SubLoc = Tok.getLocation();
 printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
     BalancedDelimiterTracker declItem(*this, tok::l_square);
@@ -5795,7 +5792,7 @@ printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
       ParsedAttributes attrs(AttrFactory);
       BalancedDelimiterTracker T(*this, tok::l_paren);
       T.consumeOpen();
-      ParseFunctionDeclarator(D, attrs, T, IsAmbiguous, false, isAtomicc);
+      ParseFunctionDeclarator(D, attrs, T, IsAmbiguous, false);
       PrototypeScope.Exit();
     } else if (Tok.is(tok::l_square)) {
       ParseBracketDeclarator(D);
@@ -6002,7 +5999,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                                      ParsedAttributes &FirstArgAttrs,
                                      BalancedDelimiterTracker &Tracker,
                                      bool IsAmbiguous,
-                                     bool RequiresArg, bool isAtomicc) {
+                                     bool RequiresArg) {
   assert(getCurScope()->isFunctionPrototypeScope() &&
          "Should call from a Function scope");
   // lparen is already consumed!
@@ -6039,12 +6036,6 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   LParenLoc = Tracker.getOpenLocation();
   StartLoc = LParenLoc;
 
-  if (isAtomicc) {
-    IdentifierInfo &AttrID = Actions.Context.Idents.get("vectorcall");
-    FnAttrs.addNew(&AttrID, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
-    IdentifierInfo &AttrIDu = Actions.Context.Idents.get("used");
-    FnAttrs.addNew(&AttrIDu, Tok.getLocation(), nullptr, Tok.getLocation(), nullptr, 0, AttributeList::AS_GNU);
-  }
   if (isFunctionDeclaratorIdentifierList()) {
     if (RequiresArg)
       Diag(Tok, diag::err_argument_required_after_attribute);

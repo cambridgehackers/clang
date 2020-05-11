@@ -2077,11 +2077,6 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
       Instantiation->setInvalidDecl();
       continue;
     }
-    if (auto FD = dyn_cast<FieldDecl>(Member)) {
-#define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
-       if (FD->getName().endswith(BOGUS_FORCE_DECLARATION_FIELD)) // skip copy of these markers
-           continue;
-    }
 
     Decl *NewMember = Instantiator.Visit(Member);
     if (NewMember) {

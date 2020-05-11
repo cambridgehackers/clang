@@ -1031,6 +1031,14 @@ printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, D, RD ? R
     printf("[%s:%d] BuildRecord for %s, map %s\n", __FUNCTION__, __LINE__, Ty->getName().str().c_str(), Ty->structFieldMap.c_str());
     D->dump();
     Ty->dump();
+    if (auto RD = dyn_cast<CXXRecordDecl>(D))
+    if (RD->AtomiccImplements) {
+        QualType TTy = getSimpleType((RD->bases_end()-1)->getType());
+        Decl *DD = TTy->getAsCXXRecordDecl();
+        printf("[%s:%d] implemenetsTy %p DD %p\n", __FUNCTION__, __LINE__, TTy, DD);
+        TTy->dump();
+        DD->dump();
+    }
   }
 }
 #endif

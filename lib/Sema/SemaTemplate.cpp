@@ -37,6 +37,7 @@
 using namespace clang;
 using namespace sema;
 
+extern bool traceImplements;
 // Exported for use by Parser.
 SourceRange
 clang::getTemplateParamsRange(TemplateParameterList const * const *Ps,
@@ -3077,10 +3078,16 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
                                                      ClassTemplate,
                                                      Converted, nullptr);
       Decl->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
-      Decl->AtomiccImplements = true;
+      Decl->AtomiccImplements = ClassTemplate->getTemplatedDecl()->AtomiccImplements;
       ClassTemplate->AddSpecialization(Decl, InsertPos);
       if (ClassTemplate->isOutOfLine())
         Decl->setLexicalDeclContext(ClassTemplate->getLexicalDeclContext());
+      if (traceImplements) {
+        printf("[%s:%d] NEWClassTemplateSpecializationDecl %p\n", __FUNCTION__, __LINE__, Decl);
+        Decl->dump();
+        printf("[%s:%d]orig\n", __FUNCTION__, __LINE__);
+        ClassTemplate->getTemplatedDecl()->dump();
+      }
     }
 
     if (Decl->getSpecializationKind() == TSK_Undeclared) {

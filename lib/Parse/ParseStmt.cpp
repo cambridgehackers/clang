@@ -892,9 +892,10 @@ CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, Qu
 }
 
 void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
-    SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI)
+    SmallVector<clang::ParmVarDecl *, 16> &Params)
 {
   SmallVector<QualType, 8> ArgTypes;
+  FunctionProtoType::ExtProtoInfo EPI;
   for (auto item: Params)
       ArgTypes.push_back(item->getType());
   QualType FnType = Actions.Context.getFunctionType(Method->getReturnType(), ArgTypes, EPI);
@@ -1003,7 +1004,6 @@ StmtResult Parser::ParseRuleStatement(bool isDecl) {
   assert(Tok.is(tok::identifier) && "No rule name!");
   std::string RuleName = "RULE$" + Tok.getIdentifierInfo()->getName().str();
   std::string fname = RuleName;
-  FunctionProtoType::ExtProtoInfo EPI;
   ConsumeToken();
   transform.TopContext = Actions.CurContext;
   CXXRecordDecl *DC = cast<CXXRecordDecl>(isDecl ? Actions.CurContext : Actions.getCurFunctionDecl()->getParent());
@@ -1083,11 +1083,9 @@ exit(-1);
 
   // fixup/complete method declarations (we now know number/type of params)
   bool optimizeMe = false; //!transform.Params.size();
-  if (isDecl || optimizeMe)
-      EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-  else {
+  if (!isDecl && !optimizeMe) {
       static int counter;
-      fname = "ruleTemplate" + fname + llvm::utostr(counter++);
+      fname = "RULE$Template" + fname + llvm::utostr(counter++);
       IdentifierInfo *IFn = &Actions.Context.Idents.get(fname);
       transform.ruleM->setDeclName(DeclarationName(IFn));
       if (GuardExpr) {
@@ -1096,8 +1094,8 @@ exit(-1);
       }
   }
   if (GuardExpr)
-      buildTemplate(Actions, guardM, transform.Params, EPI);
-  buildTemplate(Actions, transform.ruleM, transform.Params, EPI);
+      buildTemplate(Actions, guardM, transform.Params);
+  buildTemplate(Actions, transform.ruleM, transform.Params);
 
   // Now populate runtime data structure for concrete value replacement of
   // variables at rule instantiation time.  (and dynamic creation of extra

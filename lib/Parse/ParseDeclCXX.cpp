@@ -30,58 +30,75 @@
 
 using namespace clang;
 
-#define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 #define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
-bool inDeclForLoop;
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
 QualType getSimpleType(QualType ftype);
-void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 };
+bool inDeclForLoop;
+bool traceImplements;//= true;
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method)
 {
-    if (!Method->getDeclName().isIdentifier()
-     || Method->getName().endswith(BOGUS_FORCE_DECLARATION_METHOD))
-        return;
     const FunctionProtoType *FPT = Method->getType()->castAs<FunctionProtoType>();
     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
     EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
-    Method->setType(Method->getASTContext().getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI));
+    QualType FnType = Method->getASTContext().getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI);
+    Method->setType(FnType);
+    TypeSourceInfo *TSI = Actions.Context.CreateTypeSourceInfo(FnType);
+    FunctionProtoTypeLoc FPTL = TSI->getTypeLoc().castAs<FunctionProtoTypeLoc>();
+    for (unsigned ind = 0; ind < Method->getNumParams(); ind++)
+        FPTL.setParam(ind, Method->getParamDecl(ind));
+    Method->setTypeSourceInfo(TSI);
     Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
     Method->setAccess(AS_public);
-    //Method->setIsUsed();
-    //Method->markUsed(Actions.Context);
-    //Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
+    Method->setIsUsed();
+    Method->markUsed(Actions.Context);
+    Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
 }
 static CXXRecordDecl *findRecord(Decl *decl)
 {
     if (auto RD = dyn_cast_or_null<CXXRecordDecl>(decl))
         return RD;
-    else if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(decl))
+    else if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(decl)) {
+        if (traceImplements) {
+            printf("[%s:%d]ClassTemplateDecl\n", __FUNCTION__, __LINE__);
+            if (auto RD = TSD->getTemplatedDecl())
+                RD->dump();
+        }
         return findRecord(TSD->getTemplatedDecl());
+    }
     return nullptr;
 }
 static CXXRecordDecl *findRecordType(QualType Ty)
 {
+    Ty = getSimpleType(Ty);
     if (auto RD = findRecord(Ty->getAsCXXRecordDecl()))
         return RD;
     else if (auto stype = dyn_cast<InjectedClassNameType>(Ty))
         return stype->getDecl();
-    else if (auto stype = dyn_cast<TemplateSpecializationType>(Ty))
+    else if (auto stype = dyn_cast<TemplateSpecializationType>(Ty)) {
+        if (traceImplements) {
+            printf("[%s:%d]TemplateSpecializationType\n", __FUNCTION__, __LINE__);
+            if (auto RD = stype->getAsCXXRecordDecl())
+                RD->dump();
+            printf("[%s:%d]TemplateDecl\n", __FUNCTION__, __LINE__);
+            stype->getTemplateName().getAsTemplateDecl()->dump();
+        }
         return findRecord(stype->getTemplateName().getAsTemplateDecl());
+    }
     return nullptr;
 }
 
-void adjustInterfaceType(Sema &Actions, QualType Ty)
+static void adjustInterfaceType(Sema &Actions, QualType Ty)
 {
     static int counter;
+    bool initialized = false;
     if (auto PTy = dyn_cast<PointerType>(Ty))
         Ty = PTy->getPointeeType();
-//printf("[%s:%d]TTTTTTTTTTTTTTTTTTTTTTTTTTTTT %p\n", __FUNCTION__, __LINE__, Ty);
-//Ty->dump();
-    if (auto item = dyn_cast_or_null<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())) {
-        adjustInterfaceType(Actions, QualType(item->getSpecializedTemplate()->getTemplatedDecl()->getTypeForDecl(), 0));
+    if (traceImplements) {
+        printf("[%s:%d]TTTTTTTTTTTTTTTTTTTTTTTTTTTTT %p\n", __FUNCTION__, __LINE__, Ty);
+        Ty->dump();
     }
     if (auto RD = findRecordType(Ty)) {
         if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Interface) {
@@ -89,32 +106,26 @@ void adjustInterfaceType(Sema &Actions, QualType Ty)
             RD->dump();
             exit(-1);
         }
-        bool initialized = false;
         for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
             FieldDecl *fd = *I;
             if (fd->getName().endswith(BOGUS_FORCE_DECLARATION_FIELD))
                 initialized = true;
         }
-//printf("[%s:%d] PROCESS init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, initialized, RD, RD->hasDefinition(), counter);
-//RD->dump();
         if (!initialized) {
+            if (traceImplements) {
+                printf("[%s:%d] PROCESS Ty %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
+                RD->dump();
+            }
         RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface; // needed to set Empty in ActOnBaseSpecifiers
-        RD->setIsUsed();
-        RD->markUsed(Actions.Context);
-        RD->addAttr(::new (Actions.Context) UsedAttr(RD->getLocation(), Actions.Context, 0));
+        if (RD->hasDefinition()) {
         for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
             I->setAccess(AS_public);
-            FieldDecl *fd = *I;
-            adjustInterfaceType(Actions, fd->getType());
+            adjustInterfaceType(Actions, I->getType()); // recurse for sub-interfaces
         }
         for (auto I = RD->method_begin(), E = RD->method_end(); I != E; ++I) {
-            CXXMethodDecl *Method = *I;
-            setX86VectorCall(Actions, Method);
-            Method->setAccess(AS_public);
-            if (Method->hasBody())
-                Actions.ActOnFinishInlineFunctionDef(Method);
+            if (I->getDeclName().isIdentifier())
+                setX86VectorCall(Actions, *I);
         }
-        if (RD->hasDefinition()) {
         auto StartLoc = RD->getLocation();
         BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
         Ty->atomiccWidth = 64;
@@ -126,9 +137,18 @@ void adjustInterfaceType(Sema &Actions, QualType Ty)
         fillField->setAccess(AS_public);
         RD->addDecl(fillField);
         fillField->markUsed(Actions.Context);
-        buildForceDeclaration(Actions, RD);
         }
-    }
+        if (auto CTS = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+            if (traceImplements)
+                 printf("[%s:%d]ClassTemplateSpecializationDecl before AIT\n", __FUNCTION__, __LINE__);
+            adjustInterfaceType(Actions, QualType(CTS->getSpecializedTemplate()
+                 ->getTemplatedDecl()->getTypeForDecl(), 0));
+        }
+            if (traceImplements) {
+                printf("[%s:%d] PROCESSafter Ty %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
+                RD->dump();
+            }
+        }
     }
 }
 
@@ -2538,6 +2558,12 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
                                        AttributeList *AccessAttrs,
                                        const ParsedTemplateInfo &TemplateInfo,
                                        ParsingDeclRAIIObject *TemplateDiags) {
+  bool hasImplements = false;
+  if (Tok.is(tok::kw___implements)) { // Atomicc
+    hasImplements = true;
+    ConsumeToken();
+  }
+
   if (Tok.is(tok::at)) {
     if (getLangOpts().ObjC1 && NextToken().isObjCAtKeyword(tok::objc_defs))
       Diag(Tok, diag::err_at_defs_cxx);
@@ -3010,6 +3036,10 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
                                                   TemplateParams,
                                                   BitfieldSize.get(),
                                                   VS, HasInClassInit);
+if (hasImplements) {
+printf("[%s:%d]DECL AFTTT %s\n", __FUNCTION__, __LINE__, Tok.getName());
+//ThisDecl->dump();
+}
 
       if (VarTemplateDecl *VT =
               ThisDecl ? dyn_cast<VarTemplateDecl>(ThisDecl) : nullptr)
@@ -3530,10 +3560,7 @@ RD->dump();
   // by default. Members of a class defined with the keywords struct or union
   // are public by default.
   AccessSpecifier CurAS;
-  bool hasInterface = false;
-  if (auto RD = findRecord(TagDecl))
-      hasInterface = (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface);
-  if (TagType == DeclSpec::TST_class && !hasInterface)
+  if (TagType == DeclSpec::TST_class)
     CurAS = AS_private;
   else
     CurAS = AS_public;

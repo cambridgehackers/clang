@@ -47,7 +47,7 @@ FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, Q
     ArrayRef<ParmVarDecl *> Params);
 CXXMethodDecl *buildFunc(Sema &Actions, std::string Name, SourceLocation loc, QualType RetType, CXXRecordDecl *DC);
 void buildTemplate(Sema &Actions, CXXMethodDecl *Method,
-    SmallVector<clang::ParmVarDecl *, 16> &Params, FunctionProtoType::ExtProtoInfo EPI);
+    SmallVector<clang::ParmVarDecl *, 16> &Params);
 Expr *castMethod(Sema &Actions, CXXMethodDecl *Method);
 
 StmtResult Sema::ActOnExprStmt(ExprResult FE) {
@@ -1806,12 +1806,8 @@ Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std:
     CXXMethodDecl *Fn = buildFunc(Actions, funcname, loc, retType, Record);
     TransformVardef transVar(Actions, prefix, Record, Fn);
     transVar.addEntry(variable, GENVAR_NAME + llvm::utostr(depth));
-    FunctionProtoType::ExtProtoInfo EPI;
-    if (stmt) {
-        if (retType == Actions.Context.VoidTy)
-            EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_X86VectorCall);
+    if (stmt)
         stmt = transVar.TransformStmt(stmt).get();
-    }
     else if (retType == Actions.Context.VoidTy) {
         SmallVector<Stmt*, 32> stmtsCond;
         stmt = new (Actions.Context) CompoundStmt(Actions.Context, stmtsCond, loc, loc);
@@ -1825,7 +1821,7 @@ Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std:
         retString += ",(" + expr2str(expr, Actions.getPrintingPolicy()) + ")";
         return nullptr;
     }
-    buildTemplate(Actions, Fn, transVar.Params, EPI);
+    buildTemplate(Actions, Fn, transVar.Params);
     {
     Sema::ContextRAII MethodContext(Actions, Fn);
     Fn->setBody(stmt);

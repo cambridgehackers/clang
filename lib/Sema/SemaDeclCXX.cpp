@@ -46,7 +46,6 @@
 
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
-void adjustInterfaceType(Sema &Actions, QualType Ty);
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
@@ -80,6 +79,8 @@ QualType getSimpleType(QualType ftype)
         }
         else if (auto stype = dyn_cast<TemplateSpecializationType>(ftype)) {
             TemplateDecl *Template = stype->getTemplateName().getAsTemplateDecl();
+            if (auto RD = dyn_cast<CXXRecordDecl>(Template))
+                return QualType(RD->getTypeForDecl(), 0);
             if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(Template)) {
                 for (auto *I : TSD->specializations())
                     if (auto RD = dyn_cast<CXXRecordDecl>(I))
@@ -105,14 +106,13 @@ static void extractInterface(const CXXRecordDecl *rec, std::string prefix)
     if (prefix != "")
         name += "$"; // MODULE_SEPARATOR
     for (auto item: rec->fields()) {
-        std::string fname;
-        if (item->getDeclName().isIdentifier())
-            fname = item->getName();
         Decl *field = item;
         if (auto frec = dyn_cast<RecordType>(getSimpleType(item->getType())))
             field = frec->getDecl();
-        if (auto RD = dyn_cast<CXXRecordDecl>(field))
+        if (auto RD = dyn_cast<CXXRecordDecl>(field)) {
+            std::string fname = item->getName();
             extractInterface(RD, name + fname);
+        }
     }
     for (auto item: rec->methods()) {
         if (item->getDeclName().isIdentifier())
@@ -10834,19 +10834,17 @@ void Sema::ActOnFinishCXXMemberDecls() {
   }
 }
 
-void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
+static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
 {
-    static int counter;
     auto StartLoc = Record->getLocStart();
+    static int counter;
     std::string mname = llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_METHOD;
     const char *Dummy = nullptr;
     unsigned DiagID;
     SourceLocation NoLoc;
     SourceLocation loc = Record->getLocation();
-    //QualType ParamType = QualType(Record->getTypeForDecl(), 0);
     AttributeFactory attrFactory;
     DeclSpec DSVoid(attrFactory);
-    //FunctionProtoType::ExtProtoInfo EPI;
     Declarator DFunc(DSVoid, Declarator::MemberContext); 
     ParsedAttributes parsedAttrs(attrFactory);
     (void)DSVoid.SetTypeSpecType(DeclSpec::TST_void, loc, Dummy, DiagID, Actions.Context.getPrintingPolicy());
@@ -10880,6 +10878,8 @@ void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     Record->addDecl(FD);
     SmallVector<Stmt*, 32> Stmts;
     FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
+
+    mapInterface.clear();
     if(Record->hasAttr<AtomiccSerializeAttr>()) {
         uint64_t rsize = 0;
         for (const Decl *field : Record->fields()) {
@@ -10913,14 +10913,22 @@ void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     else if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
      || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
         if (Record->AtomiccImplements) {
-            auto Imp = getSimpleType((Record->bases_end()-1)->getType());
-printf("[%s:%d]LIMP\n", __FUNCTION__, __LINE__);
-Imp->dump();
-            mapInterface.clear();
-            if (CXXRecordDecl *rec = Imp->getAsCXXRecordDecl())
-                extractInterface(rec, "");
+            CXXRecordDecl *rec = getSimpleType((Record->bases_end()-1)->getType())->getAsCXXRecordDecl();
+            if (traceDeclaration) {
+                printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, rec);
+                rec->dump();
+            }
+            extractInterface(rec, "");
+            for (const Decl *field : Record->fields()) {
+                auto fdecl = cast<FieldDecl>(field);
+                if (auto frec = dyn_cast<RecordType>(getSimpleType(fdecl->getType())))
+                    field = frec->getDecl();
+                if (auto rec = dyn_cast<CXXRecordDecl>(field))
+                if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
+                    extractInterface(rec, fdecl->getName());
+            }
             for (auto item: mapInterface) {
-printf("[%s:%d] interface %s\n", __FUNCTION__, __LINE__, item.first.c_str());
+printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str(), item.first.c_str());
 //item.second->dump();
             }
         }
@@ -10931,28 +10939,21 @@ printf("[%s:%d] interface %s\n", __FUNCTION__, __LINE__, item.first.c_str());
                 Actions.ActOnFinishInlineFunctionDef(mitem);
             if (auto Method = dyn_cast<CXXMethodDecl>(mitem))
             if (Method->getDeclName().isIdentifier()) {
-                bool hasMap = (mapInterface.find(Method->getName()) != mapInterface.end());
-                if (hasMap && Method->getType()->castAs<FunctionType>()->getCallConv() != CC_X86VectorCall) {
+                StringRef mname = Method->getName();
+                bool hasMap = (mapInterface.find(mname) != mapInterface.end());
+                if (mname.endswith(BOGUS_FORCE_DECLARATION_METHOD))
+                    continue;
+                if (!mname.endswith("__RDY") && !mname.startswith("RULE$") && !mname.startswith("FOR$"))
+                if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
 printf("[%s:%d]MMMMMMMMMMMMMMMMMMMMM\n", __FUNCTION__, __LINE__);
 Method->dump();
                 }
-                if (hasMap)
+                if (hasMap || mname.endswith("__RDY") || mname.startswith("RULE$") || mname.startswith("FOR$"))
                     setX86VectorCall(Actions, Method);
-#if 1
-                if (traceDeclaration) {
-                    printf("%s: TTTMETHOD %p %s meth %s hasBody %d map %p\n",
-                         __FUNCTION__, (void *)Method, Record->getName().str().c_str(),
-                         mitem->getName().str().c_str(),
-                         Method->hasBody(), hasMap);
-                    //Method->dump();
+                else {
+printf("[%s:%d]non-runtime method %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+Method->dump();
                 }
-                if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
-                    Actions.MarkFunctionReferenced(Method->getLocation(), Method, true);
-                    Method->setIsUsed();
-                    Method->markUsed(Actions.Context);
-                    Method->addAttr(::new (Actions.Context) UsedAttr(Method->getLocation(), Actions.Context, 0));
-                }
-#endif
             }
         }
     }
@@ -10964,15 +10965,14 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
     int aattr = Record->AtomiccAttr;
     if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
      || aattr == CXXRecordDecl::AtomiccAttr_EModule) {
-      if (aattr == CXXRecordDecl::AtomiccAttr_Interface)
-          adjustInterfaceType(*this, QualType(Record->getTypeForDecl(), 0));
-      else
-          buildForceDeclaration(*this, Record);
-          //adjustInterfaceType(*this, getSimpleType((Record->bases_end()-1)->getType()));
+      buildForceDeclaration(*this, Record);
       if (traceDeclaration || traceTemplate) {
         printf("[%s:%d] E/MODULE/INTERFACE %p %s\n", __FUNCTION__, __LINE__, Record, Record->getName().str().c_str());
-        if (traceDeclaration)
+        if (traceDeclaration) {
             Record->dump();
+            if (Record->AtomiccImplements)
+                (Record->bases_end()-1)->getType()->dump();
+        }
         if (traceTemplate)
         if (auto item = dyn_cast<ClassTemplateSpecializationDecl>(Record)) {
             const ClassTemplateDecl *decl = item->getSpecializedTemplate();
