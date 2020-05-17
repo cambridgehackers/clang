@@ -1085,7 +1085,7 @@ exit(-1);
   bool optimizeMe = false; //!transform.Params.size();
   if (!isDecl && !optimizeMe) {
       static int counter;
-      fname = "RULE$Template" + fname + llvm::utostr(counter++);
+      fname = "ruleTemplate" + fname + llvm::utostr(counter++);
       IdentifierInfo *IFn = &Actions.Context.Idents.get(fname);
       transform.ruleM->setDeclName(DeclarationName(IFn));
       if (GuardExpr) {
