@@ -2558,12 +2558,6 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
                                        AttributeList *AccessAttrs,
                                        const ParsedTemplateInfo &TemplateInfo,
                                        ParsingDeclRAIIObject *TemplateDiags) {
-  bool hasImplements = false;
-  if (Tok.is(tok::kw___implements)) { // Atomicc
-    hasImplements = true;
-    ConsumeToken();
-  }
-
   if (Tok.is(tok::at)) {
     if (getLangOpts().ObjC1 && NextToken().isObjCAtKeyword(tok::objc_defs))
       Diag(Tok, diag::err_at_defs_cxx);
@@ -2990,7 +2984,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
   while (1) {
     InClassInitStyle HasInClassInit = ICIS_NoInit;
     bool HasStaticInitializer = false;
-    if (Tok.isOneOf(tok::equal, tok::l_brace) && PureSpecLoc.isInvalid()) {
+    if (Tok.isOneOf(tok::equal, tok::l_brace, tok::kw___implements) && PureSpecLoc.isInvalid()) {
       if (BitfieldSize.get()) {
         Diag(Tok, diag::err_bitfield_member_init);
         SkipUntil(tok::comma, StopAtSemi | StopBeforeMatch);
@@ -3036,10 +3030,6 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
                                                   TemplateParams,
                                                   BitfieldSize.get(),
                                                   VS, HasInClassInit);
-if (hasImplements) {
-printf("[%s:%d]DECL AFTTT %s\n", __FUNCTION__, __LINE__, Tok.getName());
-//ThisDecl->dump();
-}
 
       if (VarTemplateDecl *VT =
               ThisDecl ? dyn_cast<VarTemplateDecl>(ThisDecl) : nullptr)
@@ -3184,7 +3174,7 @@ printf("[%s:%d]DECL AFTTT %s\n", __FUNCTION__, __LINE__, Tok.getName());
 /// be a constant-expression.
 ExprResult Parser::ParseCXXMemberInitializer(Decl *D, bool IsFunction,
                                              SourceLocation &EqualLoc) {
-  assert(Tok.isOneOf(tok::equal, tok::l_brace)
+  assert(Tok.isOneOf(tok::equal, tok::l_brace, tok::kw___implements)
          && "Data member initializer not starting with '=' or '{'");
 
   EnterExpressionEvaluationContext Context(
@@ -3214,6 +3204,8 @@ ExprResult Parser::ParseCXXMemberInitializer(Decl *D, bool IsFunction,
       return ExprError();
     }
   }
+  else
+      TryConsumeToken(tok::kw___implements, EqualLoc);
   if (const auto *PD = dyn_cast_or_null<MSPropertyDecl>(D)) {
     Diag(Tok, diag::err_ms_property_initializer) << PD;
     return ExprError();

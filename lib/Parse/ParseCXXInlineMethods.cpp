@@ -186,7 +186,7 @@ NamedDecl *Parser::ParseCXXInlineMethodDef(AccessSpecifier AS,
 /// declaration. Now lex its initializer and store its tokens for parsing
 /// after the class is complete.
 void Parser::ParseCXXNonStaticMemberInitializer(Decl *VarD) {
-  assert(Tok.isOneOf(tok::l_brace, tok::equal) &&
+  assert(Tok.isOneOf(tok::l_brace, tok::equal, tok::kw___implements) &&
          "Current token not a '{' or '='!");
 
   LateParsedMemberInitializer *MI =
@@ -195,7 +195,7 @@ void Parser::ParseCXXNonStaticMemberInitializer(Decl *VarD) {
   CachedTokens &Toks = MI->Toks;
 
   tok::TokenKind kind = Tok.getKind();
-  if (kind == tok::equal) {
+  if (kind == tok::equal || kind == tok::kw___implements) {
     Toks.push_back(Tok);
     ConsumeToken();
   }
