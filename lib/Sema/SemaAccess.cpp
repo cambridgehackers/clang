@@ -1424,11 +1424,11 @@ static AccessResult CheckEffectiveAccess(Sema &S,
       return AR_accessible;
     if (!Entity.isQuiet())
       DiagnoseBadAccess(S, Loc, EC, Entity);
-printf("[%s:%d]IIIIIIIIIIIIIIIIIIIIIIIII %p\n", __FUNCTION__, __LINE__, Entity.getDeclaringClass());
+printf("[%s:%d]INACCESSABLE %p\n", __FUNCTION__, __LINE__, Entity.getDeclaringClass());
 Entity.getDeclaringClass()->dump();
 if (auto DTS = dyn_cast<ClassTemplateSpecializationDecl>(Entity.getDeclaringClass())) {
     ClassTemplateDecl *tempdecl = DTS->getSpecializedTemplate();
-    printf("[%s:%d] tempdecl %p IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n", __FUNCTION__, __LINE__, tempdecl);
+    printf("[%s:%d] tempdecl %p INACCESSABLE\n", __FUNCTION__, __LINE__, tempdecl);
     tempdecl->dump();
 }
     return AR_inaccessible;
