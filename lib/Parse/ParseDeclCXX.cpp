@@ -27,6 +27,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h" // utostr()
+#include "llvm/Support/CommandLine.h"
 
 using namespace clang;
 
@@ -36,8 +37,11 @@ QualType getSimpleType(QualType ftype);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 };
+
+llvm::cl::opt<bool>
+    traceImplements("itrace", llvm::cl::Optional, llvm::cl::desc("trace interface declaration forcing"));
 bool inDeclForLoop;
-bool traceImplements;//= true;
+
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method)
 {
     const FunctionProtoType *FPT = Method->getType()->castAs<FunctionProtoType>();
@@ -58,9 +62,7 @@ void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method)
 }
 static CXXRecordDecl *findRecord(Decl *decl)
 {
-    if (auto RD = dyn_cast_or_null<CXXRecordDecl>(decl))
-        return RD;
-    else if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(decl)) {
+    if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(decl)) {
         if (traceImplements) {
             printf("[%s:%d]ClassTemplateDecl\n", __FUNCTION__, __LINE__);
             if (auto RD = TSD->getTemplatedDecl())
@@ -68,25 +70,8 @@ static CXXRecordDecl *findRecord(Decl *decl)
         }
         return findRecord(TSD->getTemplatedDecl());
     }
-    return nullptr;
-}
-static CXXRecordDecl *findRecordType(QualType Ty)
-{
-    Ty = getSimpleType(Ty);
-    if (auto RD = findRecord(Ty->getAsCXXRecordDecl()))
+    else if (auto RD = dyn_cast_or_null<CXXRecordDecl>(decl))
         return RD;
-    else if (auto stype = dyn_cast<InjectedClassNameType>(Ty))
-        return stype->getDecl();
-    else if (auto stype = dyn_cast<TemplateSpecializationType>(Ty)) {
-        if (traceImplements) {
-            printf("[%s:%d]TemplateSpecializationType\n", __FUNCTION__, __LINE__);
-            if (auto RD = stype->getAsCXXRecordDecl())
-                RD->dump();
-            printf("[%s:%d]TemplateDecl\n", __FUNCTION__, __LINE__);
-            stype->getTemplateName().getAsTemplateDecl()->dump();
-        }
-        return findRecord(stype->getTemplateName().getAsTemplateDecl());
-    }
     return nullptr;
 }
 
@@ -94,33 +79,57 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
 {
     static int counter;
     bool initialized = false;
+    CXXRecordDecl *RD = nullptr;
+    TemplateDecl *Template = nullptr;
     if (auto PTy = dyn_cast<PointerType>(Ty))
         Ty = PTy->getPointeeType();
-    if (traceImplements) {
-        printf("[%s:%d]TTTTTTTTTTTTTTTTTTTTTTTTTTTTT %p\n", __FUNCTION__, __LINE__, Ty);
-        Ty->dump();
+#if 0
+    if (dyn_cast<DecltypeType>(Ty)) {
+        SplitQualType split = Ty.getSplitDesugaredType();
+        Ty = QualType(split.Ty, 0);
     }
-    if (auto RD = findRecordType(Ty)) {
-        if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Interface) {
-            printf("[%s:%d] changing %s AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, RD->getName().str().c_str(), RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Interface);
-            RD->dump();
-            exit(-1);
-        }
+#endif
+    if (auto ttype = dyn_cast<TypedefType>(Ty))
+        Ty = ttype->getDecl()->getUnderlyingType();
+    if (auto etype = dyn_cast<ElaboratedType>(Ty))
+        Ty = etype->desugar();
+    else if (auto stype = dyn_cast<TemplateSpecializationType>(Ty)) {
+        Template = stype->getTemplateName().getAsTemplateDecl();
+        RD = dyn_cast<CXXRecordDecl>(Template->getTemplatedDecl());
+    }
+    if (auto stype = dyn_cast<SubstTemplateTypeParmType>(Ty))
+        Ty = stype->getReplacementType();
+    if (!RD)
+        RD = findRecord(Ty->getAsCXXRecordDecl());
+    if (RD)
         for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
             FieldDecl *fd = *I;
             if (fd->getName().endswith(BOGUS_FORCE_DECLARATION_FIELD))
                 initialized = true;
         }
+    if (traceImplements) {
+        printf("%s: STARTADJ %p RD %p\n", __FUNCTION__, Ty, RD);
+        Ty->dump();
+    }
+    if (RD) {
+        if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Interface) {
+            printf("[%s:%d] changing %s AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, RD->getName().str().c_str(), RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Interface);
+            RD->dump();
+            exit(-1);
+        }
         if (!initialized) {
             if (traceImplements) {
-                printf("[%s:%d] PROCESS Ty %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
+                printf("[%s:%d] PROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
                 RD->dump();
             }
         RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface; // needed to set Empty in ActOnBaseSpecifiers
         if (RD->hasDefinition()) {
+        int fieldCounter = 0;
         for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
             I->setAccess(AS_public);
+            printf("[%s:%d] FIELD[%d] type %p\n", __FUNCTION__, __LINE__, fieldCounter, I->getType());
             adjustInterfaceType(Actions, I->getType()); // recurse for sub-interfaces
+            fieldCounter++;
         }
         for (auto I = RD->method_begin(), E = RD->method_end(); I != E; ++I) {
             if (I->getDeclName().isIdentifier())
@@ -138,18 +147,25 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
         RD->addDecl(fillField);
         fillField->markUsed(Actions.Context);
         }
-        if (auto CTS = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-            if (traceImplements)
-                 printf("[%s:%d]ClassTemplateSpecializationDecl before AIT\n", __FUNCTION__, __LINE__);
-            adjustInterfaceType(Actions, QualType(CTS->getSpecializedTemplate()
-                 ->getTemplatedDecl()->getTypeForDecl(), 0));
-        }
+            if (Template) {
+                if (traceImplements) {
+                     printf("[%s:%d]ClassTemplateSpecializationDecl %p Template %p\n", __FUNCTION__, __LINE__, Ty, Template);
+                     Template->dump();
+                }
+                if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(Template)) {
+                    for (auto *I : TSD->specializations())
+                        if (auto RD = dyn_cast<CXXRecordDecl>(I))
+                            adjustInterfaceType(Actions, QualType(RD->getTypeForDecl(), 0));
+                }
+            }
             if (traceImplements) {
-                printf("[%s:%d] PROCESSafter Ty %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
+                printf("[%s:%d] ENDPROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
                 RD->dump();
             }
         }
     }
+    if (traceImplements)
+        printf("%s: ENDADJ %p\n", __FUNCTION__, Ty);
 }
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
