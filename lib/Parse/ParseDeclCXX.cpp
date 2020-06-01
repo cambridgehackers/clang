@@ -2756,6 +2756,47 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     }
     return nullptr;
   }
+  if (Tok.is(tok::kw___implements)) {
+    auto ConnectLoc = ConsumeToken();
+    SmallVector<QualType, 8> FArgs;
+    FunctionProtoType::ExtProtoInfo EPI;
+    DeclarationNameInfo NameInfo;
+    CXXRecordDecl *thisRecord = cast<CXXRecordDecl>(Actions.CurContext);
+    CXXMethodDecl *FFN = CXXMethodDecl::Create(Actions.Context, thisRecord,
+        ConnectLoc, NameInfo, Actions.Context.getFunctionType(Actions.Context.VoidTy, FArgs, EPI),
+        nullptr, SC_None, false, false, ConnectLoc);
+    Actions.PushDeclContext(getCurScope(), FFN);
+    ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
+    QualType Ty = LHS.get()->getType();
+    if (auto PTy = dyn_cast<PointerType>(Ty)) {
+        Ty = PTy->getPointeeType();
+    }
+    std::string rstr = expr2str(LHS.get(), Actions.getPrintingPolicy(), true);
+
+    assert(Tok.is(tok::identifier) && "No implement name!");
+    IdentifierInfo *blII = Tok.getIdentifierInfo();
+    std::string lstr = Tok.getIdentifierInfo()->getName().str();
+    ConsumeToken();
+    Actions.PopDeclContext();
+
+    lstr = "CONNECT;" + lstr;
+    thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
+        Actions.Context, lstr + ":" + rstr, 0));
+    auto StartLoc = thisRecord->getLocation();
+    FieldDecl *interfaceDecl = FieldDecl::Create(Actions.Context, thisRecord, StartLoc, StartLoc, blII, Ty,
+          Actions.Context.CreateTypeSourceInfo(Ty),
+          /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
+    interfaceDecl->setAccess(AS_public);
+    thisRecord->addDecl(interfaceDecl);
+    if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
+      // Skip to end of block or statement.
+      SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
+      // If we stopped at a ';', eat it.
+      TryConsumeToken(tok::semi);
+      return nullptr;
+    }
+    return nullptr;
+  }
 
   ParsedAttributesWithRange attrs(AttrFactory);
   ParsedAttributesWithRange FnAttrs(AttrFactory);
@@ -3000,7 +3041,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
   while (1) {
     InClassInitStyle HasInClassInit = ICIS_NoInit;
     bool HasStaticInitializer = false;
-    if (Tok.isOneOf(tok::equal, tok::l_brace, tok::kw___implements) && PureSpecLoc.isInvalid()) {
+    if (Tok.isOneOf(tok::equal, tok::l_brace) && PureSpecLoc.isInvalid()) {
       if (BitfieldSize.get()) {
         Diag(Tok, diag::err_bitfield_member_init);
         SkipUntil(tok::comma, StopAtSemi | StopBeforeMatch);
@@ -3190,7 +3231,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
 /// be a constant-expression.
 ExprResult Parser::ParseCXXMemberInitializer(Decl *D, bool IsFunction,
                                              SourceLocation &EqualLoc) {
-  assert(Tok.isOneOf(tok::equal, tok::l_brace, tok::kw___implements)
+  assert(Tok.isOneOf(tok::equal, tok::l_brace)
          && "Data member initializer not starting with '=' or '{'");
 
   EnterExpressionEvaluationContext Context(
@@ -3220,8 +3261,6 @@ ExprResult Parser::ParseCXXMemberInitializer(Decl *D, bool IsFunction,
       return ExprError();
     }
   }
-  else
-      TryConsumeToken(tok::kw___implements, EqualLoc);
   if (const auto *PD = dyn_cast_or_null<MSPropertyDecl>(D)) {
     Diag(Tok, diag::err_ms_property_initializer) << PD;
     return ExprError();
@@ -3266,7 +3305,6 @@ void Parser::SkipCXXMemberSpecification(SourceLocation RecordLoc,
     Actions.ActOnTagFinishSkippedDefinition(OldContext);
 
     if (!Tok.is(tok::l_brace)) {
-printf("[%s:%d]MISSINGBRACE2\n", __FUNCTION__, __LINE__);
       Diag(PP.getLocForEndOfToken(PrevTokLocation),
            diag::err_expected_lbrace_after_base_specifiers);
       return;

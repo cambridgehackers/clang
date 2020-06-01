@@ -28,9 +28,6 @@
 
 using namespace clang;
 
-namespace clang {
-std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
-}
 //===----------------------------------------------------------------------===//
 // Sema Initialization Checking
 //===----------------------------------------------------------------------===//
@@ -5362,28 +5359,9 @@ void InitializationSequence::InitializeFrom(Sema &S,
     //       used) to a derived class thereof are enumerated as described in
     //       13.3.1.4, and the best one is chosen through overload resolution
     //       (13.3).
-    else {
-      QualType SourceType = Initializer->getType();
-      if (auto PTy = dyn_cast<PointerType>(SourceType)) {
-        QualType SourceElemType = PTy->getPointeeType();
-printf("[%s:%d] source %p dest %p selem %p\n", __FUNCTION__, __LINE__, SourceType, DestType, SourceElemType);
-//DestType->dump();
-//printf("[%s:%d]elem\n", __FUNCTION__, __LINE__);
-//SourceElemType->dump();
-        CXXRecordDecl *RD = cast<CXXRecordDecl>(S.CurContext);
-        std::string lstr = Entity.getName().getAsString();
-        std::string rstr = expr2str(Initializer, S.getPrintingPolicy(), true);
-        lstr = "CONNECT;" + lstr;
-        //printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
-        RD->addAttr(::new (S.Context) AtomiccConnectAttr(Initializer->getLocStart(),
-        Context, lstr + ":" + rstr, 0));
-        //if (const RecordType *DestRecordType = DestType->getAs<RecordType>())
-        //CXXRecordDecl *DestRecordDecl = cast<CXXRecordDecl>(DestRecordType->getDecl());
-        return;
-      }
+    else
       TryUserDefinedConversion(S, DestType, Kind, Initializer, *this,
                                TopLevelOfInitList);
-    }
     return;
   }
 
