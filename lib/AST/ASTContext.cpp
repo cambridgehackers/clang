@@ -1965,8 +1965,6 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   }
 
   assert(llvm::isPowerOf2_32(Align) && "Alignment must be power of 2");
-//printf("[%s:%d] T %p haveb %d BWidth %d Width %d\n", __FUNCTION__, __LINE__, T, haveBWidth, (int)BWidth, (int)Width);
-//T->dump();
   return TypeInfo(Width, Align, AlignIsRequired, haveBWidth ? BWidth : Width);
 }
 

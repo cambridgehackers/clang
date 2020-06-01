@@ -2108,7 +2108,7 @@ static bool mustSkipTailPadding(TargetCXXABI ABI, const CXXRecordDecl *RD) {
     //   Where references to the ISO C++ are made in this paragraph,
     //   the Technical Corrigendum 1 version of the standard is
     //   intended.
-    return RD->isPOD();
+    return RD->isPOD() || RD->AtomiccAttr;
 
   case TargetCXXABI::UseTailPaddingUnlessPOD11:
     // This is equivalent to RD->getTypeForDecl().isCXX11PODType(),
@@ -2982,8 +2982,6 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
       bool skipTailPadding =
           mustSkipTailPadding(getTargetInfo().getCXXABI(), RD);
 
-skipTailPadding = true; //JCAJCAJCJJCAJCAJCJAJCAJC
-printf("[%s:%d] skipTailPadding skipTailPadding skipTailPadding skipTailPadding\n", __FUNCTION__, __LINE__);
       // FIXME: This should be done in FinalizeLayout.
 //printf("[%s:%d] skiptail %d getSize %d getdatasize %d bits %d DataBSize %d\n", __FUNCTION__, __LINE__, skipTailPadding, (int)Builder.getSize().getQuantity(), (int)Builder.getDataSize().getQuantity(), (int)Builder.getSizeInBits(), (int)Builder.DataBSize);
 //RD->dump();

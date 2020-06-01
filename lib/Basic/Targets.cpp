@@ -9112,6 +9112,7 @@ public:
       // x86-64 has atomics up to 16 bytes.
       MaxAtomicPromoteWidth = 128;
       MaxAtomicInlineWidth = 128;
+      //TheCXXABI.set(TargetCXXABI::GenericAtomicC);
     }
     void getTargetDefines(const LangOptions &Opts,
                           MacroBuilder &Builder) const override {
