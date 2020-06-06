@@ -5703,13 +5703,15 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
   assert(D.isPastIdentifier() &&
          "Haven't past the location of the identifier yet?");
 
-  while (Tok.is(tok::period)) {
+  while (Tok.is(tok::period)) {   // AtomicC
+    IdentifierInfo *Id = D.getIdentifier();
+    if (!Id)
+        break;
     ConsumeToken(); // tok::period
     if (!Tok.is(tok::identifier)) {
         printf("[%s:%d]MISSINGID\n", __FUNCTION__, __LINE__);
         exit(-1);
     }
-    IdentifierInfo *Id = D.getIdentifier();
     std::string mname = Id->getName().str() + "$" + Tok.getIdentifierInfo()->getName().str();
     //printf("[%s:%d] %s -> %s\n", __FUNCTION__, __LINE__, Tok.getIdentifierInfo()->getName().str().c_str(), mname.c_str());
     IdentifierInfo &IdNew = Actions.Context.Idents.get(mname);
