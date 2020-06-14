@@ -963,6 +963,11 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         llvm::raw_svector_ostream Out(Buffer);
         getCXXABI().getMangleContext().mangleName(ND, Out);
         std::string mname = normalizeName(MD->getName());
+        if (mname.substr(0,2) == "_$")
+            mname = mname.substr(2);
+        int ind = mname.find("$_$");
+        if (ind > 0)
+            mname = mname.substr(0, ind) + mname.substr(ind+2);
         if (FT->getReturnType()->isVoidType())
             mname += "__ENA";
         if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
