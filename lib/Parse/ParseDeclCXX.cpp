@@ -108,7 +108,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                 initialized = true;
         }
     if (traceImplements) {
-        printf("%s: STARTADJ %p RD %p\n", __FUNCTION__, Ty, RD);
+        printf("%s: STARTADJ %p RD %p\n", __FUNCTION__, Ty, (void *)RD);
         Ty->dump();
     }
     if (RD) {
@@ -119,7 +119,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
         }
         if (!initialized) {
             if (traceImplements) {
-                printf("[%s:%d] PROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
+                printf("[%s:%d] PROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, (void *)RD, RD->hasDefinition(), counter);
                 RD->dump();
             }
         RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface; // needed to set Empty in ActOnBaseSpecifiers
@@ -149,7 +149,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
         }
             if (Template) {
                 if (traceImplements) {
-                     printf("[%s:%d]ClassTemplateSpecializationDecl %p Template %p\n", __FUNCTION__, __LINE__, Ty, Template);
+                     printf("[%s:%d]ClassTemplateSpecializationDecl %p Template %p\n", __FUNCTION__, __LINE__, Ty, (void *)Template);
                      Template->dump();
                 }
                 if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(Template)) {
@@ -159,7 +159,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                 }
             }
             if (traceImplements) {
-                printf("[%s:%d] ENDPROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, RD, RD->hasDefinition(), counter);
+                printf("[%s:%d] ENDPROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, (void *)RD, RD->hasDefinition(), counter);
                 RD->dump();
             }
         }
@@ -2743,10 +2743,18 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     Actions.PopDeclContext();
     std::string lstr = expr2str(LHS.get(), Actions.getPrintingPolicy(), true);
     std::string rstr = expr2str(RHS.get(), Actions.getPrintingPolicy(), true);
-    lstr = "CONNECT;" + lstr;
-    //printf("[%s:%d] CONNECT %s = %s\n", __FUNCTION__, __LINE__, lstr.c_str(), rstr.c_str());
-    thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
-        Actions.Context, lstr + ":" + rstr, 0));
+    lstr = "CONNECT;" + lstr + ":" + rstr;
+    printf("[%s:%d] CONNECT %s\n", __FUNCTION__, __LINE__, lstr.c_str());
+    AtomiccConnectAttr *connectAttr = nullptr;
+    if (thisRecord->hasAttrs())
+        for (Attr *item: thisRecord->getAttrs())
+            if ((connectAttr = dyn_cast<AtomiccConnectAttr>(item)))
+                break;
+    if (connectAttr)
+        connectAttr->setInterfaces(Actions.Context, connectAttr->getInterfaces().str() + "," + lstr);
+    else
+        thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
+            Actions.Context, lstr, 0));
     if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
       // Skip to end of block or statement.
       SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
@@ -3570,7 +3578,7 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   if (CXXRecordDecl *RD = findRecord(TagDecl))
   if (RD->AtomiccImplements) {
             if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Module) {
-printf("[%s:%d] changing %p AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, RD, RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Module);
+printf("[%s:%d] changing %p AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, (void *)RD, RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Module);
 RD->dump();
             }
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;

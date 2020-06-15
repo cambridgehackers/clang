@@ -47,9 +47,6 @@
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
-namespace clang {
-std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
-};
 
 static llvm::cl::opt<bool>
     traceDeclaration("dtrace", llvm::cl::Optional, llvm::cl::desc("trace declaration creation"));
