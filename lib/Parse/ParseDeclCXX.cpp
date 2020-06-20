@@ -28,6 +28,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h" // utostr()
 #include "llvm/Support/CommandLine.h"
+#include "clang/AST/ExprCXX.h" // CXXDependentScopeMemberExpr
 
 using namespace clang;
 
@@ -2776,6 +2777,33 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     Actions.PushDeclContext(getCurScope(), FFN);
     ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
     QualType Ty = LHS.get()->getType();
+    if (Ty->isDependentType()) {
+        std::string baseName, memberName;
+        if (auto DT = dyn_cast<CXXDependentScopeMemberExpr>(LHS.get())) {
+            memberName = DT->getMember().getAsString();
+            if (auto ME = dyn_cast<MemberExpr>(DT->getBase()))
+                baseName = ME->getMemberDecl()->getName();
+        }
+        for (auto item: thisRecord->fields()) {
+            if (item->getName() == baseName)
+            if (auto TST = dyn_cast<TemplateSpecializationType>(item->getType())) {
+                auto Template = TST->getTemplateName().getAsTemplateDecl();
+                if (auto RD = dyn_cast<CXXRecordDecl>(Template->getTemplatedDecl())) {
+                    if (RD->AtomiccImplements) {
+                        auto rty = getSimpleType((RD->bases_end()-1)->getType());
+                        CXXRecordDecl *rec = rty->getAsCXXRecordDecl();
+                        if (!rec)
+                        if (auto nTST = dyn_cast<TemplateSpecializationType>(rty))
+                             rec = dyn_cast<CXXRecordDecl>(nTST->getTemplateName().getAsTemplateDecl()->getTemplatedDecl());
+                        if (rec)
+                        for (auto item: rec->fields())
+                            if (item->getName() == memberName)
+                                Ty = item->getType();
+                   }
+                }
+            }
+        }
+    } // isDependentType
     if (auto PTy = dyn_cast<PointerType>(Ty)) {
         Ty = PTy->getPointeeType();
     }
@@ -2791,6 +2819,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
         Actions.Context, lstr + ":" + rstr, 0));
     auto StartLoc = thisRecord->getLocation();
+    adjustInterfaceType(Actions, Ty);
     FieldDecl *interfaceDecl = FieldDecl::Create(Actions.Context, thisRecord, StartLoc, StartLoc, blII, Ty,
           Actions.Context.CreateTypeSourceInfo(Ty),
           /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
