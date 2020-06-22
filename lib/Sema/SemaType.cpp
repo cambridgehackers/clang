@@ -1236,6 +1236,9 @@ static OpenCLAccessAttr::Spelling getImageAccess(const AttributeList *Attrs) {
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false)
 {
+    int builtinKind = -1;
+    if (auto Ty = dyn_cast<BuiltinType>(expr->getType()))
+        builtinKind = Ty->getKind();
     SmallString<256> Buffer;
     llvm::raw_svector_ostream Out(Buffer);
     suppressTemplatePrint = true;
@@ -1251,6 +1254,10 @@ std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName =
         while ((ind = ret.find(MODULE_SEPARATOR "_" MODULE_SEPARATOR)) > 0)
             ret = ret.substr(0, ind) + ret.substr(ind+2);
     }
+    else if (builtinKind == BuiltinType::Double && ret.substr(ret.length()-1) == ".")
+        ret += "0";
+    else if (builtinKind == BuiltinType::UInt && ret.substr(ret.length()-1) == "U")
+        ret = ret.substr(0, ret.length()-2);
     return ret;
 }
 }
