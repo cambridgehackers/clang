@@ -2958,17 +2958,8 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
         if (!TryConsumeToken(tok::equal)) {
             printf("[%s:%d] ERRRRRR ACCCCCCCCCCCCCCCCCCCCCeqparmtoken %s\n", __FUNCTION__, __LINE__, Tok.getName());
         }
-        if (isTokenStringLiteral()) {
-            ExprResult itemVal = ParseStringLiteralExpression();
-            if (auto str = dyn_cast<StringLiteral>(itemVal.get())) {
-               valStr += "\"" + str->getString().str() + "\"";
-            }
-        }
-        else {
-            const char *TokStart = Tok.getLiteralData();
-            valStr += std::string(TokStart, TokStart + Tok.getLength());
-            ConsumeToken();
-        }
+        ExprResult itemVal = ParseConstantExpression();
+        valStr += expr2str(itemVal.get(), Actions.getPrintingPolicy());
         QualType ResTy = Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
              llvm::APInt(Actions.Context.getTypeSize(Actions.Context.getSizeType()),
              valStr.length()), ArrayType::Normal, /*IndexTypeQuals*/ 0);
