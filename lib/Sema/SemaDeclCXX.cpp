@@ -37,6 +37,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
+#include "clang/AST/Mangle.h"         //MangleContext
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
@@ -10831,6 +10832,23 @@ void Sema::ActOnFinishCXXMemberDecls() {
   }
 }
 
+static std::map<std::string, bool> mangleMap;
+std::string getMangledName(Sema &Actions, NamedDecl *ND)
+{
+    //ASTContext &Context = ND->getASTContext();
+    std::unique_ptr<MangleContext> MC;
+    MC.reset(ND->getASTContext().createMangleContext());
+    if (MC->shouldMangleDeclName(ND)) {
+        SmallString<256> Buffer;
+        llvm::raw_svector_ostream Out(Buffer);
+        MC->mangleName(ND, Out);
+        if (!Buffer.empty() && Buffer.front() == '\01')
+            return Buffer.substr(1);
+        return Buffer.str();
+    } else
+        return ND->getIdentifier()->getName();
+    return "";
+}
 static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
 {
     auto StartLoc = Record->getLocStart();
@@ -10912,7 +10930,7 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
         if (Record->AtomiccImplements) {
             CXXRecordDecl *rec = getSimpleType((Record->bases_end()-1)->getType())->getAsCXXRecordDecl();
             if (traceDeclaration) {
-                printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, rec);
+                printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, (void *)rec);
                 rec->dump();
             }
             extractInterface(rec, "");
@@ -10945,8 +10963,12 @@ printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().st
 printf("[%s:%d]MMMMMMMMMMMMMMMMMMMMM\n", __FUNCTION__, __LINE__);
 Method->dump();
                 }
-                if (hasMap || mname.endswith("__RDY") || mname.startswith("RULE$") || mname.startswith("FOR$"))
-                    setX86VectorCall(Actions, Method);
+                if (hasMap || mname.endswith("__RDY") || mname.startswith("RULE$") || mname.startswith("FOR$")) {
+                    std::string MangledName = getMangledName(Actions, Method);
+                    if (!mangleMap[MangledName])
+                        setX86VectorCall(Actions, Method);
+                    mangleMap[MangledName] = true;
+                }
                 else {
 printf("[%s:%d]non-runtime method %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
 Method->dump();
@@ -10964,7 +10986,7 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
      || aattr == CXXRecordDecl::AtomiccAttr_EModule) {
       buildForceDeclaration(*this, Record);
       if (traceDeclaration || traceTemplate) {
-        printf("[%s:%d] E/MODULE/INTERFACE %p %s\n", __FUNCTION__, __LINE__, Record, Record->getName().str().c_str());
+        printf("[%s:%d] E/MODULE/INTERFACE %p %s\n", __FUNCTION__, __LINE__, (void *)Record, Record->getName().str().c_str());
         if (traceDeclaration) {
             Record->dump();
             if (Record->AtomiccImplements)
