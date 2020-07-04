@@ -3133,7 +3133,7 @@ ExprResult Sema::ActOnCharacterConstant(const Token &Tok, Scope *UDLScope) {
 ExprResult Sema::ActOnIntegerConstant(SourceLocation Loc, uint64_t Val) {
   unsigned IntSize = Context.getTargetInfo().getIntWidth();
   return IntegerLiteral::Create(Context, llvm::APInt(IntSize, Val),
-                                Context.IntTy, Loc);
+                                Context.UnsignedIntTy, Loc);
 }
 
 static Expr *BuildFloatingLiteral(Sema &S, NumericLiteralParser &Literal,

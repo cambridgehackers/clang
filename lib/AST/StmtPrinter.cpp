@@ -1428,6 +1428,7 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
   OS << Node->getValue().toString(10, isSigned);
 
   // Emit suffixes.  Integer literals are always a builtin integer type.
+  if (!suppressTemplatePrint)
   switch (Node->getType()->getAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for integer literal!");
   case BuiltinType::Char_S:
@@ -1456,6 +1457,7 @@ static void PrintFloatingLiteral(raw_ostream &OS, FloatingLiteral *Node,
     return;
 
   // Emit suffixes.  Float literals are always a builtin float type.
+  if (!suppressTemplatePrint)
   switch (Node->getType()->getAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for float literal!");
   case BuiltinType::Half:       break; // FIXME: suffix?

@@ -1258,15 +1258,17 @@ class APNumericStorage {
   APNumericStorage(const APNumericStorage &) = delete;
   void operator=(const APNumericStorage &) = delete;
 
+public:
+  bool isSigned;
 protected:
-  APNumericStorage() : VAL(0), BitWidth(0) { }
+  APNumericStorage() : VAL(0), BitWidth(0), isSigned(true) { }
 
   llvm::APInt getIntValue() const {
     unsigned NumWords = llvm::APInt::getNumWords(BitWidth);
     if (NumWords > 1)
-      return llvm::APInt(BitWidth, NumWords, pVal);
+      return llvm::APInt(BitWidth, NumWords, pVal, isSigned);
     else
-      return llvm::APInt(BitWidth, VAL);
+      return llvm::APInt(BitWidth, VAL, isSigned);
   }
   void setIntValue(const ASTContext &C, const llvm::APInt &Val);
 };
@@ -1277,6 +1279,7 @@ public:
   void setValue(const ASTContext &C, const llvm::APInt &Val) {
     setIntValue(C, Val);
   }
+  void setSigned(bool iSigned) { isSigned = iSigned; }
 };
 
 class APFloatStorage : private APNumericStorage {

@@ -1256,8 +1256,6 @@ std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName =
     }
     else if (builtinKind == BuiltinType::Double && ret.substr(ret.length()-1) == ".")
         ret += "0";
-    else if (builtinKind == BuiltinType::UInt && ret.substr(ret.length()-1) == "U")
-        ret = ret.substr(0, ret.length()-2);
     return ret;
 }
 }
