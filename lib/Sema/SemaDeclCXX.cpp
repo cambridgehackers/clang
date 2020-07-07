@@ -48,6 +48,8 @@
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
+static std::map<std::string, CXXRecordDecl *> mangleNameMap;
+std::map<const RecordDecl *, const RecordDecl *> mangleRemap;
 
 static llvm::cl::opt<bool>
     traceDeclaration("dtrace", llvm::cl::Optional, llvm::cl::desc("trace declaration creation"));
@@ -10832,7 +10834,6 @@ void Sema::ActOnFinishCXXMemberDecls() {
   }
 }
 
-static std::map<std::string, bool> mangleMap;
 std::string getMangledName(Sema &Actions, NamedDecl *ND)
 {
     //ASTContext &Context = ND->getASTContext();
@@ -10849,11 +10850,44 @@ std::string getMangledName(Sema &Actions, NamedDecl *ND)
         return ND->getIdentifier()->getName();
     return "";
 }
+
+static void mangleMarkRecord(CXXRecordDecl *Record, CXXRecordDecl *aliasRecord)
+{
+    if (!mangleRemap[Record])
+        mangleRemap[Record] = aliasRecord;
+    else if (mangleRemap[Record] != aliasRecord) {
+        printf("[%s:%d] Error: remapped to different records %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
+    }
+    if (Record->AtomiccImplements) {
+        CXXRecordDecl *rec = getSimpleType((Record->bases_end()-1)->getType())->getAsCXXRecordDecl();
+        CXXRecordDecl *alias = getSimpleType((aliasRecord->bases_end()-1)->getType())->getAsCXXRecordDecl();
+        mangleMarkRecord(rec, alias);
+    }
+    auto recordField = Record->field_begin(), aliasField = aliasRecord->field_begin();
+    while (recordField != Record->field_end()) {
+        Decl *field = *recordField;
+        auto fdecl = cast<FieldDecl>(field);
+        if (auto frec = dyn_cast<RecordType>(getSimpleType(fdecl->getType())))
+            field = frec->getDecl();
+
+        Decl *aField = *aliasField;
+        auto aFdecl = cast<FieldDecl>(aField);
+        if (auto aFrec = dyn_cast<RecordType>(getSimpleType(aFdecl->getType())))
+            aField = aFrec->getDecl();
+
+        if (auto rec = dyn_cast<CXXRecordDecl>(field))
+            mangleMarkRecord(rec, dyn_cast<CXXRecordDecl>(aField));
+        recordField++;
+        aliasField++;
+    }
+}
+
 static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
 {
     auto StartLoc = Record->getLocStart();
     static int counter;
     std::string mname = llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_METHOD;
+    CXXRecordDecl *prevRecord = nullptr, *aliasRecord = nullptr;
     const char *Dummy = nullptr;
     unsigned DiagID;
     SourceLocation NoLoc;
@@ -10965,9 +10999,18 @@ Method->dump();
                 }
                 if (hasMap || mname.endswith("__RDY") || mname.startswith("RULE$") || mname.startswith("FOR$")) {
                     std::string MangledName = getMangledName(Actions, Method);
-                    if (!mangleMap[MangledName])
+                    aliasRecord = dyn_cast_or_null<CXXRecordDecl>(mangleNameMap[MangledName]);
+                    if (!aliasRecord) {
                         setX86VectorCall(Actions, Method);
-                    mangleMap[MangledName] = true;
+                        mangleNameMap[MangledName] = Record;
+                    }
+                    else {
+                        if (!prevRecord)
+                            prevRecord = aliasRecord;
+                        else if (prevRecord != aliasRecord) {
+                            printf("[%s:%d] Error: remapped to different records %s\n", __FUNCTION__, __LINE__, MangledName.c_str());
+                        }
+                    }
                 }
                 else {
 printf("[%s:%d]non-runtime method %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
@@ -10975,6 +11018,8 @@ Method->dump();
                 }
             }
         }
+        if (aliasRecord)
+            mangleMarkRecord(Record, aliasRecord);
     }
 }
 

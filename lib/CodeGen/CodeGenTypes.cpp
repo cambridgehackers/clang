@@ -29,6 +29,9 @@
 using namespace clang;
 using namespace CodeGen;
 
+extern std::map<const RecordDecl *, const RecordDecl *> mangleRemap;
+std::map<const llvm::StructType *, const llvm::StructType *> atomiccStructRemap;
+QualType getSimpleType(QualType ftype);
 CodeGenTypes::CodeGenTypes(CodeGenModule &cgm)
   : CGM(cgm), Context(cgm.getContext()), TheModule(cgm.getModule()),
     Target(cgm.getTarget()), TheCXXABI(cgm.getCXXABI()),
@@ -718,6 +721,20 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
     }
   }
 
+  auto prevItem = mangleRemap.find(RD);
+  if (prevItem != mangleRemap.end()) {
+    auto pRecord = dyn_cast<CXXRecordDecl>(prevItem->second);
+    auto Record = dyn_cast<CXXRecordDecl>(RD);
+    atomiccStructRemap[Ty] = ConvertRecordDeclType(pRecord);
+#if 0
+    if (Record->AtomiccImplements) {
+       auto interface = ConvertRecordDeclType((Record->bases_end()-1)->getType()->getAs<RecordType>()->getDecl());
+       auto prevInterface = ConvertRecordDeclType((pRecord->bases_end()-1)->getType()->getAs<RecordType>()->getDecl());
+       atomiccStructRemap[interface] = prevInterface;
+    }
+#endif
+  }
+
   // Layout fields.
   CGRecordLayout *Layout = ComputeRecordLayout(RD, Ty);
   CGRecordLayouts[Key] = Layout;
@@ -737,7 +754,6 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   if (RecordsBeingLaidOut.empty())
     while (!DeferredRecords.empty())
       ConvertRecordDeclType(DeferredRecords.pop_back_val());
-
   return Ty;
 }
 

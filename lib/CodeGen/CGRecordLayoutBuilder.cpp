@@ -35,6 +35,7 @@ static llvm::cl::opt<bool>
 QualType getSimpleType(QualType ftype);
 extern std::map<CXXMethodDecl *, int> InterfaceDecls;
 std::string normalizeName(std::string name);
+extern std::map<const llvm::StructType *, const llvm::StructType *> atomiccStructRemap;
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 }
@@ -1010,7 +1011,10 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         connectList += attr->getInterfaces().str() + ",";
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
-printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, D, RD ? RD->AtomiccAttr : -1, Ty, D->getName().str().c_str(), Ty->structFieldMap.c_str());
+  auto prevStruct = atomiccStructRemap.find(Ty);
+  if (prevStruct != atomiccStructRemap.end())
+    Ty->structFieldMap += ",%" + prevStruct->second->getName().str();
+printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, (void *)D, RD ? RD->AtomiccAttr : -1, (void *)Ty, D->getName().str().c_str(), Ty->structFieldMap.c_str());
 
   // Detect/rename classes that were created from <int> parameterized templates
   if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
@@ -1040,7 +1044,7 @@ printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, D, RD ? R
     if (RD->AtomiccImplements) {
         QualType TTy = getSimpleType((RD->bases_end()-1)->getType());
         Decl *DD = TTy->getAsCXXRecordDecl();
-        printf("[%s:%d] implemenetsTy %p DD %p\n", __FUNCTION__, __LINE__, TTy, DD);
+        printf("[%s:%d] implemenetsTy %p DD %p\n", __FUNCTION__, __LINE__, (void *)TTy.getTypePtrOrNull(), (void *)DD);
         TTy->dump();
         DD->dump();
     }
