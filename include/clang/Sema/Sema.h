@@ -1529,7 +1529,7 @@ public:
 
   /// Determine whether a declaration is visible to name lookup.
   bool isVisible(const NamedDecl *D) {
-    return !D->isHidden() || isVisibleSlow(D);
+    return !D->isAtomiccHidden() && (!D->isHidden() || isVisibleSlow(D));
   }
 
   /// Determine whether any declaration of an entity is visible.

@@ -219,7 +219,9 @@ public:
     VisibleWhenImported,
     /// This declaration has an owning module, but is only visible to
     /// lookups that occur within that module.
-    ModulePrivate
+    ModulePrivate,
+    /// Atomicc not visible
+    AtomiccHidden
   };
 
 protected:
@@ -227,8 +229,8 @@ protected:
   /// DeclContext. These pointers form the linked list that is
   /// traversed via DeclContext's decls_begin()/decls_end().
   ///
-  /// The extra two bits are used for the ModuleOwnershipKind.
-  llvm::PointerIntPair<Decl *, 2, ModuleOwnershipKind> NextInContextAndBits;
+  /// The extra three bits are used for the ModuleOwnershipKind.
+  llvm::PointerIntPair<Decl *, 3, ModuleOwnershipKind> NextInContextAndBits;
 
 private:
   friend class DeclContext;
@@ -345,7 +347,7 @@ private:
     if (DC) {
       auto *D = cast<Decl>(DC);
       auto MOK = D->getModuleOwnershipKind();
-      if (MOK != ModuleOwnershipKind::Unowned &&
+      if (MOK != ModuleOwnershipKind::Unowned && MOK != ModuleOwnershipKind::AtomiccHidden &&
           (!D->isFromASTFile() || D->hasLocalOwningModuleStorage()))
         return MOK;
       // If D is not local and we have no local module storage, then we don't
@@ -604,7 +606,7 @@ protected:
   void setModulePrivate() {
     // The module-private specifier has no effect on unowned declarations.
     // FIXME: We should track this in some way for source fidelity.
-    if (getModuleOwnershipKind() == ModuleOwnershipKind::Unowned)
+    if (getModuleOwnershipKind() == ModuleOwnershipKind::Unowned || isAtomiccHidden())
       return;
     setModuleOwnershipKind(ModuleOwnershipKind::ModulePrivate);
   }
@@ -730,7 +732,7 @@ public:
 
   /// Is this declaration owned by some module?
   bool hasOwningModule() const {
-    return getModuleOwnershipKind() != ModuleOwnershipKind::Unowned;
+    return getModuleOwnershipKind() != ModuleOwnershipKind::Unowned && !isAtomiccHidden();
   }
 
   /// Get the module that owns this declaration.
@@ -744,6 +746,9 @@ public:
   // FIXME: Rename this to make it clearer what it does.
   bool isHidden() const {
     return (int)getModuleOwnershipKind() > (int)ModuleOwnershipKind::Visible;
+  }
+  bool isAtomiccHidden() const {
+     return getModuleOwnershipKind() == ModuleOwnershipKind::AtomiccHidden;
   }
 
   /// Set that this declaration is globally visible, even if it came from a
@@ -760,7 +765,8 @@ public:
 
   /// \brief Set whether this declaration is hidden from name lookup.
   void setModuleOwnershipKind(ModuleOwnershipKind MOK) {
-    assert(!(getModuleOwnershipKind() == ModuleOwnershipKind::Unowned &&
+    assert(MOK == ModuleOwnershipKind::AtomiccHidden
+        || !(getModuleOwnershipKind() == ModuleOwnershipKind::Unowned &&
              MOK != ModuleOwnershipKind::Unowned && !isFromASTFile() &&
              !hasLocalOwningModuleStorage()) &&
            "no storage available for owning module for this declaration");

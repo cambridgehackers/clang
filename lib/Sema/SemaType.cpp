@@ -7333,7 +7333,7 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
         Incomplete = Ty->isIncompleteType(&Def);
         T = Ty;
         printf("[%s:%d]PTRincomple %d\n", __FUNCTION__, __LINE__, Incomplete);
-        Ty->dump();
+        //Ty->dump();
     }
   }
   // Check that any necessary explicit specializations are visible. For an

@@ -13607,7 +13607,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
       if (CXXRecordDecl *RD = dyn_cast_or_null<CXXRecordDecl>(PrevTagDecl->getDefinition()))
       if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
           printf("[%s:%d] SemaDecl.cpp specialize EModule %s\n", __FUNCTION__, __LINE__, RD->getNameAsString().c_str());
-          RD->AtomiccHidden = true;
+          RD->setModuleOwnershipKind(Decl::ModuleOwnershipKind::AtomiccHidden);
           // Ignoring the old declaration.
           Previous.clear();
           goto CreateNewDecl;
@@ -14165,7 +14165,7 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
                             /*DelayTypeCreation=*/true);
   InjectedClassName->AtomiccAttr = Record->AtomiccAttr;
   InjectedClassName->AtomiccImplements = Record->AtomiccImplements;
-  InjectedClassName->AtomiccHidden = Record->AtomiccHidden;
+  //InjectedClassName->AtomiccHidden = Record->AtomiccHidden;
   Context.getTypeDeclType(InjectedClassName, Record);
   InjectedClassName->setImplicit();
   InjectedClassName->setAccess(AS_public);

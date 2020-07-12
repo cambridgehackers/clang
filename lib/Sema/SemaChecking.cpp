@@ -44,6 +44,8 @@
 using namespace clang;
 using namespace sema;
 
+static int traceConversion;
+
 SourceLocation Sema::getLocationOfStringLiteralByte(const StringLiteral *SL,
                                                     unsigned ByteNo) const {
   return SL->getLocationOfByte(ByteNo, getSourceManager(), LangOpts,
@@ -9431,6 +9433,7 @@ void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
       std::string PrettySourceValue = Value.toString(10);
       std::string PrettyTargetValue = PrettyPrintInRange(Value, TargetRange);
 
+if (traceConversion) {
 printf("[%s:%d]builtin\n", __FUNCTION__, __LINE__);
 SourceBT->dump();
 TargetBT->dump();
@@ -9439,6 +9442,7 @@ printf("[%s:%d]Targetwidth width %d nonneg %d\n", __FUNCTION__, __LINE__, Target
 printf("[%s:%d]JJwarn_impcast_integer_precision_constant\n", __FUNCTION__, __LINE__);
 E->dump();
 E->getType()->dump();
+}
       S.DiagRuntimeBehavior(E->getExprLoc(), E,
         S.PDiag(diag::warn_impcast_integer_precision_constant)
             << PrettySourceValue << PrettyTargetValue

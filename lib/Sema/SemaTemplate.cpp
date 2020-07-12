@@ -1326,7 +1326,6 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
       if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(PrevRecordDecl))
       if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
             printf("[%s:%d] SemaTemplate specialize EModule template\n", __FUNCTION__, __LINE__);
-            //RD->AtomiccHidden = true;
             isHidden = true;
       }
       if (!isHidden)

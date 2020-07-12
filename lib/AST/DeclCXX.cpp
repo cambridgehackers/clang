@@ -95,7 +95,7 @@ CXXRecordDecl::CXXRecordDecl(Kind K, TagKind TK, const ASTContext &C,
     : RecordDecl(K, TK, C, DC, StartLoc, IdLoc, Id, PrevDecl),
       DefinitionData(PrevDecl ? PrevDecl->DefinitionData
                               : nullptr),
-      TemplateOrInstantiation(), AtomiccAttr(0), AtomiccImplements(false), AtomiccHidden(false) {}
+      TemplateOrInstantiation(), AtomiccAttr(0), AtomiccImplements(false) {}
 
 CXXRecordDecl *CXXRecordDecl::Create(const ASTContext &C, TagKind TK,
                                      DeclContext *DC, SourceLocation StartLoc,
@@ -112,7 +112,6 @@ CXXRecordDecl *CXXRecordDecl::Create(const ASTContext &C, TagKind TK,
   if (PrevDecl) {
       R->AtomiccAttr = PrevDecl->AtomiccAttr;
       R->AtomiccImplements = PrevDecl->AtomiccImplements;
-      R->AtomiccHidden = PrevDecl->AtomiccHidden;
   }
   return R;
 }

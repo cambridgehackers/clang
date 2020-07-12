@@ -109,7 +109,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                 initialized = true;
         }
     if (traceImplements) {
-        printf("%s: STARTADJ %p RD %p\n", __FUNCTION__, Ty, (void *)RD);
+        printf("%s: STARTADJ %p RD %p\n", __FUNCTION__, (void *)Ty.getTypePtr(), (void *)RD);
         Ty->dump();
     }
     if (RD) {
@@ -120,7 +120,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
         }
         if (!initialized) {
             if (traceImplements) {
-                printf("[%s:%d] PROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, (void *)RD, RD->hasDefinition(), counter);
+                printf("[%s:%d] PROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, (void *)Ty.getTypePtr(), initialized, (void *)RD, RD->hasDefinition(), counter);
                 RD->dump();
             }
         RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface; // needed to set Empty in ActOnBaseSpecifiers
@@ -128,7 +128,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
         int fieldCounter = 0;
         for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
             I->setAccess(AS_public);
-            printf("[%s:%d] FIELD[%d] type %p\n", __FUNCTION__, __LINE__, fieldCounter, I->getType());
+            printf("[%s:%d] FIELD[%d] type %p\n", __FUNCTION__, __LINE__, fieldCounter, (void *)I->getType().getTypePtr());
             adjustInterfaceType(Actions, I->getType()); // recurse for sub-interfaces
             fieldCounter++;
         }
@@ -150,7 +150,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
         }
             if (Template) {
                 if (traceImplements) {
-                     printf("[%s:%d]ClassTemplateSpecializationDecl %p Template %p\n", __FUNCTION__, __LINE__, Ty, (void *)Template);
+                     printf("[%s:%d]ClassTemplateSpecializationDecl %p Template %p\n", __FUNCTION__, __LINE__, (void *)Ty.getTypePtr(), (void *)Template);
                      Template->dump();
                 }
                 if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(Template)) {
@@ -160,13 +160,13 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                 }
             }
             if (traceImplements) {
-                printf("[%s:%d] ENDPROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, Ty, initialized, (void *)RD, RD->hasDefinition(), counter);
+                printf("[%s:%d] ENDPROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, (void *)Ty.getTypePtr(), initialized, (void *)RD, RD->hasDefinition(), counter);
                 RD->dump();
             }
         }
     }
     if (traceImplements)
-        printf("%s: ENDADJ %p\n", __FUNCTION__, Ty);
+        printf("%s: ENDADJ %p\n", __FUNCTION__, (void *)Ty.getTypePtr());
 }
 
 /// ParseNamespace - We know that the current token is a namespace keyword. This
@@ -2674,7 +2674,6 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     return ParseRuleDeclaration();
   if (Tok.is(tok::kw_for)) {
     printf("[%s:%d] NEWFOROROROROOORORO\n", __FUNCTION__, __LINE__);
-    assert(Tok.is(tok::kw_for) && "Not a for stmt!");
     SourceLocation ForLoc = ConsumeToken(), DeclEnd;  // eat the 'for'.
     if (Tok.isNot(tok::l_paren)) {
       Diag(Tok, diag::err_expected_lparen_after) << "for";
@@ -2724,6 +2723,10 @@ inDeclForLoop = false;
     }
     declItem.consumeClose();       // Match the '}'.
     Record->dropAttr<AtomiccArrayMemberAttr>(); // no longer needed on CXXRecordDecl
+printf("[%s:%d]FORVAR %d\n", __FUNCTION__, __LINE__, topForVariable->getModuleOwnershipKind());
+topForVariable->dump();
+topForVariable->setModuleOwnershipKind(Decl::ModuleOwnershipKind::AtomiccHidden);
+Record->dump();
 printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     return nullptr;
   }
@@ -2738,7 +2741,11 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
         nullptr, SC_None, false, false, ConnectLoc);
     Actions.PushDeclContext(getCurScope(), FFN);
     ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
-    assert(Tok.is(tok::equal));
+    if(!Tok.is(tok::equal)) {
+        Diag(Tok, diag::err_expected_equal_designator) << "for";
+        SkipUntil(tok::semi);
+        return nullptr;
+    }
     ConsumeToken();
     ExprResult RHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
     Actions.PopDeclContext();

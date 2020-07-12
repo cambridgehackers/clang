@@ -722,18 +722,8 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   }
 
   auto prevItem = mangleRemap.find(RD);
-  if (prevItem != mangleRemap.end()) {
-    auto pRecord = dyn_cast<CXXRecordDecl>(prevItem->second);
-    auto Record = dyn_cast<CXXRecordDecl>(RD);
-    atomiccStructRemap[Ty] = ConvertRecordDeclType(pRecord);
-#if 0
-    if (Record->AtomiccImplements) {
-       auto interface = ConvertRecordDeclType((Record->bases_end()-1)->getType()->getAs<RecordType>()->getDecl());
-       auto prevInterface = ConvertRecordDeclType((pRecord->bases_end()-1)->getType()->getAs<RecordType>()->getDecl());
-       atomiccStructRemap[interface] = prevInterface;
-    }
-#endif
-  }
+  if (prevItem != mangleRemap.end())
+    atomiccStructRemap[Ty] = ConvertRecordDeclType(dyn_cast<CXXRecordDecl>(prevItem->second));
 
   // Layout fields.
   CGRecordLayout *Layout = ComputeRecordLayout(RD, Ty);

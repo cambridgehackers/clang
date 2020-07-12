@@ -339,16 +339,13 @@ public:
 
     // During template instantiation, we can refer to hidden declarations, if
     // they were visible in any module along the path of instantiation.
-    return isVisibleSlow(SemaRef, D);
+    return !D->isAtomiccHidden() && isVisibleSlow(SemaRef, D);
   }
 
   /// \brief Retrieve the accepted (re)declaration of the given declaration,
   /// if there is one.
   NamedDecl *getAcceptableDecl(NamedDecl *D) const {
-    if (!D->isInIdentifierNamespace(IDNS))
-      return nullptr;
-    if (auto RD = dyn_cast<CXXRecordDecl>(D))
-    if (RD->AtomiccHidden)
+    if (D->isAtomiccHidden() || !D->isInIdentifierNamespace(IDNS))
       return nullptr;
 
     if (isVisible(getSema(), D) || isHiddenDeclarationVisible(D))
