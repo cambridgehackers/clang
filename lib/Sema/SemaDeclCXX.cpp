@@ -58,47 +58,6 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool>
     trace_hoist("htrace", llvm::cl::Optional, llvm::cl::desc("trace hoist"));
 
-QualType getSimpleType(QualType ftype)
-{
-    bool changed = true;
-    while(changed) {
-        changed = false;
-        if (dyn_cast<DecltypeType>(ftype)) {
-            SplitQualType split = ftype.getSplitDesugaredType();
-            ftype = QualType(split.Ty, 0);
-            if (!dyn_cast<DecltypeType>(ftype))
-               changed = true;
-        }
-        if (auto ttype = dyn_cast<TypedefType>(ftype)) {
-            ftype = ttype->getDecl()->getUnderlyingType();
-            changed = true;
-        }
-        if (auto etype = dyn_cast<ElaboratedType>(ftype)) {
-            ftype = etype->desugar();
-            changed = true;
-        }
-        else if (auto stype = dyn_cast<TemplateSpecializationType>(ftype)) {
-            TemplateDecl *Template = stype->getTemplateName().getAsTemplateDecl();
-            if (auto RD = dyn_cast<CXXRecordDecl>(Template))
-                return QualType(RD->getTypeForDecl(), 0);
-            if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(Template)) {
-                for (auto *I : TSD->specializations())
-                    if (auto RD = dyn_cast<CXXRecordDecl>(I))
-                        ftype = QualType(RD->getTypeForDecl(), 0);
-            }
-            else
-                ftype = stype->desugar();
-            if (!(dyn_cast<TemplateSpecializationType>(ftype)))
-                changed = true;
-        }
-        if (auto stype = dyn_cast<SubstTemplateTypeParmType>(ftype)) {
-            ftype = stype->getReplacementType();
-            changed = true;
-        }
-    }
-    return ftype;
-}
-
 static std::map<std::string, const CXXMethodDecl *> mapInterface;
 static void extractInterface(const CXXRecordDecl *rec, std::string prefix)
 {
@@ -106,13 +65,8 @@ static void extractInterface(const CXXRecordDecl *rec, std::string prefix)
     if (prefix != "")
         name += "$"; // MODULE_SEPARATOR
     for (auto item: rec->fields()) {
-        Decl *field = item;
-        if (auto frec = dyn_cast<RecordType>(getSimpleType(item->getType())))
-            field = frec->getDecl();
-        if (auto RD = dyn_cast<CXXRecordDecl>(field)) {
-            std::string fname = item->getName();
-            extractInterface(RD, name + fname);
-        }
+        if (auto RD = item->getType()->getAsCXXRecordDecl())
+            extractInterface(RD, name + item->getName().str());
     }
     for (auto item: rec->methods()) {
         if (item->getDeclName().isIdentifier())
@@ -3631,15 +3585,11 @@ void Sema::ActOnFinishCXXInClassMemberInitializer(Decl *D,
   }
 
   ExprResult Init = InitExpr;
-  QualType ITY = getSimpleType(FD->getType());
-  //if (auto DestAT = Context.getAsArrayType(FD->getType()))
-  if (auto DestAT = dyn_cast<ArrayType>(ITY))
-  if (auto RT = dyn_cast<RecordType>(getSimpleType(DestAT->getElementType())))
-  if (auto Record = dyn_cast<CXXRecordDecl>(RT->getDecl())) {
-    if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
-      printf("[%s:%d] INTERFACEARRAYJJ\n", __FUNCTION__, __LINE__);
-      goto completeInit; // In AtomicC, initialized interface items used to export interior interfaces
-    }
+  if (auto DestAT = dyn_cast<ArrayType>(FD->getType()))
+  if (auto Record = DestAT->getElementType()->getAsCXXRecordDecl())
+  if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
+    printf("[%s:%d] INTERFACEARRAYJJ\n", __FUNCTION__, __LINE__);
+    goto completeInit; // In AtomicC, initialized interface items used to export interior interfaces
   }
   if (!FD->getType()->isDependentType() && !InitExpr->isTypeDependent()) {
     InitializedEntity Entity = InitializedEntity::InitializeMember(FD);
@@ -10859,24 +10809,15 @@ static void mangleMarkRecord(CXXRecordDecl *Record, CXXRecordDecl *aliasRecord)
         printf("[%s:%d] Error: remapped to different records %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
     }
     if (Record->AtomiccImplements) {
-        CXXRecordDecl *rec = getSimpleType((Record->bases_end()-1)->getType())->getAsCXXRecordDecl();
-        CXXRecordDecl *alias = getSimpleType((aliasRecord->bases_end()-1)->getType())->getAsCXXRecordDecl();
+        CXXRecordDecl *rec = (Record->bases_end()-1)->getType()->getAsCXXRecordDecl();
+        CXXRecordDecl *alias = (aliasRecord->bases_end()-1)->getType()->getAsCXXRecordDecl();
         mangleMarkRecord(rec, alias);
     }
     auto recordField = Record->field_begin(), aliasField = aliasRecord->field_begin();
     while (recordField != Record->field_end()) {
-        Decl *field = *recordField;
-        auto fdecl = cast<FieldDecl>(field);
-        if (auto frec = dyn_cast<RecordType>(getSimpleType(fdecl->getType())))
-            field = frec->getDecl();
-
-        Decl *aField = *aliasField;
-        auto aFdecl = cast<FieldDecl>(aField);
-        if (auto aFrec = dyn_cast<RecordType>(getSimpleType(aFdecl->getType())))
-            aField = aFrec->getDecl();
-
-        if (auto rec = dyn_cast<CXXRecordDecl>(field))
-            mangleMarkRecord(rec, dyn_cast<CXXRecordDecl>(aField));
+        auto aField = (*aliasField)->getType()->getAsCXXRecordDecl();
+        if (auto rec = (*recordField)->getType()->getAsCXXRecordDecl())
+            mangleMarkRecord(rec, aField);
         recordField++;
         aliasField++;
     }
@@ -10932,9 +10873,7 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     if(Record->hasAttr<AtomiccSerializeAttr>()) {
         uint64_t rsize = 0;
         for (const Decl *field : Record->fields()) {
-            if (auto frec = dyn_cast<RecordType>(getSimpleType(cast<FieldDecl>(field)->getType())))
-              field = frec->getDecl();
-            if (auto rec = dyn_cast<CXXRecordDecl>(field)) {
+            if (auto rec = cast<FieldDecl>(field)->getType()->getAsCXXRecordDecl()) {
               if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
               for (auto ritem: rec->methods())
                   if (auto Method = dyn_cast<CXXMethodDecl>(ritem))
@@ -10962,19 +10901,16 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     else if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
      || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
         if (Record->AtomiccImplements) {
-            CXXRecordDecl *rec = getSimpleType((Record->bases_end()-1)->getType())->getAsCXXRecordDecl();
+            CXXRecordDecl *rec = (Record->bases_end()-1)->getType()->getAsCXXRecordDecl();
             if (traceDeclaration) {
                 printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, (void *)rec);
                 rec->dump();
             }
             extractInterface(rec, "");
-            for (const Decl *field : Record->fields()) {
-                auto fdecl = cast<FieldDecl>(field);
-                if (auto frec = dyn_cast<RecordType>(getSimpleType(fdecl->getType())))
-                    field = frec->getDecl();
-                if (auto rec = dyn_cast<CXXRecordDecl>(field))
+            for (auto field : Record->fields()) {
+                if (auto rec = field->getType()->getAsCXXRecordDecl())
                 if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
-                    extractInterface(rec, fdecl->getName());
+                    extractInterface(rec, field->getName());
             }
             for (auto item: mapInterface) {
 printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str(), item.first.c_str());

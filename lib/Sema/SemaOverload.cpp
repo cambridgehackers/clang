@@ -38,7 +38,6 @@
 
 using namespace clang;
 using namespace sema;
-QualType getSimpleType(QualType ftype);
 
 static bool functionHasPassObjectSizeParams(const FunctionDecl *FD) {
   return llvm::any_of(FD->parameters(), [](const ParmVarDecl *P) {
@@ -1279,13 +1278,11 @@ TryUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
   case OR_No_Viable_Function: {
     bool isInter = false;
     if (auto ATy = dyn_cast<ArrayType>(From->getType()))
-    if (auto RT = dyn_cast<RecordType>(getSimpleType(ATy->getElementType())))
-    if (auto Record = dyn_cast<CXXRecordDecl>(RT->getDecl()))
+    if (auto Record = ATy->getElementType()->getAsCXXRecordDecl())
     if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
       isInter = true;
     if (auto ATy = dyn_cast<ArrayType>(ToType))
-    if (auto RT = dyn_cast<RecordType>(getSimpleType(ATy->getElementType())))
-    if (auto Record = dyn_cast<CXXRecordDecl>(RT->getDecl()))
+    if (auto Record = ATy->getElementType()->getAsCXXRecordDecl())
     if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
       isInter = true;
     if (isInter) {

@@ -31,7 +31,6 @@ using namespace CodeGen;
 
 extern std::map<const RecordDecl *, const RecordDecl *> mangleRemap;
 std::map<const llvm::StructType *, const llvm::StructType *> atomiccStructRemap;
-QualType getSimpleType(QualType ftype);
 CodeGenTypes::CodeGenTypes(CodeGenModule &cgm)
   : CGM(cgm), Context(cgm.getContext()), TheModule(cgm.getModule()),
     Target(cgm.getTarget()), TheCXXABI(cgm.getCXXABI()),

@@ -34,7 +34,6 @@ using namespace clang;
 
 #define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
-QualType getSimpleType(QualType ftype);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 };
@@ -84,12 +83,6 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
     TemplateDecl *Template = nullptr;
     if (auto PTy = dyn_cast<PointerType>(Ty))
         Ty = PTy->getPointeeType();
-#if 0
-    if (dyn_cast<DecltypeType>(Ty)) {
-        SplitQualType split = Ty.getSplitDesugaredType();
-        Ty = QualType(split.Ty, 0);
-    }
-#endif
     if (auto ttype = dyn_cast<TypedefType>(Ty))
         Ty = ttype->getDecl()->getUnderlyingType();
     if (auto etype = dyn_cast<ElaboratedType>(Ty))
@@ -2810,7 +2803,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
                 auto Template = TST->getTemplateName().getAsTemplateDecl();
                 if (auto RD = dyn_cast<CXXRecordDecl>(Template->getTemplatedDecl())) {
                     if (RD->AtomiccImplements) {
-                        auto rty = getSimpleType((RD->bases_end()-1)->getType());
+                        auto rty = (RD->bases_end()-1)->getType();
                         CXXRecordDecl *rec = rty->getAsCXXRecordDecl();
                         if (!rec)
                         if (auto nTST = dyn_cast<TemplateSpecializationType>(rty))

@@ -32,7 +32,6 @@ using namespace CodeGen;
 
 static llvm::cl::opt<bool>
     recordGenTrace("rgentrace", llvm::cl::Optional, llvm::cl::desc("trace clang record generation"));
-QualType getSimpleType(QualType ftype);
 extern std::map<CXXMethodDecl *, int> InterfaceDecls;
 std::string normalizeName(std::string name);
 extern std::map<const llvm::StructType *, const llvm::StructType *> atomiccStructRemap;
@@ -869,8 +868,7 @@ printf("[%s:%d] UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n", __FUNCTION__, __LINE__);
       Decl *decl = field;
       if (const NamedDecl *ND = dyn_cast<NamedDecl>(field))
         fname = ND->getDeclName().getAsString();
-      if (auto frec = dyn_cast<RecordType>(getSimpleType(field->getType())))
-        decl = frec->getDecl();
+      decl = field->getType()->getAsCXXRecordDecl();
       tname = typeName(this, decl);
       Ty->structFieldMap += fname + ":" + tname;
     }
@@ -1036,10 +1034,8 @@ printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, (void *)D
     Ty->dump();
     if (auto RD = dyn_cast<CXXRecordDecl>(D))
     if (RD->AtomiccImplements) {
-        QualType TTy = getSimpleType((RD->bases_end()-1)->getType());
-        Decl *DD = TTy->getAsCXXRecordDecl();
-        printf("[%s:%d] implemenetsTy %p DD %p\n", __FUNCTION__, __LINE__, (void *)TTy.getTypePtrOrNull(), (void *)DD);
-        TTy->dump();
+        Decl *DD = (RD->bases_end()-1)->getType()->getAsCXXRecordDecl();
+        printf("[%s:%d] implemenets\n", __FUNCTION__, __LINE__);
         DD->dump();
     }
   }
