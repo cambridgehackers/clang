@@ -63,7 +63,6 @@ using namespace CodeGen;
 static llvm::cl::opt<bool>
     moduleGenTrace("mgentrace", llvm::cl::Optional, llvm::cl::desc("trace clang method generation"));
 static const char AnnotationSection[] = "llvm.metadata";
-std::map<CXXMethodDecl *, int> InterfaceDecls;
 
 static CGCXXABI *createCXXABI(CodeGenModule &CGM) {
   switch (CGM.getTarget().getCXXABI().getKind()) {
@@ -385,10 +384,6 @@ void InstrProfStats::reportDiagnostics(DiagnosticsEngine &Diags,
 
 void CodeGenModule::Release() {
   EmitDeferred();
-  for (auto item: InterfaceDecls)
-    if (item.second)
-      GetAddrOfGlobal(item.first);
-  InterfaceDecls.clear();
   EmitVTablesOpportunistically();
   applyGlobalValReplacements();
   applyReplacements();

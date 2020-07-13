@@ -32,7 +32,6 @@ using namespace CodeGen;
 
 static llvm::cl::opt<bool>
     recordGenTrace("rgentrace", llvm::cl::Optional, llvm::cl::desc("trace clang record generation"));
-extern std::map<CXXMethodDecl *, int> InterfaceDecls;
 std::string normalizeName(std::string name);
 extern std::map<const llvm::StructType *, const llvm::StructType *> atomiccStructRemap;
 namespace clang {
@@ -947,18 +946,13 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
             if (ND->getDeclName().isIdentifier())
                 mapTemplate[ND->getName()] = ND;
     for (auto *MD : RD->methods()) {
-//MD->dump();
       MD = MD->getCanonicalDecl();
-      if (!isa<CXXConstructorDecl>(MD) && !isa<CXXDestructorDecl>(MD)) {
-        QualType ty = MD->getType();
-        if (auto AT = dyn_cast<AttributedType>(ty))
-          ty = AT->getModifiedType();
-      if (auto *FT = dyn_cast<FunctionType>(ty))
-      if (FT->getCallConv() == CC_X86VectorCall)
-      if (auto ND = dyn_cast<CXXMethodDecl>(MD)) {
+      if (!isa<CXXConstructorDecl>(MD) && !isa<CXXDestructorDecl>(MD))
+      if (auto *FT = MD->getType()->getAs<FunctionType>())
+      if (FT->getCallConv() == CC_X86VectorCall) {
         SmallString<256> Buffer;
         llvm::raw_svector_ostream Out(Buffer);
-        getCXXABI().getMangleContext().mangleName(ND, Out);
+        getCXXABI().getMangleContext().mangleName(MD, Out);
         std::string mname = normalizeName(MD->getName());
         if (mname.substr(0,2) == "_$")
             mname = mname.substr(2);
@@ -969,12 +963,12 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
             mname += "__ENA";
         if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface) {
 //printf("[%s:%d] interface %s method %s:%s\n", __FUNCTION__, __LINE__, RD->getName().str().c_str(), Out.str().str().c_str(), mname.c_str());
-            InterfaceDecls[MD] = 1;
+            CGM.GetAddrOfGlobal(MD);  // force symbol to show in llvm IR even if never referenced
         }
         Ty->structFieldMap += Out.str().str() + ":" + mname;
         if (MD->hasAttr<AtomiccActionAttr>())
-          Ty->structFieldMap += ":action";
-        if (auto NDtemplate = mapTemplate[ND->getName()])
+            Ty->structFieldMap += ":action";
+        if (auto NDtemplate = mapTemplate[MD->getName()])
         if (auto method = dyn_cast<CXXMethodDecl>(NDtemplate)) {
             std::string templateOptions = getTemplateInfo(method->getReturnType(), Policy);
             bool skip = templateOptions == "";
@@ -995,7 +989,6 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
                 Ty->structFieldMap += "#" + templateOptions;
         }
         Ty->structFieldMap += ",";
-      }
       }
     }
   }
