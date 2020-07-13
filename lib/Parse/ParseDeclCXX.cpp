@@ -169,6 +169,28 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
         printf("%s: ENDADJ %p\n", __FUNCTION__, (void *)Ty.getTypePtr());
 }
 
+static void attachConnectItem(Sema &Actions, CXXRecordDecl *thisRecord, std::string lstr)
+{
+    static int connectCounter;
+    SourceLocation ConnectLoc = thisRecord->getLocation();
+    QualType NewTy = Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+         llvm::APInt(Actions.Context.getTypeSize(Actions.Context.getSizeType()),
+         lstr.length()), ArrayType::Normal, /*IndexTypeQuals*/ 0);
+    auto initialValue = StringLiteral::Create(Actions.Context, lstr,
+         StringLiteral::Ascii, false, NewTy, ConnectLoc);
+
+    auto TSI = Actions.Context.CreateTypeSourceInfo(NewTy);
+    IdentifierInfo *blII = &Actions.Context.Idents.get("___CONNECT__" + llvm::utostr(connectCounter++));
+    FieldDecl *connectField = FieldDecl::Create(Actions.Context, thisRecord, ConnectLoc, ConnectLoc, blII, NewTy,
+          TSI, /*BitWidth=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_ListInit);
+    connectField->setInClassInitializer(initialValue);
+    if (dyn_cast<ClassTemplateSpecializationDecl>(thisRecord) || thisRecord->getMemberSpecializationInfo())
+        thisRecord->setTemplateSpecializationKind(TSK_ImplicitInstantiation);
+    connectField->setAccess(AS_private);
+    thisRecord->addDecl(connectField);
+    connectField->markUsed(Actions.Context);
+}
+
 /// ParseNamespace - We know that the current token is a namespace keyword. This
 /// may either be a top level namespace or a block-level namespace alias. If
 /// there was an inline keyword, it has already been parsed.
@@ -2731,7 +2753,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     return nullptr;
   }
   if (Tok.is(tok::kw___connect)) {
-    auto ConnectLoc = ConsumeToken();
+    SourceLocation ConnectLoc = ConsumeToken();
     SmallVector<QualType, 8> FArgs;
     FunctionProtoType::ExtProtoInfo EPI;
     DeclarationNameInfo NameInfo;
@@ -2753,16 +2775,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     std::string rstr = expr2str(RHS.get(), Actions.getPrintingPolicy(), true);
     lstr = "CONNECT;" + lstr + ":" + rstr;
     printf("[%s:%d] CONNECT %s\n", __FUNCTION__, __LINE__, lstr.c_str());
-    AtomiccConnectAttr *connectAttr = nullptr;
-    if (thisRecord->hasAttrs())
-        for (Attr *item: thisRecord->getAttrs())
-            if ((connectAttr = dyn_cast<AtomiccConnectAttr>(item)))
-                break;
-    if (connectAttr)
-        connectAttr->setInterfaces(Actions.Context, connectAttr->getInterfaces().str() + "," + lstr);
-    else
-        thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
-            Actions.Context, lstr, 0));
+    attachConnectItem(Actions, thisRecord, lstr);
     if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
       // Skip to end of block or statement.
       SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
@@ -2822,16 +2835,17 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     ConsumeToken();
     Actions.PopDeclContext();
 
-    lstr = "CONNECT;" + lstr;
-    thisRecord->addAttr(::new (Actions.Context) AtomiccConnectAttr(ConnectLoc,
-        Actions.Context, lstr + ":" + rstr, 0));
+    lstr = "CONNECT;" + lstr + ":" + rstr;
+    attachConnectItem(Actions, thisRecord, lstr);
+
     auto StartLoc = thisRecord->getLocation();
-    adjustInterfaceType(Actions, Ty);
     FieldDecl *interfaceDecl = FieldDecl::Create(Actions.Context, thisRecord, StartLoc, StartLoc, blII, Ty,
           Actions.Context.CreateTypeSourceInfo(Ty),
           /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
     interfaceDecl->setAccess(AS_public);
     thisRecord->addDecl(interfaceDecl);
+    adjustInterfaceType(Actions, Ty);
+
     if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
       // Skip to end of block or statement.
       SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);

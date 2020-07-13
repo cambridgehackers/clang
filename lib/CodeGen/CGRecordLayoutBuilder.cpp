@@ -39,6 +39,7 @@ extern std::map<const llvm::StructType *, const llvm::StructType *> atomiccStruc
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
 }
+#define CONNECT_PREFIX "___CONNECT__"
 namespace {
 /// The CGRecordLowering is responsible for lowering an ASTRecordLayout to an
 /// llvm::Type.  Some of the lowering is straightforward, some is not.  Here we
@@ -909,13 +910,10 @@ else {  // !isUnion()
           if (templateOptions != "")
              fname += "#" + templateOptions;
         }
-        if (Expr *cinit = FDtemplate->getInClassInitializer()) {
-          std::string rstr = expr2str(cinit, Policy, true);
-          connectList += fname + ":" + rstr + ",";
-          //if (recordGenTrace)
-          printf("[%s:%d] ICONNECT %s = %s\n", __FUNCTION__, __LINE__, fname.c_str(), rstr.c_str());
-          //ND->dump();
-        }
+        if (ND->getName().startswith(CONNECT_PREFIX))
+        if (Expr *cinit = FDtemplate->getInClassInitializer())
+        if (auto strl = dyn_cast<StringLiteral>(cinit))
+          connectList += strl->getString().str() + ",";
       }
       if (Idx > FieldNo) {
 printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, __LINE__, Idx, FieldNo, fname.c_str());
@@ -1005,10 +1003,6 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
   }
   if (softwareItems.length())
     Ty->structFieldMap += ",;" + softwareItems;
-  if (D->hasAttrs())
-    for (Attr *item: D->getAttrs())
-      if (auto attr = dyn_cast<AtomiccConnectAttr>(item))
-        connectList += attr->getInterfaces().str() + ",";
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
   auto prevStruct = atomiccStructRemap.find(Ty);

@@ -576,13 +576,6 @@ def AtomiccShared : Attr {
   let Documentation = [Undocumented];
 }
 
-def AtomiccConnect : InheritableAttr {
-  let Spellings = [ GNU<"atomicc_connect"> ];
-  let Subjects = SubjectList<[CXXRecord]>;
-  let Args = [StringArgument<"Interfaces">];
-  let Documentation = [Undocumented];
-}
-
 def AtomiccSoftware : InheritableAttr {
   let Spellings = [ GNU<"atomicc_software"> ];
   let Subjects = SubjectList<[Field], WarnDiag, "ExpectedFieldOrGlobalVar">;

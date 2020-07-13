@@ -3502,18 +3502,6 @@ void Sema::AddAlignValueAttr(SourceRange AttrRange, Decl *D, Expr *E,
   D->addAttr(::new (Context) AlignValueAttr(TmpAttr));
 }
 
-static void handleAtomiccConnectAttr(Sema &S, Decl *D, const AttributeList &Attr) {
-  // Make sure that there is a string literal as the annotation's single
-  // argument.
-  StringRef Str;
-  if (!S.checkStringLiteralArgumentAttr(Attr, 0, Str))
-    return;
-
-  D->addAttr(::new (S.Context)
-             AtomiccConnectAttr(Attr.getRange(), S.Context, Str,
-                          Attr.getAttributeSpellingListIndex()));
-}
-
 static void handleAtomiccArrayMemberAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // Make sure that there is an expression as the annotation's single
   // argument.
@@ -6056,9 +6044,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_AtomiccVerilogPort:
     handleSimpleAttribute<AtomiccVerilogPortAttr>(S, D, Attr);
-    break;
-  case AttributeList::AT_AtomiccConnect:
-    handleAtomiccConnectAttr(S, D, Attr);
     break;
   case AttributeList::AT_AtomiccVerilogParam:
     handleAtomiccVerilogParamAttr(S, D, Attr);
