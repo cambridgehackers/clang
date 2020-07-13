@@ -5410,6 +5410,46 @@ static SourceLocation getMissingDeclaratorIdLoc(Declarator &D,
   return Loc;
 }
 
+void processSubscript(Sema &Actions, AttributeFactory &AttrFactory, Declarator &D, CXXRecordDecl *Record, Expr *sub)
+{
+SourceLocation SubLoc = Record->getLocation();
+    if (AtomiccArrayMemberAttr *attr = Record->getAttr<AtomiccArrayMemberAttr>()) {
+        static int subcount;
+        CallExpr *call = cast<CallExpr>(attr->getContext());
+        Expr *variable = attr->getVariable();
+        VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl());
+        std::string retValue;
+        Expr *newInst = setForContents(Actions, "FOR$__DYNFORINST__" + llvm::utostr(subcount++),
+            Actions.Context.IntTy, D.getIdentifier()->getName().str() + "$", // prepend for params
+            Record, var, nullptr, sub, 1, retValue);
+        if (auto item = dyn_cast<ImplicitCastExpr>(call->getArg(0)))
+        if (auto str = dyn_cast<StringLiteral>(item->getSubExpr())) {
+            retValue = str->getString().str() + retValue;
+            QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+            newInst = Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, retValue,
+                StringLiteral::Ascii, /*Pascal*/ false,
+                Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+                llvm::APInt(32, retValue.size() + 1), ArrayType::Normal, 0), SubLoc),
+                ccharp, CK_ArrayToPointerDecay).get();
+        }
+        SmallVector<Expr *, 16> Args;
+        for (unsigned int i = 0; i < call->getNumArgs(); i++)
+            Args.push_back((i == call->getNumArgs() - 2) ? newInst : call->getArg(i));
+        ParsedAttributes Attributes(AttrFactory);
+        NestedNameSpecifierLoc NNSloc;
+        ArgsVector ArgExprs;
+        ArgExprs.push_back(new (Actions.Context) CallExpr(Actions.Context,
+            call->getCallee(), Args, Actions.Context.IntTy, VK_RValue, SubLoc));
+        ArgExprs.push_back(variable);
+        IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember"); // AtomiccArrayMemberAttr
+        Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
+            ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
+        D.takeAttributes(Attributes, SubLoc); // used in ParseFunctionStatementBody()
+        IdentifierInfo *Id = D.getIdentifier();
+        IdentifierInfo &IdNew = Actions.Context.Idents.get(Id->getName().str() + "$$$$START" + llvm::utostr(subcount) + "$$$$END");
+        D.SetIdentifier(&IdNew, SubLoc); // handle duplicated subscripted declarations
+    }
+}
 /// ParseDirectDeclarator
 ///       direct-declarator: [C99 6.7.5]
 /// [C99]   identifier
@@ -5725,48 +5765,12 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
 if (false)
   if (Record)
   if (Tok.is(tok::l_square)) {
-    SourceLocation SubLoc = Tok.getLocation();
 printf("[%s:%d] SUBSCRIPT\n", __FUNCTION__, __LINE__);
     BalancedDelimiterTracker declItem(*this, tok::l_square);
     declItem.consumeOpen();
     ExprResult sub = ParseExpression();
     declItem.consumeClose();       // Match the ']'.
-    if (AtomiccArrayMemberAttr *attr = Record->getAttr<AtomiccArrayMemberAttr>()) {
-        static int subcount;
-        CallExpr *call = cast<CallExpr>(attr->getContext());
-        Expr *variable = attr->getVariable();
-        VarDecl *var = cast<VarDecl>(cast<DeclRefExpr>(variable)->getDecl());
-        std::string retValue;
-        Expr *newInst = setForContents(Actions, "FOR$__DYNFORINST__" + llvm::utostr(subcount++),
-            Actions.Context.IntTy, D.getIdentifier()->getName().str() + "$", // prepend for params
-            Record, var, nullptr, sub.get(), 1, retValue);
-        if (auto item = dyn_cast<ImplicitCastExpr>(call->getArg(0)))
-        if (auto str = dyn_cast<StringLiteral>(item->getSubExpr())) {
-            retValue = str->getString().str() + retValue;
-            QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
-            newInst = Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, retValue,
-                StringLiteral::Ascii, /*Pascal*/ false,
-                Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
-                llvm::APInt(32, retValue.size() + 1), ArrayType::Normal, 0), SubLoc),
-                ccharp, CK_ArrayToPointerDecay).get();
-        }
-        SmallVector<Expr *, 16> Args;
-        for (unsigned int i = 0; i < call->getNumArgs(); i++)
-            Args.push_back((i == call->getNumArgs() - 2) ? newInst : call->getArg(i));
-        ParsedAttributes Attributes(AttrFactory);
-        NestedNameSpecifierLoc NNSloc;
-        ArgsVector ArgExprs;
-        ArgExprs.push_back(new (Actions.Context) CallExpr(Actions.Context,
-            call->getCallee(), Args, Actions.Context.IntTy, VK_RValue, SubLoc));
-        ArgExprs.push_back(variable);
-        IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_amember"); // AtomiccArrayMemberAttr
-        Attributes.addNew(&AttrID, SubLoc, nullptr, SubLoc,
-            ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
-        D.takeAttributes(Attributes, SubLoc); // used in ParseFunctionStatementBody()
-        IdentifierInfo *Id = D.getIdentifier();
-        IdentifierInfo &IdNew = Actions.Context.Idents.get(Id->getName().str() + "$$$$START" + llvm::utostr(subcount) + "$$$$END");
-        D.SetIdentifier(&IdNew, SubLoc); // handle duplicated subscripted declarations
-    }
+    processSubscript(Actions, AttrFactory, D, Record, sub.get());
   }
 
   while (1) {
