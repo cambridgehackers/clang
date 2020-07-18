@@ -28,9 +28,56 @@
 using namespace clang;
 
 Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, std::string &retString);
+Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
+FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
+    ArrayRef<ParmVarDecl *> Params);
 //===----------------------------------------------------------------------===//
 // C99 6.8: Statements and Blocks.
 //===----------------------------------------------------------------------===//
+
+static FunctionDecl *getConnectInterface(Sema &Actions, SourceLocation loc)
+{
+    static FunctionDecl *func;
+    if (!func) {
+        QualType voidp = Actions.Context.getPointerType(Actions.Context.VoidTy);
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, voidp, /*TInfo=*/nullptr, SC_None, nullptr));
+        func = getACCFunction(Actions, CLinkageDecl, "__connectInterface", Actions.Context.VoidTy, Params);
+    }
+    return func;
+}
+
+Expr *castVoidExpr(Sema &Actions, Expr *target, QualType voidp, SourceLocation loc)
+{
+  QualType targetp = Actions.Context.getPointerType(target->getType());
+  auto ret = Actions.BuildCStyleCastExpr(loc, Actions.Context.CreateTypeSourceInfo(voidp), loc,
+      ImplicitCastExpr::Create(Actions.Context, voidp, CK_BitCast,
+          new (Actions.Context) UnaryOperator(target, UO_AddrOf, targetp, VK_RValue, OK_Ordinary, loc), nullptr, VK_RValue)
+      ).get();
+   return ret;
+}
+
+StmtResult GenerateConnectStatement(Sema &Actions, Expr *target, Expr *source) {
+  SmallVector<Stmt*, 32> TopStmts;
+  SourceLocation loc = target->getExprLoc();
+  QualType voidp = Actions.Context.getPointerType(Actions.Context.VoidTy);
+  Expr *Args[] = {
+     castVoidExpr(Actions, target, voidp, loc),
+     castVoidExpr(Actions, source, voidp, loc),
+  };
+  // Call runtime to add guard/method function into list of pairs to be processed by backend
+  TopStmts.push_back(new (Actions.Context) CallExpr(Actions.Context, 
+      getACCCallRef(Actions, getConnectInterface(Actions, loc)),
+      Args, Actions.Context.VoidTy, VK_RValue, loc));
+  return new (Actions.Context) class CompoundStmt(Actions.Context, TopStmts, loc, loc);
+}
 
 /// \brief Parse a standalone statement (for instance, as the body of an 'if',
 /// 'while', or 'for').
@@ -309,6 +356,26 @@ Retry:
   case tok::kw___rule:
     return ParseRuleStatement(false);
     break;
+
+  case tok::kw___connect: {
+    SourceLocation loc = ConsumeToken();  // eat the '__connect'.
+    ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
+    if(!Tok.is(tok::equal)) {
+        Diag(Tok, diag::err_expected_equal_designator) << "for";
+        SkipUntil(tok::semi);
+        return StmtEmpty();
+    }
+    ConsumeToken();
+    ExprResult RHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
+    if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
+      // Skip to end of block or statement.
+      SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
+      // If we stopped at a ';', eat it.
+      TryConsumeToken(tok::semi);
+      return StmtEmpty();;
+    }
+    return GenerateConnectStatement(Actions, LHS.get(), RHS.get());
+  }
 
   case tok::annot_pragma_vis:
     ProhibitAttributes(Attrs);
