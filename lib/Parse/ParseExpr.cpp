@@ -1168,16 +1168,34 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     std::string name = Tok.getName();
     SourceLocation SavedLoc = ConsumeToken();   // consume '__assert'
     std::string param = "";
+    int nest = 0;
     if (Tok.isNot(tok::l_paren)) {
 printf("[%s:%d]  errror rororor\n", __FUNCTION__, __LINE__);
 int *jca = 0;
 *jca = 0;
     }
     ConsumeParen(); // consume '('
+    int lastMethodNest = -1;
+    std::string thisToken;
     while (1) {
-        if (Tok.is(tok::r_paren))
-            break;
-        param += PP.getSpelling(Tok) + " ";
+        if (Tok.is(tok::r_paren)) {
+            if (nest-- == 0)
+                break;
+            if (lastMethodNest == nest) {
+                lastMethodNest = -1;
+                param += thisToken + "__ENA" + " ";
+                goto skipLab;
+            }
+        }
+        if (Tok.is(tok::l_paren))
+            nest++;
+        thisToken = PP.getSpelling(Tok);
+        if (thisToken == "__valid") {
+            lastMethodNest = nest;
+        }
+        else if (lastMethodNest == -1)
+            param += thisToken + " ";
+skipLab:;
         ConsumeAnyToken();
     }
     ConsumeParen();     // consume ')'
