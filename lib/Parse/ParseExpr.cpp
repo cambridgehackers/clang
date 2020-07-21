@@ -32,6 +32,25 @@
 #include "llvm/ADT/SmallVector.h"
 using namespace clang;
 
+FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
+    ArrayRef<ParmVarDecl *> Params);
+Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
+static FunctionDecl *getAssert(Sema &Actions, SourceLocation loc, std::string name)
+{
+    static FunctionDecl *assertDecl;
+    if (!assertDecl) {
+        QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
+        assertDecl = getACCFunction(Actions, CLinkageDecl, name, Actions.Context.VoidTy, Params);
+    }
+    return assertDecl;
+}
 /// \brief Simple precedence-based parser for binary/ternary operators.
 ///
 /// Note: we diverge from the C99 grammar when parsing the assignment-expression
@@ -1140,6 +1159,39 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     Res = ParseCastExpression(false);
     if (!Res.isInvalid())
       Res = Actions.ActOnUnaryOp(getCurScope(), SavedLoc, SavedKind, Res.get());
+    return Res;
+  }
+  case tok::kw___assert:  // atomicc extension for SVA
+  case tok::kw___assume:
+  case tok::kw___restrict: {
+    QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+    std::string name = Tok.getName();
+    SourceLocation SavedLoc = ConsumeToken();   // consume '__assert'
+    std::string param = "";
+    if (Tok.isNot(tok::l_paren)) {
+printf("[%s:%d]  errror rororor\n", __FUNCTION__, __LINE__);
+int *jca = 0;
+*jca = 0;
+    }
+    ConsumeParen(); // consume '('
+    while (1) {
+        if (Tok.is(tok::r_paren))
+            break;
+        param += PP.getSpelling(Tok) + " ";
+        ConsumeAnyToken();
+    }
+    ConsumeParen();     // consume ')'
+    Expr *Args[] = {
+        // rule name
+        Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, param,
+            StringLiteral::Ascii, /*Pascal*/ false,
+            Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+            llvm::APInt(32, param.size() + 1), ArrayType::Normal, 0), SavedLoc),
+            ccharp, CK_ArrayToPointerDecay).get(),
+    };
+    Res = new (Actions.Context) CallExpr(Actions.Context, 
+          getACCCallRef(Actions, getAssert(Actions, SavedLoc, name)),
+          Args, Actions.Context.VoidTy, VK_RValue, SavedLoc);
     return Res;
   }
   case tok::kw__Alignof:   // unary-expression: '_Alignof' '(' type-name ')'
