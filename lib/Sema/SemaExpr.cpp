@@ -47,8 +47,6 @@
 using namespace clang;
 using namespace sema;
 
-extern FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType FType, ArrayRef<ParmVarDecl *> Params);
-extern Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
 /// \brief Determine whether the use of this declaration is valid, without
 /// emitting diagnostics.
 bool Sema::CanUseDecl(NamedDecl *D, bool TreatUnavailableAsInvalid) {
@@ -5122,26 +5120,6 @@ static void checkDirectCallValidity(Sema &S, const Expr *Fn,
   }
 }
 
-static QualType ccharp, int1type;
-static FunctionDecl *getValidReady(Sema &Actions, SourceLocation OpLoc)
-{
-    static FunctionDecl *ValidReadyDecl;
-    if (!ValidReadyDecl) {
-        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
-        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
-        Ty->atomiccWidth = 1;
-        int1type = QualType(Ty, 0);
-        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
-        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
-        CLinkageDecl->setImplicit();
-        Parent->addDecl(CLinkageDecl);
-        SmallVector<ParmVarDecl *, 16> Params;
-        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
-            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
-        ValidReadyDecl = getACCFunction(Actions, CLinkageDecl, "__ValidReadyRuntime", int1type, Params);
-    }
-    return ValidReadyDecl;
-}
 /// ActOnCallExpr - Handle a call to Fn with the specified array of arguments.
 /// This provides the location of the left/right parens and a list of comma
 /// locations.
@@ -5153,49 +5131,6 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
   if (Result.isInvalid()) return ExprError();
   Fn = Result.get();
 
-  if (auto item = dyn_cast<UnresolvedLookupExpr>(Fn)) {
-    std::string name = item->getName().getAsString();
-    if (name == "__valid" || name == "__ready") {
-      FunctionDecl *ValidReadyDecl = getValidReady(*this, LParenLoc);
-      for (size_t i = 0, e = ArgExprs.size(); i != e; i++) {
-        std::string rstr;
-        Expr *val = ArgExprs[i];
-printf("[%s:%d]VALLLLLLLLLLLLIIIIIIIIIDDDDDDDDDDDDDDD\n", __FUNCTION__, __LINE__);
-//ArgExprs[i]->dump();
-        if (auto TE = dyn_cast<TypoExpr>(val)) {
-// occurs on __rule items
-          auto &State = getTypoExprState(TE);
-          auto BestTC = State.Consumer->getCurrentCorrection();
-          if (auto *II = State.Consumer->getLookupResult().getLookupName().getAsIdentifierInfo())
-            rstr = II->getName();
-printf("[%s:%d] typoname %s\n", __FUNCTION__, __LINE__, rstr.c_str());
-        }
-        else if (auto memb = dyn_cast<MemberExpr>(val)) {
-            SmallString<256> Buffer;
-            llvm::raw_svector_ostream Out(Buffer);
-            memb->printPretty(Out, nullptr, getPrintingPolicy());
-            rstr = Out.str();
-            if (rstr.substr(0, 6) == "this->")
-                rstr = rstr.substr(6);
-            int ind;
-            while ((ind = rstr.find(".")) > 0)
-                rstr = rstr.substr(0, ind) + "$" + rstr.substr(ind+1);
-            while ((ind = rstr.find("->")) > 0)
-                rstr = rstr.substr(0, ind) + "$" + rstr.substr(ind+2);
-printf("[%s:%d] exprname %s\n", __FUNCTION__, __LINE__, rstr.c_str());
-        }
-        else
-            continue;
-        rstr += (name == "__valid" ? "__ENA" : "__RDY");
-        ArgExprs[i] = ImpCastExprToType(StringLiteral::Create(Context, rstr,
-            StringLiteral::Ascii, /*Pascal*/ false,
-            Context.getConstantArrayType(Context.CharTy.withConst(),
-            llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), LParenLoc),
-            ccharp, CK_ArrayToPointerDecay).get();
-        Fn = getACCCallRef(*this, ValidReadyDecl);
-      }
-    }
-  }
   if (checkArgsForPlaceholders(*this, ArgExprs))
     return ExprError();
 

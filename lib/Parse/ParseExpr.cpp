@@ -29,12 +29,16 @@
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
+#include "clang/AST/ExprCXX.h"   // UnresolvedLookupExpr
 #include "llvm/ADT/SmallVector.h"
 using namespace clang;
 
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
     ArrayRef<ParmVarDecl *> Params);
 Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
+namespace clang {
+std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
+};
 static FunctionDecl *getAssert(Sema &Actions, SourceLocation loc, std::string name)
 {
     static FunctionDecl *assertDecl;
@@ -50,6 +54,64 @@ static FunctionDecl *getAssert(Sema &Actions, SourceLocation loc, std::string na
         assertDecl = getACCFunction(Actions, CLinkageDecl, name, Actions.Context.VoidTy, Params);
     }
     return assertDecl;
+}
+
+static QualType ccharp;
+FunctionDecl *getValidReady(Sema &Actions, SourceLocation OpLoc)
+{
+    static FunctionDecl *ValidReadyDecl;
+    if (!ValidReadyDecl) {
+        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
+        Ty->atomiccWidth = 1;
+        QualType int1type = QualType(Ty, 0);
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
+        ValidReadyDecl = getACCFunction(Actions, CLinkageDecl, "__ValidReadyRuntime", int1type, Params);
+    }
+    return ValidReadyDecl;
+}
+
+std::string Parser::parseTokenArgument()
+{
+    std::string param;
+    int nest = 0;
+    int lastMethodNest = -1;
+    std::string thisToken;
+    while (1) {
+        if (Tok.is(tok::r_paren)) {
+            if (nest-- == 0)
+                break;
+            if (lastMethodNest == nest) {
+                lastMethodNest = -1;
+                param += thisToken + "__ENA" + " ";
+                goto skipLab;
+            }
+        }
+        if (Tok.is(tok::l_paren))
+            nest++;
+        thisToken = PP.getSpelling(Tok);
+        if (thisToken == "__valid") {
+            lastMethodNest = nest;
+        }
+        else if (lastMethodNest == -1) {
+            if (param.length() > 3 && param.substr(param.length()-3) == " . ")
+                param = param.substr(0, param.length()-3) + "$";
+            else if (param.length() > 4 && param.substr(param.length()-4) == " -> ")
+                param = param.substr(0, param.length()-4) + "$";
+            param += thisToken + " ";
+        }
+skipLab:;
+        ConsumeAnyToken();
+    }
+    if (param[param.length()-1] == ' ')
+        param = param.substr(0, param.length()-1);
+    return param;
 }
 /// \brief Simple precedence-based parser for binary/ternary operators.
 ///
@@ -1167,37 +1229,13 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
     std::string name = Tok.getName();
     SourceLocation SavedLoc = ConsumeToken();   // consume '__assert'
-    std::string param = "";
-    int nest = 0;
     if (Tok.isNot(tok::l_paren)) {
 printf("[%s:%d]  errror rororor\n", __FUNCTION__, __LINE__);
 int *jca = 0;
 *jca = 0;
     }
     ConsumeParen(); // consume '('
-    int lastMethodNest = -1;
-    std::string thisToken;
-    while (1) {
-        if (Tok.is(tok::r_paren)) {
-            if (nest-- == 0)
-                break;
-            if (lastMethodNest == nest) {
-                lastMethodNest = -1;
-                param += thisToken + "__ENA" + " ";
-                goto skipLab;
-            }
-        }
-        if (Tok.is(tok::l_paren))
-            nest++;
-        thisToken = PP.getSpelling(Tok);
-        if (thisToken == "__valid") {
-            lastMethodNest = nest;
-        }
-        else if (lastMethodNest == -1)
-            param += thisToken + " ";
-skipLab:;
-        ConsumeAnyToken();
-    }
+    std::string param = parseTokenArgument();
     ConsumeParen();     // consume ')'
     Expr *Args[] = {
         // rule name
@@ -1697,6 +1735,20 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
 
       if (OpKind == tok::l_paren || !LHS.isInvalid()) {
         if (Tok.isNot(tok::r_paren)) {
+          std::string name;
+          if (auto item = dyn_cast<UnresolvedLookupExpr>(LHS.get()))
+            name = item->getName().getAsString();
+          if (name == "__valid" || name == "__ready") {
+            std::string rstr = parseTokenArgument();
+            LHS = getACCCallRef(Actions, getValidReady(Actions, Loc));
+            rstr += (name == "__valid" ? "__ENA" : "__RDY");
+            ArgExprs.push_back(Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, rstr,
+              StringLiteral::Ascii, /*Pascal*/ false,
+              Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+              llvm::APInt(32, rstr.size() + 1), ArrayType::Normal, 0), Loc),
+              ccharp, CK_ArrayToPointerDecay).get());
+          }
+          else
           if (ParseExpressionList(ArgExprs, CommaLocs, [&] {
                 Actions.CodeCompleteCall(getCurScope(), LHS.get(), ArgExprs);
              })) {
