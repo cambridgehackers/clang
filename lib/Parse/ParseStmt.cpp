@@ -415,12 +415,9 @@ Retry:
             llvm::APInt(32, param.size() + 1), ArrayType::Normal, 0), SavedLoc),
             ccharp, CK_ArrayToPointerDecay).get(),
     };
-    Res = new (Actions.Context) CallExpr(Actions.Context, 
+    return new (Actions.Context) CallExpr(Actions.Context, 
           getACCCallRef(Actions, getAssert(Actions, SavedLoc, name)),
           Args, Actions.Context.VoidTy, VK_RValue, SavedLoc);
-printf("[%s:%d]ASSERT \n", __FUNCTION__, __LINE__);
-Res.get()->dump();
-    return Res;
   }
 
   case tok::annot_pragma_vis:
