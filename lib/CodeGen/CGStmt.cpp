@@ -620,6 +620,7 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
   // If the condition constant folds and can be elided, try to avoid emitting
   // the condition and the dead arm of the if/else.
   bool CondConstant;
+if (0) // Atomicc (don't optimize in clang; let the IR see everything in the original source code
   if (ConstantFoldsToSimpleInteger(S.getCond(), CondConstant,
                                    S.isConstexpr())) {
     // Figure out which block (then or else) is executed.
