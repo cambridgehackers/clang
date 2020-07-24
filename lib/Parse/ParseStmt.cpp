@@ -64,7 +64,8 @@ Expr *castVoidExpr(Sema &Actions, Expr *target, QualType voidp, SourceLocation l
    return ret;
 }
 
-StmtResult GenerateConnectStatement(Sema &Actions, Expr *target, Expr *source) {
+StmtResult GenerateConnectStatement(Sema &Actions, Expr *target, Expr *source)
+{
   SmallVector<Stmt*, 32> TopStmts;
   SourceLocation loc = target->getExprLoc();
   QualType voidp = Actions.Context.getPointerType(Actions.Context.VoidTy);
@@ -77,6 +78,23 @@ StmtResult GenerateConnectStatement(Sema &Actions, Expr *target, Expr *source) {
       getACCCallRef(Actions, getConnectInterface(Actions, loc)),
       Args, Actions.Context.VoidTy, VK_RValue, loc));
   return new (Actions.Context) class CompoundStmt(Actions.Context, TopStmts, loc, loc);
+}
+
+static FunctionDecl *getAssert(Sema &Actions, SourceLocation loc, std::string name)
+{
+    static FunctionDecl *assertDecl;
+    if (!assertDecl) {
+        QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
+            loc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
+        assertDecl = getACCFunction(Actions, CLinkageDecl, name, Actions.Context.VoidTy, Params);
+    }
+    return assertDecl;
 }
 
 /// \brief Parse a standalone statement (for instance, as the body of an 'if',
@@ -358,7 +376,7 @@ Retry:
     break;
 
   case tok::kw___connect: {
-    SourceLocation loc = ConsumeToken();  // eat the '__connect'.
+    ConsumeToken();  // eat the '__connect'.
     ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false, /*isAddressOfOperand=*/false, NotTypeCast);
     if(!Tok.is(tok::equal)) {
         Diag(Tok, diag::err_expected_equal_designator) << "for";
@@ -375,6 +393,34 @@ Retry:
       return StmtEmpty();;
     }
     return GenerateConnectStatement(Actions, LHS.get(), RHS.get());
+  }
+
+  case tok::kw___assert:  // atomicc extension for SVA
+  case tok::kw___assume:
+  case tok::kw___restrict: {
+    QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+    std::string name = Tok.getName();
+    SourceLocation SavedLoc = ConsumeToken();   // consume '__assert'
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+
+    if (T.expectAndConsume(diag::err_expected_lparen_after, "__assert"))
+      return StmtEmpty();
+    std::string param = parseTokenArgument();
+    T.consumeClose();
+    Expr *Args[] = {
+        // rule name
+        Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, param,
+            StringLiteral::Ascii, /*Pascal*/ false,
+            Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
+            llvm::APInt(32, param.size() + 1), ArrayType::Normal, 0), SavedLoc),
+            ccharp, CK_ArrayToPointerDecay).get(),
+    };
+    Res = new (Actions.Context) CallExpr(Actions.Context, 
+          getACCCallRef(Actions, getAssert(Actions, SavedLoc, name)),
+          Args, Actions.Context.VoidTy, VK_RValue, SavedLoc);
+printf("[%s:%d]ASSERT \n", __FUNCTION__, __LINE__);
+Res.get()->dump();
+    return Res;
   }
 
   case tok::annot_pragma_vis:
