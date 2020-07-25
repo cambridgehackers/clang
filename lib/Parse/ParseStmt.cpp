@@ -84,14 +84,16 @@ static FunctionDecl *getAssert(Sema &Actions, SourceLocation loc, std::string na
 {
     static FunctionDecl *assertDecl;
     if (!assertDecl) {
-        QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
+        Ty->atomiccWidth = 1;
+        QualType int1type = QualType(Ty, 0);
         DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
         LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, loc, loc, LinkageSpecDecl::lang_c, false);
         CLinkageDecl->setImplicit();
         Parent->addDecl(CLinkageDecl);
         SmallVector<ParmVarDecl *, 16> Params;
         Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, loc,
-            loc, nullptr, ccharp, /*TInfo=*/nullptr, SC_None, nullptr));
+            loc, nullptr, int1type, /*TInfo=*/nullptr, SC_None, nullptr));
         assertDecl = getACCFunction(Actions, CLinkageDecl, name, Actions.Context.VoidTy, Params);
     }
     return assertDecl;
@@ -398,22 +400,16 @@ Retry:
   case tok::kw___assert:  // atomicc extension for SVA
   case tok::kw___assume:
   case tok::kw___restrict: {
-    QualType ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
     std::string name = Tok.getName();
     SourceLocation SavedLoc = ConsumeToken();   // consume '__assert'
     BalancedDelimiterTracker T(*this, tok::l_paren);
 
     if (T.expectAndConsume(diag::err_expected_lparen_after, "__assert"))
       return StmtEmpty();
-    std::string param = parseTokenArgument();
+    ExprResult LHS = ParseAssignmentExpression();
     T.consumeClose();
     Expr *Args[] = {
-        // rule name
-        Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, param,
-            StringLiteral::Ascii, /*Pascal*/ false,
-            Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
-            llvm::APInt(32, param.size() + 1), ArrayType::Normal, 0), SavedLoc),
-            ccharp, CK_ArrayToPointerDecay).get(),
+        LHS.get()
     };
     return new (Actions.Context) CallExpr(Actions.Context, 
           getACCCallRef(Actions, getAssert(Actions, SavedLoc, name)),

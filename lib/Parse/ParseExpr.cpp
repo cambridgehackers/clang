@@ -60,6 +60,25 @@ FunctionDecl *getValidReady(Sema &Actions, SourceLocation OpLoc)
     }
     return ValidReadyDecl;
 }
+FunctionDecl *getPast(Sema &Actions, SourceLocation OpLoc)
+{
+    static FunctionDecl *PastDecl;
+    if (!PastDecl) {
+        ccharp = Actions.Context.getPointerType(Actions.Context.CharTy.withConst());
+        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
+        //Ty->atomiccWidth = 1;
+        QualType int1type = QualType(Ty, 0);
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(Actions.Context, Parent, OpLoc, OpLoc, LinkageSpecDecl::lang_c, false);
+        CLinkageDecl->setImplicit();
+        Parent->addDecl(CLinkageDecl);
+        SmallVector<ParmVarDecl *, 16> Params;
+        Params.push_back(ParmVarDecl::Create(Actions.Context, Actions.CurContext, OpLoc,
+            OpLoc, nullptr, int1type, /*TInfo=*/nullptr, SC_None, nullptr));
+        PastDecl = getACCFunction(Actions, CLinkageDecl, "__past", int1type, Params);
+    }
+    return PastDecl;
+}
 
 std::string Parser::parseTokenArgument()
 {
@@ -1695,6 +1714,8 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
           std::string name;
           if (auto item = dyn_cast<UnresolvedLookupExpr>(LHS.get()))
             name = item->getName().getAsString();
+          if (name == "__past")
+            LHS = getACCCallRef(Actions, getPast(Actions, Loc));
           if (name == "__valid" || name == "__ready") {
             std::string rstr = parseTokenArgument();
             LHS = getACCCallRef(Actions, getValidReady(Actions, Loc));
