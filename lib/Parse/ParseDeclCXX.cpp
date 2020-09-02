@@ -91,7 +91,7 @@ static void createFlagDeclaration(Sema &Actions, CXXRecordDecl *RD, std::string 
     fillField->markUsed(Actions.Context);
 }
 
-static void adjustInterfaceType(Sema &Actions, QualType Ty)
+static void adjustInterfaceType(Sema &Actions, QualType Ty, bool isVerilog)
 {
     static int counter;
     bool initialized = false;
@@ -137,8 +137,8 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                 int fieldCounter = 0;
                 for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
                     I->setAccess(AS_public);
-                    printf("[%s:%d] FIELD[%d] type %p\n", __FUNCTION__, __LINE__, fieldCounter, (void *)I->getType().getTypePtr());
-                    adjustInterfaceType(Actions, I->getType()); // recurse for sub-interfaces
+                    //printf("[%s:%d] FIELD[%d] type %p\n", __FUNCTION__, __LINE__, fieldCounter, (void *)I->getType().getTypePtr());
+                    adjustInterfaceType(Actions, I->getType(), false); // recurse for sub-interfaces
                     fieldCounter++;
                 }
                 for (auto I = RD->method_begin(), E = RD->method_end(); I != E; ++I) {
@@ -146,6 +146,8 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                         setX86VectorCall(Actions, *I);
                 }
                 createFlagDeclaration(Actions, RD, llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_FIELD);
+                if (isVerilog)
+                    createFlagDeclaration(Actions, RD, BOGUS_VERILOG);
             }
             if (Template) {
                 if (traceImplements) {
@@ -155,7 +157,7 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                 if (auto TSD = dyn_cast_or_null<ClassTemplateDecl>(Template)) {
                     for (auto *I : TSD->specializations())
                         if (auto RD = dyn_cast<CXXRecordDecl>(I))
-                            adjustInterfaceType(Actions, QualType(RD->getTypeForDecl(), 0));
+                            adjustInterfaceType(Actions, QualType(RD->getTypeForDecl(), 0), false);
                 }
             }
             if (traceImplements) {
@@ -2168,10 +2170,8 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
       if (isImplements) {
         if (auto RD = findRecord(ClassDecl)) {
           RD->AtomiccImplements = true;
-          if (isVerilog)
-              createFlagDeclaration(Actions, RD, BOGUS_VERILOG);
         }
-        adjustInterfaceType(Actions, Result.get()->getType());
+        adjustInterfaceType(Actions, Result.get()->getType(), isVerilog);
         break;
       }
     }
@@ -2849,7 +2849,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
           /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
     interfaceDecl->setAccess(AS_public);
     thisRecord->addDecl(interfaceDecl);
-    adjustInterfaceType(Actions, Ty);
+    adjustInterfaceType(Actions, Ty, false);
 
     if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
       // Skip to end of block or statement.
