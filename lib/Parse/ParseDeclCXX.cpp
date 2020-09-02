@@ -33,6 +33,7 @@
 using namespace clang;
 
 #define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
+#define BOGUS_VERILOG                 "$UNUSED$FIELD$VERILOG$"
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
@@ -73,6 +74,21 @@ static CXXRecordDecl *findRecord(Decl *decl)
     else if (auto RD = dyn_cast_or_null<CXXRecordDecl>(decl))
         return RD;
     return nullptr;
+}
+
+static void createFlagDeclaration(Sema &Actions, CXXRecordDecl *RD, std::string name)
+{
+    auto StartLoc = RD->getLocation();
+    BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
+    Ty->atomiccWidth = 64;
+    QualType NewTy = QualType(Ty, 0);
+    IdentifierInfo *blII = &Actions.Context.Idents.get(name);
+    FieldDecl *fillField = FieldDecl::Create(Actions.Context, RD, StartLoc, StartLoc, blII, NewTy,
+          Actions.Context.CreateTypeSourceInfo(NewTy),
+          /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
+    fillField->setAccess(AS_public);
+    RD->addDecl(fillField);
+    fillField->markUsed(Actions.Context);
 }
 
 static void adjustInterfaceType(Sema &Actions, QualType Ty)
@@ -116,31 +132,21 @@ static void adjustInterfaceType(Sema &Actions, QualType Ty)
                 printf("[%s:%d] PROCESSADJ %p init %d %p hasdef %d counter %d\n", __FUNCTION__, __LINE__, (void *)Ty.getTypePtr(), initialized, (void *)RD, RD->hasDefinition(), counter);
                 RD->dump();
             }
-        RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface; // needed to set Empty in ActOnBaseSpecifiers
-        if (RD->hasDefinition()) {
-        int fieldCounter = 0;
-        for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
-            I->setAccess(AS_public);
-            printf("[%s:%d] FIELD[%d] type %p\n", __FUNCTION__, __LINE__, fieldCounter, (void *)I->getType().getTypePtr());
-            adjustInterfaceType(Actions, I->getType()); // recurse for sub-interfaces
-            fieldCounter++;
-        }
-        for (auto I = RD->method_begin(), E = RD->method_end(); I != E; ++I) {
-            if (I->getDeclName().isIdentifier())
-                setX86VectorCall(Actions, *I);
-        }
-        auto StartLoc = RD->getLocation();
-        BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
-        Ty->atomiccWidth = 64;
-        QualType NewTy = QualType(Ty, 0);
-        IdentifierInfo *blII = &Actions.Context.Idents.get(llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_FIELD);
-        FieldDecl *fillField = FieldDecl::Create(Actions.Context, RD, StartLoc, StartLoc, blII, NewTy,
-              Actions.Context.CreateTypeSourceInfo(NewTy),
-              /*BitWidth=*/nullptr, /*Mutable=*/true, /*InitStyle=*/ICIS_NoInit);
-        fillField->setAccess(AS_public);
-        RD->addDecl(fillField);
-        fillField->markUsed(Actions.Context);
-        }
+            RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Interface; // needed to set Empty in ActOnBaseSpecifiers
+            if (RD->hasDefinition()) {
+                int fieldCounter = 0;
+                for (auto I = RD->field_begin(), E = RD->field_end(); I != E; ++I) {
+                    I->setAccess(AS_public);
+                    printf("[%s:%d] FIELD[%d] type %p\n", __FUNCTION__, __LINE__, fieldCounter, (void *)I->getType().getTypePtr());
+                    adjustInterfaceType(Actions, I->getType()); // recurse for sub-interfaces
+                    fieldCounter++;
+                }
+                for (auto I = RD->method_begin(), E = RD->method_end(); I != E; ++I) {
+                    if (I->getDeclName().isIdentifier())
+                        setX86VectorCall(Actions, *I);
+                }
+                createFlagDeclaration(Actions, RD, llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_FIELD);
+            }
             if (Template) {
                 if (traceImplements) {
                      printf("[%s:%d]ClassTemplateSpecializationDecl %p Template %p\n", __FUNCTION__, __LINE__, (void *)Ty.getTypePtr(), (void *)Template);
@@ -2142,6 +2148,9 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
   bool isImplements = Tok.is(tok::kw___implements);
   assert((Tok.is(tok::colon) || Tok.is(tok::kw___implements)) && "Not a base clause");
   ConsumeToken();
+  bool isVerilog = Tok.is(tok::kw___verilog);   // used to prevent System Verilog interface declarations from being created for ports
+  if (isVerilog)
+      ConsumeToken();
 
   // Build up an array of parsed base specifiers.
   SmallVector<CXXBaseSpecifier *, 8> BaseInfo;
@@ -2157,8 +2166,11 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
       // Add this to our array of base specifiers.
       BaseInfo.push_back(Result.get());
       if (isImplements) {
-        if (auto RD = findRecord(ClassDecl))
+        if (auto RD = findRecord(ClassDecl)) {
           RD->AtomiccImplements = true;
+          if (isVerilog)
+              createFlagDeclaration(Actions, RD, BOGUS_VERILOG);
+        }
         adjustInterfaceType(Actions, Result.get()->getType());
         break;
       }
