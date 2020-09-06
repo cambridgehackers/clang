@@ -34,6 +34,7 @@ using namespace clang;
 
 #define BOGUS_FORCE_DECLARATION_FIELD "$UNUSED$FIELD$FORCE$ALLOC$"
 #define BOGUS_VERILOG                 "$UNUSED$FIELD$VERILOG$"
+#define BOGUS_IMPORT                  "$UNUSED$FIELD$IMPORT$"
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
@@ -3621,8 +3622,8 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
       }
     }
   }
-  if (CXXRecordDecl *RD = findRecord(TagDecl))
-  if (RD->AtomiccImplements) {
+  if (CXXRecordDecl *RD = findRecord(TagDecl)) {
+    if (RD->AtomiccImplements) {
             if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Module) {
 printf("[%s:%d] changing %p AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, (void *)RD, RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Module);
 RD->dump();
@@ -3645,6 +3646,7 @@ RD->dump();
       resetField->setAccess(AS_public);
       RD->addDecl(resetField);
       resetField->markUsed(Actions.Context);
+    }
   }
 
   assert(Tok.is(tok::l_brace));

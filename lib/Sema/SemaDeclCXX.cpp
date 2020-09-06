@@ -10912,10 +10912,12 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
                 if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
                     extractInterface(rec, field->getName());
             }
+#if 0
             for (auto item: mapInterface) {
 printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str(), item.first.c_str());
 //item.second->dump();
             }
+#endif
         }
         for (auto mitem: Record->methods()) {
             if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public

@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "unistd.h" // getcwd()
 #include "CGRecordLayout.h"
 #include "CGCXXABI.h"
 #include "CodeGenTypes.h"
@@ -690,7 +691,7 @@ CGBitFieldInfo CGBitFieldInfo::MakeInfo(CodeGenTypes &Types,
   return CGBitFieldInfo(Offset, Size, IsSigned, StorageSize, StorageOffset);
 }
 
-static std::string CBEMangle(const std::string &S)
+static std::string CBEMangle(const std::string S)
 {
     std::string Result;
     for (unsigned i = 0, e = S.size(); i != e; ++i)
@@ -809,6 +810,42 @@ static std::string findDecl(std::string methodName, const CompoundStmt *compound
     }
     return ret;
 }
+#define MAX_FILENAME 1000
+static char filenameBuffer[MAX_FILENAME];
+static std::string getRelativePath(std::string path)
+{
+    std::string cwd = getcwd(filenameBuffer, sizeof(filenameBuffer));
+    char *ccwd = realpath(cwd.c_str(), filenameBuffer);
+    if (!ccwd) {
+        printf("%s: ERROR: path does not exist '%s' or '%s' errno %d\n", __FUNCTION__, cwd.c_str(), filenameBuffer, errno);
+        exit(-1);
+    }
+    cwd = ccwd;
+    cwd += "/";
+    char *cpath = realpath(path.c_str(), filenameBuffer);
+    if (!cpath) {
+        printf("%s: ERROR: path does not exist '%s' or '%s' errno %d\n", __FUNCTION__, path.c_str(), filenameBuffer, errno);
+        exit(-1);
+    }
+    path = cpath;
+    unsigned ind = 0, lastslash = 0;
+    while (ind < cwd.length() && ind < path.length() && cwd[ind] == path[ind]) {
+        if (cwd[ind] == '/')
+            lastslash = ind;
+        ind++;
+    }
+    if (!lastslash)
+        return path;
+    path = path.substr(lastslash+1);
+    if (path.find("/") == std::string::npos)
+        return path;
+    while (cwd[ind]) {
+        if (cwd[ind] == '/')
+            path = "../" + path;
+        ind++;
+    }
+    return path;
+}
 CGRecordLayout *CodeGenTypes::ComputeRecordLayout(const RecordDecl *D,
                                                   llvm::StructType *Ty) {
   CGRecordLowering Builder(*this, D, /*Packed=*/false);
@@ -886,7 +923,7 @@ else {  // !isUnion()
   RecordDecl::field_iterator it = D->field_begin();
   RecordDecl::field_iterator itemplate = templateDecl ? templateDecl->field_begin() : it;
   unsigned Idx = 0;
-  std::string softwareItems, connectList;
+  std::string softwareItems, connectList, connectSep;
   for (unsigned i = 0, e = RL->FieldInfo.size(); i != e; ++i, ++it, itemplate++) {
     const FieldDecl *FD = *it;
     const FieldDecl *FDtemplate = *itemplate;
@@ -909,8 +946,10 @@ else {  // !isUnion()
         }
         if (ND->getName().startswith(CONNECT_PREFIX))
         if (Expr *cinit = FDtemplate->getInClassInitializer())
-        if (auto strl = dyn_cast<StringLiteral>(cinit))
-          connectList += strl->getString().str() + ",";
+        if (auto strl = dyn_cast<StringLiteral>(cinit)) {
+          connectList += connectSep + strl->getString().str();
+          connectSep = ",";
+        }
       }
       if (Idx > FieldNo) {
 printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, __LINE__, Idx, FieldNo, fname.c_str());
@@ -996,6 +1035,17 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
     Ty->structFieldMap += ",;" + softwareItems;
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
+  PresumedLoc PLoc = D->getASTContext().getSourceManager().getPresumedLoc(D->getLocStart());
+  std::string sourceFilename;
+  if (PLoc.isValid())
+    sourceFilename = PLoc.getFilename();
+  assert(sourceFilename != "");
+  if (!StringRef(sourceFilename).startswith("/usr")) {  // avoid messing with standard library definitions
+    //int ind = sourceFilename.rfind("/");
+    //if (ind >= 0)
+        //sourceFilename = sourceFilename.substr(ind+1);
+    Ty->structFieldMap += ",?" + CBEMangle(getRelativePath(sourceFilename));
+  }
   auto prevStruct = atomiccStructRemap.find(Ty);
   if (prevStruct != atomiccStructRemap.end())
     Ty->structFieldMap += ",%" + prevStruct->second->getName().str();

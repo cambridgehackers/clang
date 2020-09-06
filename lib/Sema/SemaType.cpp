@@ -7332,7 +7332,7 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
     if (!Ty.isNull() && dyn_cast<TemplateSpecializationType>(Ty)) {
         Incomplete = Ty->isIncompleteType(&Def);
         T = Ty;
-        printf("[%s:%d]PTRincomple %d\n", __FUNCTION__, __LINE__, Incomplete);
+        //printf("[%s:%d]PTRincomple %d\n", __FUNCTION__, __LINE__, Incomplete);
         //Ty->dump();
     }
   }
