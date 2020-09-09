@@ -664,7 +664,6 @@ protected:
 public:
   enum {AtomiccAttr_Interface = 0x1, AtomiccAttr_Module, AtomiccAttr_EModule};
   int AtomiccAttr;
-  bool AtomiccImplements;
   /// \brief Iterator that traverses the base classes of a class.
   typedef CXXBaseSpecifier*       base_class_iterator;
 

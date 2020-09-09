@@ -10791,7 +10791,8 @@ static void mangleMarkRecord(CXXRecordDecl *Record, CXXRecordDecl *aliasRecord)
     else if (mangleRemap[Record] != aliasRecord) {
         printf("[%s:%d] Error: remapped to different records %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
     }
-    if (Record->AtomiccImplements) {
+    if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+     || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
         CXXRecordDecl *rec = (Record->bases_end()-1)->getType()->getAsCXXRecordDecl();
         CXXRecordDecl *alias = (aliasRecord->bases_end()-1)->getType()->getAsCXXRecordDecl();
         mangleMarkRecord(rec, alias);
@@ -10905,7 +10906,6 @@ static void processInterfaceDefinition(Sema &Actions, CXXRecordDecl *Record)
     }
     else if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
      || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
-        if (Record->AtomiccImplements) {
             CXXRecordDecl *rec = (Record->bases_end()-1)->getType()->getAsCXXRecordDecl();
             if (traceDeclaration) {
                 printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, (void *)rec);
@@ -10923,7 +10923,7 @@ printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().st
 //item.second->dump();
             }
 #endif
-        }
+        //}
         for (auto mitem: Record->methods()) {
             if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
                 Method->setAccess(AS_public);
@@ -10977,7 +10977,8 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
         printf("[%s:%d] E/MODULE/INTERFACE %p %s\n", __FUNCTION__, __LINE__, (void *)Record, Record->getName().str().c_str());
         if (traceDeclaration) {
             Record->dump();
-            if (Record->AtomiccImplements)
+            if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+             || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule)
                 (Record->bases_end()-1)->getType()->dump();
         }
         if (traceTemplate)

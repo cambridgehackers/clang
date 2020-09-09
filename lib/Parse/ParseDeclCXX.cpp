@@ -2170,7 +2170,7 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
       BaseInfo.push_back(Result.get());
       if (isImplements) {
         if (auto RD = findRecord(ClassDecl)) {
-          RD->AtomiccImplements = true;
+          RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_EModule;
         }
         adjustInterfaceType(Actions, Result.get()->getType(), isVerilog);
         break;
@@ -2815,7 +2815,8 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
             if (auto TST = dyn_cast<TemplateSpecializationType>(item->getType())) {
                 auto Template = TST->getTemplateName().getAsTemplateDecl();
                 if (auto RD = dyn_cast<CXXRecordDecl>(Template->getTemplatedDecl())) {
-                    if (RD->AtomiccImplements) {
+                    if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+                     || RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
                         auto rty = (RD->bases_end()-1)->getType();
                         CXXRecordDecl *rec = rty->getAsCXXRecordDecl();
                         if (!rec)
@@ -3574,9 +3575,7 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
     if (!Tok.is(tok::l_brace)) {
       bool SuggestFixIt = false;
       if (CXXRecordDecl *RD = findRecord(TagDecl))
-      if (RD->AtomiccImplements) {
-          // Atomicc external items
-          RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_EModule;
+      if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
           Actions.ActOnStartCXXMemberDeclarations(getCurScope(), TagDecl, FinalLoc, IsFinalSpelledSealed, FinalLoc);
           Actions.ActOnFinishCXXMemberSpecification(getCurScope(), RecordLoc, TagDecl, FinalLoc, FinalLoc, nullptr);
           Actions.ActOnFinishCXXNonNestedClass(TagDecl);
@@ -3623,11 +3622,8 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
     }
   }
   if (CXXRecordDecl *RD = findRecord(TagDecl)) {
-    if (RD->AtomiccImplements) {
-            if (RD->AtomiccAttr && RD->AtomiccAttr != CXXRecordDecl::AtomiccAttr_Module) {
-printf("[%s:%d] changing %p AtomiccAttr %d -> %d\n", __FUNCTION__, __LINE__, (void *)RD, RD->AtomiccAttr, CXXRecordDecl::AtomiccAttr_Module);
-RD->dump();
-            }
+    if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+     || RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
       RD->AtomiccAttr = CXXRecordDecl::AtomiccAttr_Module;
       auto StartLoc = RD->getLocation();
       BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);

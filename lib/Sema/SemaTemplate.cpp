@@ -3077,7 +3077,6 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
                                                      ClassTemplate,
                                                      Converted, nullptr);
       Decl->AtomiccAttr = ClassTemplate->getTemplatedDecl()->AtomiccAttr;
-      Decl->AtomiccImplements = ClassTemplate->getTemplatedDecl()->AtomiccImplements;
       ClassTemplate->AddSpecialization(Decl, InsertPos);
       if (ClassTemplate->isOutOfLine())
         Decl->setLexicalDeclContext(ClassTemplate->getLexicalDeclContext());

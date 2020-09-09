@@ -1127,7 +1127,8 @@ expr->dump();
     D->dump();
     Ty->dump();
     if (auto RD = dyn_cast<CXXRecordDecl>(D))
-    if (RD->AtomiccImplements) {
+    if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
+     || RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
         Decl *DD = (RD->bases_end()-1)->getType()->getAsCXXRecordDecl();
         printf("[%s:%d] implemenets\n", __FUNCTION__, __LINE__);
         DD->dump();

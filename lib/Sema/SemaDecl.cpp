@@ -14164,8 +14164,6 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
                             /*PrevDecl=*/nullptr,
                             /*DelayTypeCreation=*/true);
   InjectedClassName->AtomiccAttr = Record->AtomiccAttr;
-  InjectedClassName->AtomiccImplements = Record->AtomiccImplements;
-  //InjectedClassName->AtomiccHidden = Record->AtomiccHidden;
   Context.getTypeDeclType(InjectedClassName, Record);
   InjectedClassName->setImplicit();
   InjectedClassName->setAccess(AS_public);
