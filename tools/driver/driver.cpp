@@ -11,7 +11,6 @@
 // for functionality in the Driver clang library.
 //
 //===----------------------------------------------------------------------===//
-#include <unistd.h>//sleep
 
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Driver/Compilation.h"
@@ -318,9 +317,6 @@ int main(int argc_, const char **argv_) {
   llvm::PrettyStackTraceProgram X(argc_, argv_);
   llvm::llvm_shutdown_obj Y; // Call llvm_shutdown() on exit.
 
-//printf("[%s:%d]beforeekjalskjdlkassleep\n", __FUNCTION__, __LINE__);
-//sleep(2000);
-//printf("afasldjlajsdljasdlkasdasdsleep\n");
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
