@@ -1054,19 +1054,70 @@ printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, (void *)D
   // Detect/rename classes that were created from <int> parameterized templates
   if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
     ClassTemplateDecl *TD = TS->getSpecializedTemplate();
+    bool hasWidth = false;
+    for (auto formalParam : *TD->getTemplateParameters())
+        if (formalParam->getName() == "width") {
+            hasWidth = true;
+            break;
+        }
     auto formalParam = TD->getTemplateParameters()->begin();
     //CXXRecordDecl *RD = TD->getTemplatedDecl();
-    std::string appendName, sep = "(", end = "";
+    std::string appendName, sep = "(";
     for (auto AA : TS->getTemplateArgs().asArray()) {
-        if (AA.getKind() == TemplateArgument::Integral) {
-           uint64_t val = AA.getAsIntegral().getZExtValue();
-           appendName += sep + (*formalParam)->getName().str() + "=" + llvm::utostr(val);
-           sep = ",";
-           end = ")";
+        auto kind = AA.getKind();
+        std::string name = (*formalParam)->getName();
+        switch(kind) {
+        case TemplateArgument::Integral: {
+            uint64_t val = AA.getAsIntegral().getZExtValue();
+            appendName += sep + name + "=" + llvm::utostr(val);
+            sep = ",";
+            break;
+            }
+        case TemplateArgument::Type: {
+            QualType type = AA.getAsType();
+            if (name == "T" && !hasWidth) {
+                std::string val;
+                if (auto Ty = dyn_cast<BuiltinType>(type))
+                    val = llvm::utostr(Ty->atomiccWidth);
+                else {
+                    //val = "(__bitsize(" + type.getAsString() + "))";
+                    val = "144";   // 128 + 16
+                }
+                appendName += sep + "width" + "=" + val;
+                sep = ",";
+            }
+            break;
+            }
+        case TemplateArgument::Declaration: {
+            printf("[%s:%d]DECL %s\n", __FUNCTION__, __LINE__, name.c_str());
+            Decl *decl = AA.getAsDecl();
+decl->dump();
+            break;
+            }
+        case TemplateArgument::Template:
+        case TemplateArgument::TemplateExpansion: {
+            printf("[%s:%d]TEMPLEXP %s\n", __FUNCTION__, __LINE__, name.c_str());
+            TemplateName Template = AA.getAsTemplateOrTemplatePattern();
+            if (DependentTemplateName *DTN = Template.getAsDependentTemplateName())
+               {} //Builder.MakeTrivial(Context, DTN->getQualifier(), Loc);
+            else if (QualifiedTemplateName *QTN = Template.getAsQualifiedTemplateName())
+               {} //Builder.MakeTrivial(Context, QTN->getQualifier(), Loc);
+            break;
+            }
+        case TemplateArgument::Expression: {
+            printf("[%s:%d]EXPR %s\n", __FUNCTION__, __LINE__, name.c_str());
+            Expr *expr = AA.getAsExpr();
+expr->dump();
+            break;
+            }
+        case TemplateArgument::Null:
+        case TemplateArgument::NullPtr:
+        case TemplateArgument::Pack:
+            printf("[%s:%d] kind %d name %s\n", __FUNCTION__, __LINE__, kind, name.c_str());
         }
         formalParam++;
     }
-    appendName += end;
+    appendName += (sep == ",") ? ")" : "";
     if (auto STy = dyn_cast<llvm::StructType>(Ty))
     if (STy->hasName())
       STy->setName(STy->getName().str() + appendName);
