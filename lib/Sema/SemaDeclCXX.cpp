@@ -58,23 +58,6 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool>
     trace_hoist("htrace", llvm::cl::Optional, llvm::cl::desc("trace hoist"));
 
-static std::map<std::string, const CXXMethodDecl *> mapInterface;
-static void extractInterface(const CXXRecordDecl *rec, std::string prefix)
-{
-    std::string name = prefix;
-    if (prefix != "")
-        name += "$"; // MODULE_SEPARATOR
-    for (auto item: rec->fields()) {
-        if (auto RD = item->getType()->getAsCXXRecordDecl())
-            extractInterface(RD, name + item->getName().str());
-    }
-    for (auto item: rec->methods()) {
-        if (item->getDeclName().isIdentifier())
-        if (!item->getName().endswith(BOGUS_FORCE_DECLARATION_METHOD))
-            mapInterface[name + item->getName().str()] = item;
-    }
-}
-
 //===----------------------------------------------------------------------===//
 // CheckDefaultArgumentVisitor
 //===----------------------------------------------------------------------===//
@@ -10825,16 +10808,14 @@ static void mangleMarkRecord(CXXRecordDecl *Record, CXXRecordDecl *aliasRecord)
 
 static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
 {
-    auto StartLoc = Record->getLocStart();
     static int counter;
     std::string mname = llvm::utostr(counter++) + BOGUS_FORCE_DECLARATION_METHOD;
-    CXXRecordDecl *prevRecord = nullptr, *aliasRecord = nullptr;
-    const char *Dummy = nullptr;
-    unsigned DiagID;
     SourceLocation NoLoc;
-    SourceLocation loc = Record->getLocation();
     AttributeFactory attrFactory;
     DeclSpec DSVoid(attrFactory);
+    const char *Dummy = nullptr;
+    unsigned DiagID;
+    SourceLocation loc = Record->getLocation();
     Declarator DFunc(DSVoid, Declarator::MemberContext); 
     ParsedAttributes parsedAttrs(attrFactory);
     (void)DSVoid.SetTypeSpecType(DeclSpec::TST_void, loc, Dummy, DiagID, Actions.Context.getPrintingPolicy());
@@ -10868,7 +10849,31 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
     Record->addDecl(FD);
     SmallVector<Stmt*, 32> Stmts;
     FD->setBody(new (Actions.Context) class CompoundStmt(Actions.Context, Stmts, loc, loc));
+}
 
+typedef std::map<std::string, const CXXMethodDecl *> MapInterfaceType;
+static void extractInterface(const CXXRecordDecl *rec, std::string prefix, MapInterfaceType &mapInterface)
+{
+    std::string name = prefix;
+    if (prefix != "")
+        name += "$"; // MODULE_SEPARATOR
+    for (auto item: rec->fields()) {
+        if (auto RD = item->getType()->getAsCXXRecordDecl())
+            extractInterface(RD, name + item->getName().str(), mapInterface);
+    }
+    for (auto item: rec->methods()) {
+        if (item->getDeclName().isIdentifier())
+        if (!item->getName().endswith(BOGUS_FORCE_DECLARATION_METHOD))
+            mapInterface[name + item->getName().str()] = item;
+    }
+}
+
+static void processInterfaceDefinition(Sema &Actions, CXXRecordDecl *Record)
+{
+    MapInterfaceType mapInterface;
+    auto StartLoc = Record->getLocStart();
+    CXXRecordDecl *prevRecord = nullptr, *aliasRecord = nullptr;
+    buildForceDeclaration(Actions, Record);
     mapInterface.clear();
     if(Record->hasAttr<AtomiccSerializeAttr>()) {
         uint64_t rsize = 0;
@@ -10906,11 +10911,11 @@ static void buildForceDeclaration(Sema &Actions, CXXRecordDecl *Record)
                 printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, (void *)rec);
                 rec->dump();
             }
-            extractInterface(rec, "");
+            extractInterface(rec, "", mapInterface);
             for (auto field : Record->fields()) {
                 if (auto rec = field->getType()->getAsCXXRecordDecl())
                 if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
-                    extractInterface(rec, field->getName());
+                    extractInterface(rec, field->getName(), mapInterface);
             }
 #if 0
             for (auto item: mapInterface) {
@@ -10967,7 +10972,7 @@ void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
     int aattr = Record->AtomiccAttr;
     if (aattr == CXXRecordDecl::AtomiccAttr_Interface || aattr == CXXRecordDecl::AtomiccAttr_Module
      || aattr == CXXRecordDecl::AtomiccAttr_EModule) {
-      buildForceDeclaration(*this, Record);
+      processInterfaceDefinition(*this, Record);
       if (traceDeclaration || traceTemplate) {
         printf("[%s:%d] E/MODULE/INTERFACE %p %s\n", __FUNCTION__, __LINE__, (void *)Record, Record->getName().str().c_str());
         if (traceDeclaration) {
