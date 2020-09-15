@@ -47,6 +47,8 @@
 
 using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
+#define RULE_TEMPLATE_PREFIX "ruleTemplate"
+#define RULE_PREFIX "RULE$"
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
 static std::map<std::string, CXXRecordDecl *> mangleNameMap;
 std::map<const RecordDecl *, const RecordDecl *> mangleRemap;
@@ -10955,7 +10957,7 @@ Method->dump();
                         }
                     }
                 }
-                else {
+                else if (!mname.startswith(RULE_TEMPLATE_PREFIX) && !mname.startswith(RULE_PREFIX)) {
 printf("[%s:%d]non-runtime method %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str());
 Method->dump();
                 }

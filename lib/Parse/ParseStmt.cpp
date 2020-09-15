@@ -27,6 +27,8 @@
 #include "llvm/ADT/StringExtras.h"
 using namespace clang;
 
+#define RULE_TEMPLATE_PREFIX "ruleTemplate"
+#define RULE_PREFIX "RULE$"
 Expr *setForContents(Sema &Actions, std::string funcname, QualType retType, std::string prefix, CXXRecordDecl *Record, VarDecl *variable, Stmt *stmt, Expr *expr, int depth, std::string &retString);
 Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
@@ -1108,7 +1110,7 @@ StmtResult Parser::ParseRuleStatement(bool isDecl) {
   TransformToRule transform(Actions);
   transform.RuleLoc = ConsumeToken();  // eat the 'rule'.
   assert(Tok.is(tok::identifier) && "No rule name!");
-  std::string RuleName = "RULE$" + Tok.getIdentifierInfo()->getName().str();
+  std::string RuleName = RULE_PREFIX + Tok.getIdentifierInfo()->getName().str();
   std::string fname = RuleName;
   ConsumeToken();
   transform.TopContext = Actions.CurContext;
@@ -1191,7 +1193,7 @@ exit(-1);
   bool optimizeMe = false; //!transform.Params.size();
   if (!isDecl && !optimizeMe) {
       static int counter;
-      fname = "ruleTemplate" + fname + llvm::utostr(counter++);
+      fname = RULE_TEMPLATE_PREFIX + fname + llvm::utostr(counter++);
       IdentifierInfo *IFn = &Actions.Context.Idents.get(fname);
       transform.ruleM->setDeclName(DeclarationName(IFn));
       if (GuardExpr) {
