@@ -1079,10 +1079,8 @@ printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, (void *)D
                 std::string val;
                 if (auto Ty = dyn_cast<BuiltinType>(type))
                     val = llvm::utostr(Ty->atomiccWidth);
-                else {
-                    //val = "(__bitsize(" + type.getAsString() + "))";
-                    val = "144";   // 128 + 16
-                }
+                else
+                    val = "(__bitsize(" + type.getAsString() + "))";
                 appendName += sep + "width" + "=" + val;
                 sep = ",";
             }
