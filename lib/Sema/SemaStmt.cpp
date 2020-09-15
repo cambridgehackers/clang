@@ -44,6 +44,7 @@ using namespace clang;
 using namespace sema;
 #define FOR_FUNCTION_PREFIX "FOR$"
 #define FOR_FUNCTION_BODY "Body"
+#define LOCAL_VARIABLE_PREFIX "_"
 Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
     ArrayRef<ParmVarDecl *> Params);
@@ -1781,7 +1782,7 @@ namespace {
               if (Record != DC && DC != forBody) {
                   std::string name = namePrefix + VD->getName().str();
                   if (!dyn_cast<ParmVarDecl>(VD))
-                      name = "_" + name;
+                      name = LOCAL_VARIABLE_PREFIX + name;
                   return addEntry(VD, name);
               }
           }
