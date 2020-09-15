@@ -49,6 +49,7 @@ using namespace clang;
 #define BOGUS_FORCE_DECLARATION_METHOD "$UNUSED$FUNCTION$FORCE$ALLOC$"
 #define RULE_TEMPLATE_PREFIX "ruleTemplate"
 #define RULE_PREFIX "RULE$"
+#define FOR_FUNCTION_PREFIX "FOR$"
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method);
 static std::map<std::string, CXXRecordDecl *> mangleNameMap;
 std::map<const RecordDecl *, const RecordDecl *> mangleRemap;
@@ -10937,12 +10938,12 @@ printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().st
                 bool hasMap = (mapInterface.find(mname) != mapInterface.end());
                 if (mname.endswith(BOGUS_FORCE_DECLARATION_METHOD))
                     continue;
-                if (!mname.endswith("__RDY") && !mname.startswith("RULE$") && !mname.startswith("FOR$"))
+                if (!mname.endswith("__RDY") && !mname.startswith(RULE_PREFIX) && !mname.startswith(FOR_FUNCTION_PREFIX))
                 if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
 printf("[%s:%d]MMMMMMMMMMMMMMMMMMMMM\n", __FUNCTION__, __LINE__);
 Method->dump();
                 }
-                if (hasMap || mname.endswith("__RDY") || mname.startswith("RULE$") || mname.startswith("FOR$")) {
+                if (hasMap || mname.endswith("__RDY") || mname.startswith(RULE_PREFIX) || mname.startswith(FOR_FUNCTION_PREFIX)) {
                     std::string MangledName = getMangledName(Actions, Method);
                     aliasRecord = dyn_cast_or_null<CXXRecordDecl>(mangleNameMap[MangledName]);
                     if (!aliasRecord) {

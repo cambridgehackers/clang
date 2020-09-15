@@ -42,6 +42,8 @@
 
 using namespace clang;
 using namespace sema;
+#define FOR_FUNCTION_PREFIX "FOR$"
+#define FOR_FUNCTION_BODY "Body"
 Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
     ArrayRef<ParmVarDecl *> Params);
@@ -1776,8 +1778,12 @@ namespace {
               auto DC = VD->getDeclContext();
 //printf("[%s:%d]iiiiiTransformAtomiccLoopTransformAtomiccLoop DC %p Record %p forb %p\n", __FUNCTION__, __LINE__, DC, Record, forBody);
 //VD->dump();
-              if (Record != DC && DC != forBody)
-                  return addEntry(VD, namePrefix + VD->getName().str());
+              if (Record != DC && DC != forBody) {
+                  std::string name = namePrefix + VD->getName().str();
+                  if (!dyn_cast<ParmVarDecl>(VD))
+                      name = "_" + name;
+                  return addEntry(VD, name);
+              }
           }
           if (const Expr *init = VD->getAnyInitializer())
               VD->setInit(TransformExpr(const_cast<Expr *>(init)).get());
@@ -1852,7 +1858,7 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
         return nullptr;
     static int counter, depth;
     depth++;
-    std::string fname =  "FOR$" + llvm::utostr(counter++);
+    std::string fname =  FOR_FUNCTION_PREFIX + llvm::utostr(counter++);
     std::string sparam = GENVAR_NAME + llvm::utostr(depth);
     auto setStringParam = [&] (Expr *expr) -> void {
         setForContents(Actions, "UNUSED", Actions.Context.IntTy,
@@ -1869,7 +1875,7 @@ CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt
         Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),
         llvm::APInt(32, sparam.size() + 1), ArrayType::Normal, 0), loc),
         ccharp, CK_ArrayToPointerDecay).get());
-    Args.push_back(setForContents(Actions, fname + "Body", Actions.Context.VoidTy,
+    Args.push_back(setForContents(Actions, fname + FOR_FUNCTION_BODY, Actions.Context.VoidTy,
         prefix, Record, variable, body, nullptr, depth, sparam));
 
     // Call runtime to add guard/method function into list of pairs to be processed by backend
