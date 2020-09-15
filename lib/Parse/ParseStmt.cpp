@@ -1115,7 +1115,7 @@ StmtResult Parser::ParseRuleStatement(bool isDecl) {
   ConsumeToken();
   transform.TopContext = Actions.CurContext;
   CXXRecordDecl *DC = cast<CXXRecordDecl>(isDecl ? Actions.CurContext : Actions.getCurFunctionDecl()->getParent());
-printf("[%s:%d]START CurContent %p isDecl %d Record %p\n", __FUNCTION__, __LINE__, (void *)Actions.CurContext, isDecl, (void *)DC);
+//printf("[%s:%d]START CurContent %p isDecl %d Record %p\n", __FUNCTION__, __LINE__, (void *)Actions.CurContext, isDecl, (void *)DC);
   Expr *GuardExpr = nullptr;
   CXXMethodDecl *guardM = nullptr;
   transform.ruleM = buildFunc(Actions, fname, transform.RuleLoc, Actions.Context.VoidTy, DC);
@@ -1138,18 +1138,18 @@ printf("[%s:%d]START CurContent %p isDecl %d Record %p\n", __FUNCTION__, __LINE_
       return StmtError();
     }
     Sema::ConditionResult Cond;
-printf("[%s:%d]RULEPARSEIF\n", __FUNCTION__, __LINE__);
+//printf("[%s:%d]RULEPARSEIF\n", __FUNCTION__, __LINE__);
     if (ParseParenExprOrCondition(nullptr, Cond, transform.RuleLoc, Sema::ConditionKind::Boolean)) {
       return StmtError();
     }
-printf("[%s:%d]RULEPARSEIF end\n", __FUNCTION__, __LINE__);
+//printf("[%s:%d]RULEPARSEIF end\n", __FUNCTION__, __LINE__);
     GuardExpr = Cond.get().second;
   }
 
   // Now parse the body of the __rule declaration/statement
-printf("[%s:%d]RULEPARSEBODY CurContext %p\n", __FUNCTION__, __LINE__, (void *)Actions.CurContext);
+//printf("[%s:%d]RULEPARSEBODY CurContext %p\n", __FUNCTION__, __LINE__, (void *)Actions.CurContext);
   StmtResult BodyStmt(ParseStatement(nullptr));
-printf("[%s:%d]RULEPARSEBODY end\n", __FUNCTION__, __LINE__);
+//printf("[%s:%d]RULEPARSEBODY end\n", __FUNCTION__, __LINE__);
   if (Tok.is(tok::code_completion)) {
 printf("[%s:%d]ZZZZZZZZZZZZZZZZZZZZZZZ\n", __FUNCTION__, __LINE__);
 exit(-1);
