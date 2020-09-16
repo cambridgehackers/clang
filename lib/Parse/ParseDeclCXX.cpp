@@ -2843,6 +2843,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     Actions.PopDeclContext();
 
     lstr = "CONNECT;" + lstr + ":" + rstr;
+    printf("[%s:%d] IMPLEMENTS %s\n", __FUNCTION__, __LINE__, lstr.c_str());
     attachConnectItem(Actions, thisRecord, lstr);
 
     auto StartLoc = thisRecord->getLocation();
