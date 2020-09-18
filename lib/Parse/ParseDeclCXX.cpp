@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Parse/Parser.h"
+#include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/Attributes.h"
@@ -43,6 +44,13 @@ std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName =
 llvm::cl::opt<bool>
     traceImplements("itrace", llvm::cl::Optional, llvm::cl::desc("trace interface declaration forcing"));
 bool inDeclForLoop;
+
+std::string getSourceFilename(const Decl *D)
+{
+  PresumedLoc PLoc = D->getASTContext().getSourceManager().getPresumedLoc(D->getLocStart());
+  assert(PLoc.isValid());
+  return PLoc.getFilename();
+}
 
 void setX86VectorCall(Sema &Actions, CXXMethodDecl *Method)
 {
@@ -3720,6 +3728,32 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   // Leave the class scope.
   ParsingDef.Pop();
   ClassScope.Exit();
+  if (CXXRecordDecl *RD = findRecord(TagDecl)) {
+    std::string sourceFilename = getSourceFilename(RD);
+    std::string name = RD->getName();
+    auto loc = RD->getLocation();
+    QualType QT = QualType(RD->getTypeForDecl(), 0);
+    if (!RD->AtomiccAttr && StringRef(sourceFilename).endswith("atomicc.h")) {
+      printf("[%s:%d] UNKKKKK %p %s source %s iscompl %d isdep %d\n", __FUNCTION__, __LINE__, (void *)RD, name.c_str(), sourceFilename.c_str(), RD->isCompleteDefinition(), RD->isDependentType());
+RD->dump();
+      if (!RD->isDependentType() || name == "Printf") {
+        static int counter;
+        if (RD->getTagKind() == TTK_Class)            // class declarations in atomicc.h are implicitly declared as interfaces
+            adjustInterfaceType(Actions, QT, false);
+      //case TTK_Struct:
+        DeclContext *Parent = Actions.Context.getTranslationUnitDecl();
+        RD->markUsed(Actions.Context);
+        IdentifierInfo *blII = &Actions.Context.Idents.get("__BOZODUMMY_" + llvm::utostr(counter++));
+        VarDecl *dummy = VarDecl::Create(Actions.Context, Parent, loc, loc, blII, QT,
+          Actions.Context.getTrivialTypeSourceInfo(QT, loc), SC_Static);
+        Parent->addDecl(dummy);
+        dummy->addAttr(::new (Actions.Context) UsedAttr(loc, Actions.Context, 0));
+        Actions.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(dummy));
+printf("[%s:%d]DUMMY\n", __FUNCTION__, __LINE__);
+dummy->dump();
+      }
+    }
+  }
 }
 
 void Parser::DiagnoseUnexpectedNamespace(NamedDecl *D) {

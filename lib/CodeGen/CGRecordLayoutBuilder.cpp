@@ -34,6 +34,7 @@ using namespace CodeGen;
 static llvm::cl::opt<bool>
     recordGenTrace("rgentrace", llvm::cl::Optional, llvm::cl::desc("trace clang record generation"));
 std::string normalizeName(std::string name);
+std::string getSourceFilename(const Decl *D);
 extern std::map<const llvm::StructType *, const llvm::StructType *> atomiccStructRemap;
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
@@ -1035,11 +1036,7 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
     Ty->structFieldMap += ",;" + softwareItems;
   if (connectList.length())
     Ty->structFieldMap += ",@" + connectList;
-  PresumedLoc PLoc = D->getASTContext().getSourceManager().getPresumedLoc(D->getLocStart());
-  std::string sourceFilename;
-  if (PLoc.isValid())
-    sourceFilename = PLoc.getFilename();
-  assert(sourceFilename != "");
+  std::string sourceFilename = getSourceFilename(D);
   if (!StringRef(sourceFilename).startswith("/usr")) {  // avoid messing with standard library definitions
     //int ind = sourceFilename.rfind("/");
     //if (ind >= 0)

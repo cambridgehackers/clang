@@ -577,6 +577,7 @@ static bool isExportedFromModuleIntefaceUnit(const NamedDecl *D) {
   switch (D->getModuleOwnershipKind()) {
   case Decl::ModuleOwnershipKind::Unowned:
   case Decl::ModuleOwnershipKind::ModulePrivate:
+  case Decl::ModuleOwnershipKind::AtomiccHidden:
     return false;
   case Decl::ModuleOwnershipKind::Visible:
   case Decl::ModuleOwnershipKind::VisibleWhenImported:
