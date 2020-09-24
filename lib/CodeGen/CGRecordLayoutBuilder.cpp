@@ -696,7 +696,7 @@ static std::string CBEMangle(const std::string S)
 {
     std::string Result;
     for (unsigned i = 0, e = S.size(); i != e; ++i)
-        if (isalnum(S[i]) || S[i] == '_' || S[i] == '$')
+        if (isalnum(S[i]) || S[i] == '$')
             Result += S[i];
         else {
             Result += '_';
@@ -968,11 +968,11 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
           }
           else if (auto param = dyn_cast<AtomiccVerilogParamAttr>(item)) {
               params += sep + param->getParam().str();
-              sep = ";";
+              sep = ",";
           }
       }
       if (params != "")
-          Ty->structFieldMap += "<" + params + ">";
+          Ty->structFieldMap += "<" + CBEMangle(params);
     }
   }
   const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(D);

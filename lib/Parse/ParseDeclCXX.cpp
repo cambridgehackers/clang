@@ -2991,7 +2991,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
         }
         std::string name = Tok.getIdentifierInfo()->getName();
         auto ParamLoc = ConsumeToken();
-        std::string valStr = name + ":";
+        std::string valStr = name + "=";
         if (!TryConsumeToken(tok::equal)) {
             printf("[%s:%d] ERRRRRR ACCCCCCCCCCCCCCCCCCCCCeqparmtoken %s\n", __FUNCTION__, __LINE__, Tok.getName());
         }
@@ -3003,7 +3003,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
         ArgsVector ArgExprs;
         ArgExprs.push_back(StringLiteral::Create(Actions.Context, valStr,
              StringLiteral::Ascii, false, ResTy, ParamLoc));
-        IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_param");
+        IdentifierInfo &AttrID = Actions.Context.Idents.get("atomicc_param"); // AtomiccVerilogParam
         DS.getAttributes().addNew(&AttrID, ParamLoc, nullptr, ParamLoc,
              ArgExprs.data(), ArgExprs.size(), AttributeList::AS_GNU);
       } while (TryConsumeToken(tok::comma));
