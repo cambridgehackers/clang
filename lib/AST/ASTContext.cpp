@@ -1886,8 +1886,8 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     if (rec->hasAttr<AtomiccSerializeAttr>()) {
         for (const Decl *field : rec->fields())
           if (const BuiltinType *Ty = dyn_cast<BuiltinType>(cast<FieldDecl>(field)->getType())) {
-            Width = Ty->atomiccWidth;
-            BWidth = Ty->atomiccWidth;
+            Width = Ty->atomiccWidth;       // AtomiccSerializeAttr
+            BWidth = Ty->atomiccWidth;      // AtomiccSerializeAttr
           }
     }
     break;

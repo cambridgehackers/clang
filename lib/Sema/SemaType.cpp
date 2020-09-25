@@ -1376,8 +1376,6 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       BuiltinType *Ty = new (S.Context, TypeAlignment)
           BuiltinType(DS.getTypeSpecSign()==DeclSpec::TSS_unsigned ? BuiltinType::UInt : BuiltinType::Int);
       std::string val = expr2str(DS.dsAtomiccWidth, state.getSema().getPrintingPolicy());
-//printf("[%s:%d]ACCWWWWW '%s'\n", __FUNCTION__, __LINE__, val.c_str());
-//DS.dsAtomiccWidth->dump();
       if (auto item = dyn_cast<UnaryExprOrTypeTraitExpr>(DS.dsAtomiccWidth))
       if (item->getKind() == UnaryExprOrTypeTrait::UETT_BitSize)
           val = "";
@@ -1388,8 +1386,6 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       if (DS.dsAtomiccWidth->isValueDependent()) {
         Ty->atomiccDependent();
         Ty->atomiccExpr = DS.dsAtomiccWidth;
-        //printf("[%s:%d] AttributeList::AT_AtomiccWidth expr\n", __FUNCTION__, __LINE__);
-        //DS.dsAtomiccWidth->dump();
       }
       else {
         unsigned DestWidth = 9;

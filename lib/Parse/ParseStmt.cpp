@@ -1087,10 +1087,8 @@ namespace {
 
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       if (VarDecl *VD = dyn_cast<VarDecl>(E->getDecl())) {
-          if (isa<BlockDecl>(VD->getDeclContext())) {
-printf("[%s:%d]MOVEFROMBLOCKSSSS\n", __FUNCTION__, __LINE__);
+          if (isa<BlockDecl>(VD->getDeclContext()))
              VD->setDeclContext(getSema().CurContext);
-          } 
           if (Expr *ret = paramMap[VD])
               return ret;
           if (VD->getLexicalDeclContext() == TopContext)

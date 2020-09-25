@@ -3147,7 +3147,7 @@ anyDependentTemplateArguments(ArrayRef<TemplateArgumentLoc> Args,
       const Type *Ty = ArgLoc.getArgument().getAsType().getTypePtr();
       if (auto aa = dyn_cast<BuiltinType>(Ty))
       if (aa->atomiccExpr) {
-        printf("[%s:%d]atomicccweee BT %p ccw %p\n", __FUNCTION__, __LINE__, (void *)aa, (void *)aa->atomiccExpr);
+        //printf("[%s:%d]atomicccweee BT %p ccw %p\n", __FUNCTION__, __LINE__, (void *)aa, (void *)aa->atomiccExpr);
         InstantiationDependent = true;
         return true;
       }

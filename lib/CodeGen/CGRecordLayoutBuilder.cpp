@@ -710,14 +710,14 @@ static bool inline startswith(std::string str, std::string suffix)
 {
     return str.substr(0, suffix.length()) == suffix;
 }
-static std::string tName(QualType Ty)
+static std::string tName(ASTContext &Context, QualType Ty)
 {
     std::string tname = "NONNN";
     if (auto BTy = dyn_cast<BuiltinType>(Ty)) {
-        tname = "Bit(" + llvm::utostr(BTy->atomiccWidth) + ")";
+        tname = "Bit(" + llvm::utostr(Context.getTypeBSize(Ty)) + ")";
     }
     else if (auto ATy = dyn_cast<ConstantArrayType>(Ty)) {
-        tname = "ARRAY_" + llvm::utostr(ATy->getSize().getZExtValue()) + "_" + tName(ATy->getElementType());
+        tname = "ARRAY_" + llvm::utostr(ATy->getSize().getZExtValue()) + "_" + tName(Context, ATy->getElementType());
     }
     else {
 printf("[%s:%d]FFD\n", __FUNCTION__, __LINE__);
@@ -725,7 +725,7 @@ Ty->dump();
     }
     return tname;
 }
-static std::string typeName(CodeGenTypes *CGT, const Decl *decl)
+static std::string typeName(CodeGenTypes *CGT, ASTContext &Context, const Decl *decl)
 {
     std::string tname;
     if (auto RFD = dyn_cast<CXXRecordDecl>(decl)) {
@@ -747,7 +747,7 @@ static std::string typeName(CodeGenTypes *CGT, const Decl *decl)
     else {
         tname = "NOTSTRUCT";
         if (auto FFD = dyn_cast<FieldDecl>(decl))
-            tname = tName(FFD->getType());
+            tname = tName(Context, FFD->getType());
         else {
 printf("[%s:%d]NONSTRUCT\n", __FUNCTION__, __LINE__);
 decl->dump();
@@ -785,10 +785,10 @@ std::string templateOptions;
              skip = true;
          }
        }
-       if (skip || TTy->getNumArgs() == 0)
-           printf("[%s:%d] SKIPADD OF TEMPLATE INFO '%s'\n", __FUNCTION__, __LINE__, templateInfo.c_str());
-       else
+       if (!skip && TTy->getNumArgs())
            templateOptions += templateInfo;
+       //else
+           //printf("[%s:%d] SKIPADD OF TEMPLATE INFO '%s'\n", __FUNCTION__, __LINE__, templateInfo.c_str());
     }
     if (auto BTy = dyn_cast<BuiltinType>(FTy))
     if (BTy->atomiccExpr)
@@ -906,7 +906,7 @@ printf("[%s:%d] UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU\n", __FUNCTION__, __LINE__);
       if (const NamedDecl *ND = dyn_cast<NamedDecl>(field))
         fname = ND->getDeclName().getAsString();
       decl = field->getType()->getAsCXXRecordDecl();
-      tname = typeName(this, decl);
+      tname = typeName(this, Context, decl);
       Ty->structFieldMap += fname + ":" + tname;
     }
   }
@@ -1073,14 +1073,7 @@ printf("[%s:%d] D %p attr %d Ty %p %s = %s\n", __FUNCTION__, __LINE__, (void *)D
         case TemplateArgument::Type: {
             QualType type = AA.getAsType();
             if (name == "T" && !hasWidth) {
-                std::string val;
-                if (auto Ty = dyn_cast<BuiltinType>(type))
-                    val = llvm::utostr(Ty->atomiccWidth);
-                else {
-                    uint64_t bitsize = Context.getTypeBSize(type);
-                    val = llvm::utostr(bitsize);
-                }
-                appendName += sep + "width" + "=" + val;
+                appendName += sep + "width=" + llvm::utostr(Context.getTypeBSize(type));
                 sep = ",";
             }
             break;

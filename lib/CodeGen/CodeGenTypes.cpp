@@ -453,14 +453,13 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     case BuiltinType::Char16:
     case BuiltinType::Char32:
       {
-      long wwidth = cast<BuiltinType>(Ty)->atomiccWidth;
       std::string wwidthStr = cast<BuiltinType>(Ty)->atomiccWidthStr;
       if (wwidthStr != "")
           ResultType = llvm::IntegerType::get(getLLVMContext(),
-              wwidth > 0 ? wwidth : static_cast<unsigned>(Context.getTypeSize(T)), wwidthStr);
+              static_cast<unsigned>(Context.getTypeSize(T)), wwidthStr);
       else
       ResultType = llvm::IntegerType::get(getLLVMContext(),
-                                 wwidth > 0 ? wwidth : static_cast<unsigned>(Context.getTypeSize(T)));
+                                 static_cast<unsigned>(Context.getTypeSize(T)));
       }
       break;
 

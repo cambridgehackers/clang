@@ -2788,7 +2788,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     std::string lstr = expr2str(LHS.get(), Actions.getPrintingPolicy(), true);
     std::string rstr = expr2str(RHS.get(), Actions.getPrintingPolicy(), true);
     lstr = "CONNECT;" + lstr + ":" + rstr;
-    printf("[%s:%d] CONNECT %s\n", __FUNCTION__, __LINE__, lstr.c_str());
+    //printf("[%s:%d] CONNECT %s\n", __FUNCTION__, __LINE__, lstr.c_str());
     attachConnectItem(Actions, thisRecord, lstr);
     if (ExpectAndConsume(tok::semi, diag::err_expected_semi_decl_list)) {
       // Skip to end of block or statement.
@@ -2851,7 +2851,7 @@ printf("[%s:%d] ENDFOROROROROROROROROR\n", __FUNCTION__, __LINE__);
     Actions.PopDeclContext();
 
     lstr = "CONNECT;" + lstr + ":" + rstr;
-    printf("[%s:%d] IMPLEMENTS %s\n", __FUNCTION__, __LINE__, lstr.c_str());
+    //printf("[%s:%d] IMPLEMENTS %s\n", __FUNCTION__, __LINE__, lstr.c_str());
     attachConnectItem(Actions, thisRecord, lstr);
 
     auto StartLoc = thisRecord->getLocation();
@@ -3734,8 +3734,8 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
     auto loc = RD->getLocation();
     QualType QT = QualType(RD->getTypeForDecl(), 0);
     if (!RD->AtomiccAttr && StringRef(sourceFilename).endswith("atomicc.h")) {
-      printf("[%s:%d] UNKKKKK %p %s source %s iscompl %d isdep %d\n", __FUNCTION__, __LINE__, (void *)RD, name.c_str(), sourceFilename.c_str(), RD->isCompleteDefinition(), RD->isDependentType());
-RD->dump();
+      //printf("[%s:%d] UNKKKKK %p %s source %s iscompl %d isdep %d\n", __FUNCTION__, __LINE__, (void *)RD, name.c_str(), sourceFilename.c_str(), RD->isCompleteDefinition(), RD->isDependentType());
+//RD->dump();
       if (!RD->isDependentType() || name == "Printf") {
         static int counter;
         if (RD->getTagKind() == TTK_Class)            // class declarations in atomicc.h are implicitly declared as interfaces
@@ -3749,8 +3749,8 @@ RD->dump();
         Parent->addDecl(dummy);
         dummy->addAttr(::new (Actions.Context) UsedAttr(loc, Actions.Context, 0));
         Actions.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(dummy));
-printf("[%s:%d]DUMMY\n", __FUNCTION__, __LINE__);
-dummy->dump();
+//printf("[%s:%d]DUMMY\n", __FUNCTION__, __LINE__);
+//dummy->dump();
       }
     }
   }
