@@ -3525,6 +3525,25 @@ static void handleAtomiccVerilogParamAttr(Sema &S, Decl *D, const AttributeList 
                           Attr.getAttributeSpellingListIndex()));
 }
 
+static void handleAtomiccTraceAttr(Sema &S, Decl *D, const AttributeList &Attr) {
+  // Make sure that there is a unsigned literal as the annotation's single
+  // argument.
+  uint32_t depth;
+  const Expr *E = Attr.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, Attr, E, depth))
+    return;
+  if (depth == 0) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_is_zero)
+        << Attr.getName() << E->getSourceRange();
+    return;
+  }
+
+
+  D->addAttr(::new (S.Context)
+             AtomiccTraceAttr(Attr.getRange(), S.Context, depth,
+                          Attr.getAttributeSpellingListIndex()));
+}
+
 static void handleAlignedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // check the attribute arguments.
   if (Attr.getNumArgs() > 1) {
@@ -6041,6 +6060,12 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_AtomiccSerialize:
     handleSimpleAttribute<AtomiccSerializeAttr>(S, D, Attr);
+    break;
+  case AttributeList::AT_AtomiccTrace:
+    handleAtomiccTraceAttr(S, D, Attr);
+    break;
+  case AttributeList::AT_AtomiccPrintf:
+    handleSimpleAttribute<AtomiccPrintfAttr>(S, D, Attr);
     break;
   case AttributeList::AT_AtomiccVerilogPort:
     handleSimpleAttribute<AtomiccVerilogPortAttr>(S, D, Attr);

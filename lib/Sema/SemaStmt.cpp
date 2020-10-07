@@ -1935,7 +1935,7 @@ VD->dump();
       }
       if (auto containingMethod = dyn_cast<NamedDecl>(getSema().CurContext))
         namePrefix = containingMethod->getName().str() + "$"; // prepend original method name to params
-printf("[%s:%d]beforeprocessfor name %s record %p\n", __FUNCTION__, __LINE__, namePrefix.c_str(), Record);
+printf("[%s:%d]beforeprocessfor name %s record %p\n", __FUNCTION__, __LINE__, namePrefix.c_str(), (void *)Record);
       if (CallExpr *callMe = ProcessFor(getSema(), S->getForLoc(), namePrefix, S->getInit(), S->getCond(), S->getInc(), S->getBody(), Record, "__generateFor")) {
           SourceLocation loc = S->getForLoc();
           SmallVector<Stmt*, 32> stmtsCond;

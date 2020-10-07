@@ -588,6 +588,19 @@ def AtomiccSerialize : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccTrace : InheritableAttr {
+  let Spellings = [ GNU<"atomicc_trace"> ];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Args = [UnsignedArgument<"Depth">];
+  let Documentation = [Undocumented];
+}
+
+def AtomiccPrintf : InheritableAttr {
+  let Spellings = [ GNU<"atomicc_printf"> ];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [Undocumented];
+}
+
 def AlignMac68k : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];

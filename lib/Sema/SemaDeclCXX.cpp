@@ -10909,24 +10909,23 @@ static void processInterfaceDefinition(Sema &Actions, CXXRecordDecl *Record)
     }
     else if (Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Module
      || Record->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
-            CXXRecordDecl *rec = (Record->bases_end()-1)->getType()->getAsCXXRecordDecl();
-            if (traceDeclaration) {
-                printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, (void *)rec);
-                rec->dump();
-            }
-            extractInterface(rec, "", mapInterface);
-            for (auto field : Record->fields()) {
-                if (auto rec = field->getType()->getAsCXXRecordDecl())
-                if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
-                    extractInterface(rec, field->getName(), mapInterface);
-            }
+        CXXRecordDecl *rec = (Record->bases_end()-1)->getType()->getAsCXXRecordDecl();
+        if (traceDeclaration) {
+            printf("[%s:%d]LIMP rec %p\n", __FUNCTION__, __LINE__, (void *)rec);
+            rec->dump();
+        }
+        extractInterface(rec, "", mapInterface);
+        for (auto field : Record->fields()) {
+            if (auto rec = field->getType()->getAsCXXRecordDecl())
+            if (rec->AtomiccAttr == CXXRecordDecl::AtomiccAttr_Interface)
+                extractInterface(rec, field->getName(), mapInterface);
+        }
 #if 0
-            for (auto item: mapInterface) {
+        for (auto item: mapInterface) {
 printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().str().c_str(), item.first.c_str());
 //item.second->dump();
-            }
+        }
 #endif
-        //}
         for (auto mitem: Record->methods()) {
             if (auto Method = dyn_cast<CXXConstructorDecl>(mitem)) // module constructors always public
                 Method->setAccess(AS_public);
