@@ -33,6 +33,7 @@
 #include "llvm/ADT/SmallVector.h"
 using namespace clang;
 
+#define DOLLAR "$"
 FunctionDecl *getACCFunction(Sema &Actions, DeclContext *DC, std::string Name, QualType RetType,
     ArrayRef<ParmVarDecl *> Params);
 Expr *getACCCallRef(Sema &Actions, FunctionDecl *FD);
@@ -1718,6 +1719,10 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
             LHS = getACCCallRef(Actions, getPast(Actions, Loc));
           if (name == "__valid" || name == "__ready") {
             std::string rstr = parseTokenArgument();
+printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRR '%s'\n", __FUNCTION__, __LINE__, rstr.c_str());
+            int ind = rstr.find(DOLLAR "_" DOLLAR);
+            if (ind > 0)
+                rstr = rstr.substr(0, ind) + rstr.substr(ind+2);
             LHS = getACCCallRef(Actions, getValidReady(Actions, Loc));
             rstr += (name == "__valid" ? "__ENA" : "__RDY");
             ArgExprs.push_back(Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, rstr,
