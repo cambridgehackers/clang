@@ -38,6 +38,7 @@ using namespace clang;
 #define BOGUS_IMPORT                  "$UNUSED$FIELD$IMPORT$"
 #define BOGUS_TRACE                   "$UNUSED$FIELD$TRACE$"
 #define BOGUS_PRINTF                  "$UNUSED$FIELD$PRINTF$"
+#define BOGUS_TOP_MODULE              "$UNUSED$FIELD$TOPMODULE$"
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
@@ -3659,6 +3660,8 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
         for (auto item: RD->getAttrs())
             if (auto param = dyn_cast<AtomiccTraceAttr>(item))
                 createFlagDeclaration(Actions, RD, BOGUS_TRACE + llvm::utostr(param->getDepth()));
+            else if (auto param = dyn_cast<AtomiccTopModuleAttr>(item))
+                createFlagDeclaration(Actions, RD, BOGUS_TOP_MODULE);
       }
     }
   }

@@ -563,6 +563,12 @@ def AtomiccAction : Attr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccTopModule : Attr {
+  let Spellings = [ GNU<"atomicc_topModule"> ];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [Undocumented];
+}
+
 def AtomiccArrayMember : Attr {
   let Spellings = [ GNU<"atomicc_amember"> ];
   let Subjects = SubjectList<[CXXMethod, CXXRecord], ErrorDiag, "ExpectedFunctionOrGlobalVar">;
