@@ -2568,6 +2568,11 @@ static void checkNewAttributesAfterDef(Sema &S, Decl *New, const Decl *Old) {
       }
     }
 
+    if (auto AA = dyn_cast<AtomiccTraceAttr>(NewAttribute)) {
+      // allowed to be added to a function after it is defined.
+      ++I;
+      continue;
+    }
     S.Diag(NewAttribute->getLocation(),
            diag::warn_attribute_precede_definition);
     S.Diag(Def->getLocation(), diag::note_previous_definition);
