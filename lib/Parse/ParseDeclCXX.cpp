@@ -39,6 +39,7 @@ using namespace clang;
 #define BOGUS_TRACE                   "$UNUSED$FIELD$TRACE$"
 #define BOGUS_PRINTF                  "$UNUSED$FIELD$PRINTF$"
 #define BOGUS_TOP_MODULE              "$UNUSED$FIELD$TOPMODULE$"
+#define BOGUS_OVERRIDE                "$UNUSED$FIELD$OVERRIDE$"
 CallExpr *ProcessFor(Sema &Actions, SourceLocation loc, std::string prefix, Stmt *initExpr, Expr *cond, Expr *incExpr, Stmt *body, CXXRecordDecl *Record, std::string functionName);
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
@@ -48,6 +49,22 @@ llvm::cl::opt<bool>
     traceImplements("itrace", llvm::cl::Optional, llvm::cl::desc("trace interface declaration forcing"));
 bool inDeclForLoop;
 
+namespace clang {
+std::string CBEMangle(const std::string S)
+{
+    std::string Result;
+    for (unsigned i = 0, e = S.size(); i != e; ++i)
+        if (isalnum(S[i]) || S[i] == '$')
+            Result += S[i];
+        else {
+            Result += '_';
+            Result += 'A'+(S[i]&15);
+            Result += 'A'+((S[i]>>4)&15);
+            Result += '_';
+        }
+    return Result;
+}
+}
 std::string getSourceFilename(const Decl *D)
 {
   PresumedLoc PLoc = D->getASTContext().getSourceManager().getPresumedLoc(D->getLocStart());
@@ -88,7 +105,7 @@ static CXXRecordDecl *findRecord(Decl *decl)
     return nullptr;
 }
 
-static void createFlagDeclaration(Sema &Actions, CXXRecordDecl *RD, std::string name)
+void createFlagDeclaration(Sema &Actions, CXXRecordDecl *RD, std::string name)
 {
     auto StartLoc = RD->getLocation();
     BuiltinType *Ty = new (Actions.Context, TypeAlignment) BuiltinType(BuiltinType::UInt);
@@ -2198,6 +2215,21 @@ void Parser::ParseBaseClause(Decl *ClassDecl) {
 
   // Attach the base specifiers
   Actions.ActOnBaseSpecifiers(ClassDecl, BaseInfo);
+  while (Tok.is(tok::kw___override)) {
+    ConsumeToken();
+    assert(Tok.is(tok::l_paren) && "Expected '('");
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+    if (T.consumeOpen()) {
+  assert(false && "not open");
+      //return StmtError();
+    }
+    std::string rstr = parseTokenArgument();
+printf("[%s:%d]OOOOOOOOOOVVVVVVVVVVVEEEEEEEEERRRRRRRRRRRRRRRRRR111 %s\n", __FUNCTION__, __LINE__, rstr.c_str());
+    if (auto RD = findRecord(ClassDecl))
+        createFlagDeclaration(Actions, RD, BOGUS_OVERRIDE + CBEMangle(rstr));
+    if (!T.consumeClose())
+      {}
+  } // end of '__override'
 }
 
 /// ParseBaseSpecifier - Parse a C++ base-specifier. A base-specifier is
