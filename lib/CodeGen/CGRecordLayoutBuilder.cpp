@@ -38,6 +38,7 @@ std::string getSourceFilename(const Decl *D);
 extern std::map<const llvm::StructType *, const llvm::StructType *> atomiccStructRemap;
 namespace clang {
 std::string expr2str(Expr *expr, const PrintingPolicy &Policy, bool methodName = false);
+std::string CBEMangle(const std::string S);
 }
 #define CONNECT_PREFIX "___CONNECT__"
 namespace {
@@ -692,20 +693,6 @@ CGBitFieldInfo CGBitFieldInfo::MakeInfo(CodeGenTypes &Types,
   return CGBitFieldInfo(Offset, Size, IsSigned, StorageSize, StorageOffset);
 }
 
-static std::string CBEMangle(const std::string S)
-{
-    std::string Result;
-    for (unsigned i = 0, e = S.size(); i != e; ++i)
-        if (isalnum(S[i]) || S[i] == '$')
-            Result += S[i];
-        else {
-            Result += '_';
-            Result += 'A'+(S[i]&15);
-            Result += 'A'+((S[i]>>4)&15);
-            Result += '_';
-        }
-    return Result;
-}
 static bool inline startswith(std::string str, std::string suffix)
 {
     return str.substr(0, suffix.length()) == suffix;
