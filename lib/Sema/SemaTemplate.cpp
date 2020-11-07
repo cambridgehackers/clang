@@ -38,6 +38,7 @@ using namespace clang;
 using namespace sema;
 
 extern bool traceImplements;
+void createFlagDeclaration(Sema &Actions, CXXRecordDecl *RD, std::string name);
 // Exported for use by Parser.
 SourceRange
 clang::getTemplateParamsRange(TemplateParameterList const * const *Ps,
@@ -1113,6 +1114,7 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
          "No template parameters");
   assert(TUK != TUK_Reference && "Can only declare or define class templates");
   bool Invalid = false;
+  CXXRecordDecl *prevRD = nullptr;
 
   // Check that we can declare a template here.
   if (CheckTemplateDeclScope(S, TemplateParams))
@@ -1322,13 +1324,12 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
 
     // Check for redefinition of this class template.
     if (TUK == TUK_Definition) {
-      bool isHidden = false;
       if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(PrevRecordDecl))
       if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
             printf("[%s:%d] SemaTemplate specialize EModule template\n", __FUNCTION__, __LINE__);
-            isHidden = true;
+            prevRD = RD;
       }
-      if (!isHidden)
+      if (!prevRD)
       if (TagDecl *Def = PrevRecordDecl->getDefinition()) {
         // If we have a prior definition that is not visible, treat this as
         // simply making that previous definition visible.
@@ -1412,6 +1413,10 @@ Sema::CheckClassTemplate(Scope *S, unsigned TagSpec, TagUseKind TUK,
   if (TUK == TUK_Definition) {
     AddAlignmentAttributesForRecord(NewClass);
     AddMsStructLayoutForRecord(NewClass);
+  }
+  if (prevRD) {
+      for (auto item: prevRD->fields())
+        createFlagDeclaration(*this, NewClass, item->getName().str());
   }
 
   // Attach the associated constraints when the declaration will not be part of

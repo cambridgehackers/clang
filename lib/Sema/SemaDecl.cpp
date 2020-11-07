@@ -52,6 +52,7 @@ using namespace clang;
 extern bool inDeclForLoop;
 using namespace sema;
 
+void createFlagDeclaration(Sema &Actions, CXXRecordDecl *RD, std::string name);
 Sema::DeclGroupPtrTy Sema::ConvertDeclToDeclGroup(Decl *Ptr, Decl *OwnedType) {
   if (OwnedType) {
     Decl *Group[2] = { OwnedType, Ptr };
@@ -13187,6 +13188,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
   // FIXME: Check member specializations more carefully.
   bool isMemberSpecialization = false;
   bool Invalid = false;
+  CXXRecordDecl *prevRD = nullptr;
 
   // We only need to do this matching if we have template parameters
   // or a scope specifier, which also conveniently avoids this work
@@ -13612,6 +13614,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
       if (CXXRecordDecl *RD = dyn_cast_or_null<CXXRecordDecl>(PrevTagDecl->getDefinition()))
       if (RD->AtomiccAttr == CXXRecordDecl::AtomiccAttr_EModule) {
           printf("[%s:%d] SemaDecl.cpp specialize EModule %s\n", __FUNCTION__, __LINE__, RD->getNameAsString().c_str());
+          prevRD = RD;
           RD->setModuleOwnershipKind(Decl::ModuleOwnershipKind::AtomiccHidden);
           // Ignoring the old declaration.
           Previous.clear();
@@ -13994,6 +13997,11 @@ CreateNewDecl:
       AddAlignmentAttributesForRecord(RD);
       AddMsStructLayoutForRecord(RD);
     }
+  }
+  if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(New))
+  if (prevRD) {
+    for (auto item: prevRD->fields())
+      createFlagDeclaration(*this, RD, item->getName().str());
   }
 
   if (ModulePrivateLoc.isValid()) {
