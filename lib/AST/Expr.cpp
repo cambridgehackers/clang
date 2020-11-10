@@ -1611,6 +1611,14 @@ bool CastExpr::CastConsistency() const {
   case CK_ZeroToOCLEvent:
   case CK_ZeroToOCLQueue:
   case CK_IntToOCLSampler:
+#if 0
+if (getType()->isBooleanType()) {
+printf("[%s:%d]CCCCCCCCCCCCCCCCCCCCCC\n", __FUNCTION__, __LINE__);
+getType()->dump();
+printf("[%s:%d]\n", __FUNCTION__, __LINE__);
+this->dump();
+}
+#endif
     assert(!getType()->isBooleanType() && "unheralded conversion to bool");
     goto CheckNoBasePath;
 

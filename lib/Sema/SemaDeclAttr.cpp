@@ -3528,7 +3528,7 @@ static void handleAtomiccVerilogParamAttr(Sema &S, Decl *D, const AttributeList 
 static void handleAtomiccTraceAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // Make sure that there is a unsigned literal as the annotation's single
   // argument.
-  uint32_t depth;
+  uint32_t depth, head;
   const Expr *E = Attr.getArgAsExpr(0);
   if (!checkUInt32Argument(S, Attr, E, depth))
     return;
@@ -3537,10 +3537,18 @@ static void handleAtomiccTraceAttr(Sema &S, Decl *D, const AttributeList &Attr) 
         << Attr.getName() << E->getSourceRange();
     return;
   }
+  E = Attr.getArgAsExpr(1);
+  if (!checkUInt32Argument(S, Attr, E, head))
+    return;
+  if (head != 0 && head != 1) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_is_zero)
+        << Attr.getName() << E->getSourceRange();
+    return;
+  }
 
 
   D->addAttr(::new (S.Context)
-             AtomiccTraceAttr(Attr.getRange(), S.Context, depth,
+             AtomiccTraceAttr(Attr.getRange(), S.Context, depth, head,
                           Attr.getAttributeSpellingListIndex()));
 }
 

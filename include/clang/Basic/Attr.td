@@ -597,7 +597,7 @@ def AtomiccSerialize : InheritableAttr {
 def AtomiccTrace : InheritableAttr {
   let Spellings = [ GNU<"atomicc_trace"> ];
   let Subjects = SubjectList<[CXXRecord]>;
-  let Args = [UnsignedArgument<"Depth">];
+  let Args = [UnsignedArgument<"Depth">, UnsignedArgument<"Head">];
   let Documentation = [Undocumented];
 }
 

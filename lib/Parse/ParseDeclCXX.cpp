@@ -3691,7 +3691,7 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
       if (RD->hasAttrs()) {
         for (auto item: RD->getAttrs())
             if (auto param = dyn_cast<AtomiccTraceAttr>(item))
-                createFlagDeclaration(Actions, RD, BOGUS_TRACE + llvm::utostr(param->getDepth()));
+                createFlagDeclaration(Actions, RD, BOGUS_TRACE + llvm::utostr(param->getDepth()) + "_" + llvm::utostr(param->getHead()));
             else if (auto param = dyn_cast<AtomiccTopModuleAttr>(item))
                 createFlagDeclaration(Actions, RD, BOGUS_TOP_MODULE);
       }
