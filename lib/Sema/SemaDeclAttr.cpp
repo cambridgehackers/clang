@@ -6057,6 +6057,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case AttributeList::AT_AtomiccAction:
     handleSimpleAttribute<AtomiccActionAttr>(S, D, Attr);
     break;
+  case AttributeList::AT_AtomiccAsync:
+    handleSimpleAttribute<AtomiccAsyncAttr>(S, D, Attr);
+    break;
   case AttributeList::AT_AtomiccTopModule:
     handleSimpleAttribute<AtomiccTopModuleAttr>(S, D, Attr);
     break;

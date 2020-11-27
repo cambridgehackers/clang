@@ -995,6 +995,8 @@ printf("[%s:%d] ERROR in fieldnumber Idx %d Field %d name %s\n", __FUNCTION__, _
         Ty->structFieldMap += Out.str().str() + ":" + mname;
         if (MD->hasAttr<AtomiccActionAttr>())
             Ty->structFieldMap += ":action";
+        if (MD->hasAttr<AtomiccAsyncAttr>())
+            Ty->structFieldMap += ":async";
         if (auto NDtemplate = mapTemplate[MD->getName()])
         if (auto method = dyn_cast<CXXMethodDecl>(NDtemplate)) {
             std::string templateOptions = getTemplateInfo(method->getReturnType(), Policy);

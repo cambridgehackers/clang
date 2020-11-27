@@ -1724,7 +1724,7 @@ printf("[%s:%d]RRRRRRRRRRRRRRRRRRRRRRR '%s'\n", __FUNCTION__, __LINE__, rstr.c_s
             if (ind > 0)
                 rstr = rstr.substr(0, ind) + rstr.substr(ind+2);
             LHS = getACCCallRef(Actions, getValidReady(Actions, Loc));
-            rstr += (name == "__valid" ? "__ENA" : "__RDY");
+            rstr += (name == "__valid" ? "__ENA" : (name == "__ready" ? "__RDY" : "__ACK"));
             ArgExprs.push_back(Actions.ImpCastExprToType(StringLiteral::Create(Actions.Context, rstr,
               StringLiteral::Ascii, /*Pascal*/ false,
               Actions.Context.getConstantArrayType(Actions.Context.CharTy.withConst(),

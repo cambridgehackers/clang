@@ -1128,7 +1128,8 @@ StmtResult Parser::ParseRuleStatement(bool isDecl) {
   Actions.PushDeclContext(curScope, Block);
   if (Tok.is(tok::kw_if)) {
     // Now parse the guard of the __rule declaration/statement
-    guardM = buildFunc(Actions, fname + "__RDY", transform.RuleLoc, Actions.Context.BoolTy, DC);
+    std::string gname = fname + "__RDY";
+    guardM = buildFunc(Actions, gname, transform.RuleLoc, Actions.Context.BoolTy, DC);
     ConsumeToken();  // eat the 'if'.
     if (Tok.isNot(tok::l_paren)) {
       Diag(Tok, diag::err_expected_lparen_after) << "if";
@@ -1195,7 +1196,8 @@ exit(-1);
       IdentifierInfo *IFn = &Actions.Context.Idents.get(fname);
       transform.ruleM->setDeclName(DeclarationName(IFn));
       if (GuardExpr) {
-          IdentifierInfo *IFn = &Actions.Context.Idents.get(fname + "__RDY");
+          std::string gname = fname + "__RDY";
+          IdentifierInfo *IFn = &Actions.Context.Idents.get(gname);
           guardM->setDeclName(DeclarationName(IFn));
       }
   }
@@ -2466,7 +2468,8 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
          /*ExceptionSpecTokens=*/nullptr, /*DeclsInPrototype=*/None,
          IfLoc, IfLoc, DFunc), parsedAttrs, IfLoc);
     DFunc.setFunctionDefinitionKind(FDK_Declaration);
-    IdentifierInfo &funcName = Actions.Context.Idents.get(method->getName().str() + "__RDY");
+    std::string gname = method->getName().str() + "__RDY";
+    IdentifierInfo &funcName = Actions.Context.Idents.get(gname);
     DFunc.SetIdentifier(&funcName, IfLoc);
     LookupResult Previous(Actions, Actions.GetNameForDeclarator(DFunc),
         Sema::LookupOrdinaryName, Sema::ForRedeclaration);

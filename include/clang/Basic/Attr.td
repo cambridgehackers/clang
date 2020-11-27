@@ -563,6 +563,12 @@ def AtomiccAction : Attr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccAsync : Attr {
+  let Spellings = [ GNU<"atomicc_async"> ];
+  let Subjects = SubjectList<[CXXMethod]>;
+  let Documentation = [Undocumented];
+}
+
 def AtomiccTopModule : Attr {
   let Spellings = [ GNU<"atomicc_topModule"> ];
   let Subjects = SubjectList<[CXXRecord]>;

@@ -65,6 +65,11 @@ static llvm::cl::opt<bool>
 // CheckDefaultArgumentVisitor
 //===----------------------------------------------------------------------===//
 
+bool isRdyName(std::string name)
+{
+    return StringRef(name).endswith("__RDY") || StringRef(name).endswith("__ACK");
+}
+
 namespace {
   /// CheckDefaultArgumentVisitor - C++ [dcl.fct.default] Traverses
   /// the default argument of a parameter to determine whether it
@@ -10937,12 +10942,17 @@ printf("[%s:%d] %s interface %s\n", __FUNCTION__, __LINE__, Record->getName().st
                 bool hasMap = (mapInterface.find(mname) != mapInterface.end());
                 if (mname.endswith(BOGUS_FORCE_DECLARATION_METHOD))
                     continue;
-                if (!mname.endswith("__RDY") && !mname.startswith(RULE_PREFIX) && !mname.startswith(FOR_FUNCTION_PREFIX))
+                if (!isRdyName(mname) && !mname.startswith(RULE_PREFIX) && !mname.startswith(FOR_FUNCTION_PREFIX))
                 if (Method->getType()->castAs<FunctionType>()->getCallConv() == CC_X86VectorCall) {
 printf("[%s:%d]MMMMMMMMMMMMMMMMMMMMM\n", __FUNCTION__, __LINE__);
 Method->dump();
                 }
-                if (hasMap || mname.endswith("__RDY") || mname.startswith(RULE_PREFIX) || mname.startswith(FOR_FUNCTION_PREFIX)) {
+                if (hasMap || isRdyName(mname) || mname.startswith(RULE_PREFIX) || mname.startswith(FOR_FUNCTION_PREFIX)) {
+                    if (hasMap)
+                    if (auto mapMethod = mapInterface[mname]) {
+                        if (mapMethod->hasAttr<AtomiccAsyncAttr>())
+                            Method->addAttr(::new (Actions.Context) AtomiccAsyncAttr(Method->getLocation(), Actions.Context, 0));
+                    }
                     std::string MangledName = getMangledName(Actions, Method);
                     aliasRecord = dyn_cast_or_null<CXXRecordDecl>(mangleNameMap[MangledName]);
                     if (!aliasRecord) {
