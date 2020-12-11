@@ -3552,6 +3552,18 @@ static void handleAtomiccTraceAttr(Sema &S, Decl *D, const AttributeList &Attr) 
                           Attr.getAttributeSpellingListIndex()));
 }
 
+static void handleAtomiccClockAttr(Sema &S, Decl *D, const AttributeList &Attr) {
+  // Make sure that there is a string literal as the annotation's single
+  // argument.
+  StringRef name;
+  if (!S.checkStringLiteralArgumentAttr(Attr, 0, name))
+    return;
+
+  D->addAttr(::new (S.Context)
+             AtomiccClockAttr(Attr.getRange(), S.Context, name,
+                          Attr.getAttributeSpellingListIndex()));
+}
+
 static void handleAlignedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // check the attribute arguments.
   if (Attr.getNumArgs() > 1) {
@@ -6068,6 +6080,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_AtomiccShared:
     handleSimpleAttribute<AtomiccSharedAttr>(S, D, Attr);
+    break;
+  case AttributeList::AT_AtomiccClock:
+    handleAtomiccClockAttr(S, D, Attr);
     break;
   case AttributeList::AT_AtomiccSoftware:
     handleSimpleAttribute<AtomiccSoftwareAttr>(S, D, Attr);

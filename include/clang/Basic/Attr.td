@@ -588,6 +588,13 @@ def AtomiccShared : Attr {
   let Documentation = [Undocumented];
 }
 
+def AtomiccClock : Attr {
+  let Spellings = [ GNU<"atomicc_clock"> ];
+  let Subjects = SubjectList<[Field], ErrorDiag, "ExpectedParameterOrTypedef">;
+  let Args = [StringArgument<"Name">];
+  let Documentation = [Undocumented];
+}
+
 def AtomiccSoftware : InheritableAttr {
   let Spellings = [ GNU<"atomicc_software"> ];
   let Subjects = SubjectList<[Field], WarnDiag, "ExpectedFieldOrGlobalVar">;

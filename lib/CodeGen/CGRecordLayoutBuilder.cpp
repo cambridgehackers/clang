@@ -925,6 +925,8 @@ else {  // !isUnion()
         fname = ND->getDeclName().getAsString();
         if (FD->hasAttr<AtomiccSharedAttr>())
           fname += ":shared";
+        else if (const AtomiccClockAttr *A = FD->getAttr<AtomiccClockAttr>())
+          fname += ":Clock=" + A->getName().str();
         else if (const AtomiccVerilogPortAttr *A = FD->getAttr<AtomiccVerilogPortAttr>())
           fname += ":" + std::string(A->getSpelling()).substr(2); // remove leading '__'
         if (templateDecl) {
