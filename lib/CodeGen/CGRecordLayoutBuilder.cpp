@@ -926,7 +926,7 @@ else {  // !isUnion()
         if (FD->hasAttr<AtomiccSharedAttr>())
           fname += ":shared";
         else if (const AtomiccClockAttr *A = FD->getAttr<AtomiccClockAttr>())
-          fname += ":Clock=" + A->getName().str();
+          fname += ":Clock=" + A->getName().str() + ":" + A->getReset().str();
         else if (const AtomiccVerilogPortAttr *A = FD->getAttr<AtomiccVerilogPortAttr>())
           fname += ":" + std::string(A->getSpelling()).substr(2); // remove leading '__'
         if (templateDecl) {

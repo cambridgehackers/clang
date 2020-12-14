@@ -591,7 +591,7 @@ def AtomiccShared : Attr {
 def AtomiccClock : Attr {
   let Spellings = [ GNU<"atomicc_clock"> ];
   let Subjects = SubjectList<[Field], ErrorDiag, "ExpectedParameterOrTypedef">;
-  let Args = [StringArgument<"Name">];
+  let Args = [StringArgument<"Name">, StringArgument<"Reset">];
   let Documentation = [Undocumented];
 }
 

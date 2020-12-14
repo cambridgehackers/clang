@@ -3555,12 +3555,14 @@ static void handleAtomiccTraceAttr(Sema &S, Decl *D, const AttributeList &Attr) 
 static void handleAtomiccClockAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   // Make sure that there is a string literal as the annotation's single
   // argument.
-  StringRef name;
+  StringRef name, resetName;
   if (!S.checkStringLiteralArgumentAttr(Attr, 0, name))
+    return;
+  if (!S.checkStringLiteralArgumentAttr(Attr, 1, resetName))
     return;
 
   D->addAttr(::new (S.Context)
-             AtomiccClockAttr(Attr.getRange(), S.Context, name,
+             AtomiccClockAttr(Attr.getRange(), S.Context, name, resetName,
                           Attr.getAttributeSpellingListIndex()));
 }
 
